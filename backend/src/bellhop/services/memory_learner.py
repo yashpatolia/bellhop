@@ -53,6 +53,7 @@ class MemoryLearner:
         transcript: Sequence[Turn],
         resident_name: str | None = None,
         known_facts: Sequence[str] = (),
+        call_id: str | None = None,
     ) -> LearnReport:
         clean = [t.model_copy(update={"text": scrub(t.text, resident_name)}) for t in transcript]
         report = LearnReport()
@@ -72,6 +73,8 @@ class MemoryLearner:
                 tags=[cand.kind.value],
                 source="conversation",
                 confidence=self._confidence(cand),
+                quote=cand.quote,
+                call_id=call_id,
             )
             if isinstance(result, Accepted):
                 report.stored.append(result.fact)

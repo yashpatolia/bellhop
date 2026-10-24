@@ -12,7 +12,7 @@ function call(daysAgo: number, hour: number, category: Category, urgency: Urgenc
   return {
     id: `c${n++}`,
     residentId: 'r1',
-    room: 101,
+    room: '101',
     urgency,
     category,
     status: 'resolved',
@@ -23,11 +23,7 @@ function call(daysAgo: number, hour: number, category: Category, urgency: Urgenc
     resolvedAt: at.getTime() + 300_000,
     resolvedByRobot: byRobot,
     summary: '',
-    sbar: { s: '', b: '', a: '', r: '' },
     transcript: [],
-    confidence: 0.9,
-    costUsd: 0.1,
-    feedback: null,
   }
 }
 

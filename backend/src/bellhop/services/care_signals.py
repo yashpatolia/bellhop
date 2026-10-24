@@ -73,6 +73,7 @@ class CareSignals:
         value: float | None,
         call_id: str | None,
         note: str,
+        at: datetime | None = None,
     ) -> CareEntry:
         entry = CareEntry(
             id=self._ids.new_id("ce"),
@@ -81,23 +82,33 @@ class CareSignals:
             kind=kind,
             value=value,
             note=note,
-            at=self._clock.now(),
+            at=at or self._clock.now(),
         )
         self._care.add(entry)
         return entry
 
     def record_mood(
-        self, resident_id: str, score: float, call_id: str | None = None, note: str = ""
+        self,
+        resident_id: str,
+        score: float,
+        call_id: str | None = None,
+        note: str = "",
+        at: datetime | None = None,
     ) -> CareEntry:
-        entry = self._record(resident_id, EntryKind.MOOD, score, call_id, note)
+        entry = self._record(resident_id, EntryKind.MOOD, score, call_id, note, at)
         if self.mood_changed_from_usual(resident_id, entry.at).changed:
             self.raise_flag(resident_id, FlagType.DISTRESS, "mood lower than usual", call_id)
         return entry
 
     def record_pain(
-        self, resident_id: str, score: float, call_id: str | None = None, note: str = ""
+        self,
+        resident_id: str,
+        score: float,
+        call_id: str | None = None,
+        note: str = "",
+        at: datetime | None = None,
     ) -> CareEntry:
-        entry = self._record(resident_id, EntryKind.PAIN, score, call_id, note)
+        entry = self._record(resident_id, EntryKind.PAIN, score, call_id, note, at)
         days = self.pain_streak(resident_id, entry.at).days
         if days >= PAIN_FLAG_DAYS:
             self.raise_flag(

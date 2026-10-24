@@ -30,6 +30,7 @@ def test_learning_setting_is_read_from_the_environment(monkeypatch):
 
 
 def test_claude_learning_builds_a_claude_extractor(monkeypatch):
+    pytest.importorskip("anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-used")
     c = build_container(Settings(learning="claude"))
     assert isinstance(c.memory_learner._extractor, ClaudeFactExtractor)

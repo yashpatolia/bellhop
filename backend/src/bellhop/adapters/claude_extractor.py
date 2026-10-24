@@ -10,8 +10,6 @@ import os
 from collections.abc import Sequence
 from typing import Any
 
-import anthropic
-
 from bellhop.domain import Turn
 from bellhop.domain.learning import CandidateFact, ExtractedFacts
 
@@ -66,7 +64,11 @@ class ClaudeFactExtractor:
         effort: str = DEFAULT_EFFORT,
         max_tokens: int = 4096,
     ) -> None:
-        self._client = client if client is not None else anthropic.Anthropic()
+        if client is None:
+            import anthropic  # optional dependency: only needed to call the real API
+
+            client = anthropic.Anthropic()
+        self._client = client
         self._model = model or os.environ.get(MODEL_ENV) or DEFAULT_MODEL
         self._effort = effort
         self._max_tokens = max_tokens

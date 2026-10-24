@@ -47,6 +47,13 @@ Admin routes, SSE and research notes are merged on master (eb62be9, with the das
 | SpacetimeDB store | Token auth and Maincloud untried; only local, no token |
 | `HttpRobotGateway` | Never pointed at a real Pi |
 
+## Dashboard and simulator (2026-10-24)
+| Area | State |
+| --- | --- |
+| Dashboard on the real backend | Done and run in a browser: live calls, alerts, robots, metrics over REST plus SSE, "I'm on my way", "Mark done", review queue, staff notes, offline and empty states. Unit tests cover the wire adapter and the store against `contracts/examples` |
+| Simulator | Done: seeds and plays a home through the public routes; tested against the real backend |
+| Not done | Staff login, a UI to add residents, SpacetimeDB persistence for memory facts, care data and medical history, nothing yet run with the real robot |
+
 ## Known gaps and risks
 | Gap | Detail |
 | --- | --- |

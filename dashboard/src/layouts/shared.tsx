@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import type { BellhopData, Call, Urgency } from '../data/types'
+import { useState, type ReactNode } from 'react'
+import type { BellhopData, Call, Resident, Urgency } from '../data/types'
 import { Bars, HBars, Sparkline } from '../components/Charts'
 import {
   CATEGORY_LABEL,
@@ -11,28 +11,16 @@ import {
   elapsed,
   activeAlerts,
   isOpen,
-  money,
   statusText,
 } from '../lib'
+import { NAV, ROBOT_WORDS, residentOf } from './board'
 import './shared.css'
 
-export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_route: 'Driving', with_resident: 'With a resident', charging: 'Charging' }
-
-export const NAV = [
-  { id: 'live', label: 'Live', href: '#/' },
-  { id: 'insights', label: 'Insights', href: '#/insights' },
-  { id: 'residents', label: 'Residents', href: '#/residents' },
-]
-
-/** Open calls, most urgent first, and the one currently selected (defaults to the most urgent). */
-export function useBoard(data: BellhopData) {
-  const [picked, setPicked] = useState<string | null>(null)
-  const open = useMemo(() => data.calls.filter(isOpen).sort((a, b) => b.urgency - a.urgency || a.createdAt - b.createdAt), [data.calls])
-  const selected = data.calls.find((c) => c.id === picked) ?? open[0]
-  return { open, selected, pick: setPicked }
+/** A few of the things Bellhop has learned and is using, as one plain sentence. */
+function known(r: Resident): string {
+  const facts = r.learned.filter((f) => f.status === 'active' && f.kind !== 'health').slice(0, 3)
+  return facts.length ? facts.map((f) => f.text).join('. ') + '.' : 'Nothing learned about them yet.'
 }
-
-export const residentOf = (data: BellhopData, c: Call) => data.residents.find((r) => r.id === c.residentId)
 
 export function Chip({ u }: { u: Urgency }) {
   return <span className={`sb-chip u${u}`}>{URGENCY_LABEL[u]}</span>
@@ -109,7 +97,6 @@ export function Numbers({ data }: { data: BellhopData }) {
     { v: `${k.minutesSaved} min`, l: `nurse time saved (${MIN_SAVED_PER_CALL} min per call)` },
     { v: `${mm}:${ss}`, l: 'median time to a first voice' },
     { v: `${Math.round(k.within10 * 100)}%`, l: `answered within 10 min (target 80%)` },
-    { v: money(k.costToday), l: `AI cost today (${money(k.costPerCall)} per call)` },
   ]
   return (
     <dl className="sb-numbers" aria-label="Today in numbers">
@@ -161,19 +148,16 @@ export function Detail({ call, data, empty }: { call: Call | undefined; data: Be
       <Action call={call} data={data} big />
 
       <h3>Nurse summary</h3>
-      {talked ? (
-        <dl className="sb-sbar">
-          <dt>Situation</dt>
-          <dd>{call.sbar.s}</dd>
-          <dt>Recommendation</dt>
-          <dd>{call.sbar.r}</dd>
-          <dt>Assessment</dt>
-          <dd>{call.sbar.a}</dd>
-          <dt>Background</dt>
-          <dd>{call.sbar.b}</dd>
-        </dl>
+      {call.summary ? (
+        <p className="sb-summary-text">{call.summary}</p>
       ) : (
-        <p className="sb-wait">The summary appears once Bellhop has talked with the resident.</p>
+        <p className="sb-wait">{talked ? 'Bellhop is still working out what is needed.' : 'The summary appears once Bellhop has talked with the resident.'}</p>
+      )}
+      {r && (
+        <p className="sb-know">
+          <strong>Background. </strong>
+          {r.name}{r.age ? `, ${r.age}` : ''}. {r.flags.length ? r.flags.join(', ') : 'No flags'}.
+        </p>
       )}
 
       {call.transcript.length === 0 && isOpen(call) && (
@@ -204,15 +188,9 @@ export function Detail({ call, data, empty }: { call: Call | undefined; data: Be
       {r && (
         <>
           <h3>What Bellhop knows</h3>
-          <p className="sb-know">
-            {r.flags.length > 0 && <strong>{r.flags.join(', ')}. </strong>}
-            Likes {r.likes.join(', ').toLowerCase()}.
-          </p>
+          <p className="sb-know">{known(r)}</p>
         </>
       )}
-      <p className="sb-fine">
-        Triage confidence {Math.round(call.confidence * 100)}%, AI cost {money(call.costUsd)}
-      </p>
     </article>
   )
 }
@@ -286,7 +264,7 @@ interface LogEvent {
   id: string
   at: number
   urgency: Urgency
-  room: number | null
+  room: string | null
   text: string
   open: boolean
   callId?: string
@@ -379,4 +357,25 @@ export function Activity({ data, onPick, selectedId, actions, startOn = 'all' }:
       )}
     </section>
   )
+}
+
+/** Says plainly when the screens are not showing live data, when an action failed, or when the home is empty. */
+export function ConnectionBanner({ data }: { data: BellhopData }) {
+  const { state, problem, empty } = data.connection
+  if (state === 'connecting') return <p className="sb-banner" role="status">Connecting to Bellhop...</p>
+  if (problem) {
+    return (
+      <p className={`sb-banner ${state === 'offline' ? 'bad' : ''}`} role="alert">
+        {problem}
+      </p>
+    )
+  }
+  if (empty) {
+    return (
+      <p className="sb-banner" role="status">
+        This home is empty. Add residents and nurses through the Bellhop backend, or run the simulator to fill it with example data (see simulator/README.md).
+      </p>
+    )
+  }
+  return null
 }

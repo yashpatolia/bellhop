@@ -575,6 +575,50 @@
         }
       }
     },
+    "/calls/import": {
+      "post": {
+        "summary": "Import Call",
+        "description": "Store a finished call from the past. Raises no alerts and triggers no learning.",
+        "operationId": "import_call_calls_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Call"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
     "/labelled-examples": {
       "get": {
         "summary": "Labelled Examples",
@@ -875,6 +919,55 @@
         }
       }
     },
+    "/residents/{resident_id}/memory/all": {
+      "get": {
+        "summary": "All Memory",
+        "description": "Every stored fact with its provenance, oldest first.",
+        "operationId": "all_memory_residents__resident_id__memory_all_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryFact"
+                  },
+                  "title": "Response All Memory Residents  Resident Id  Memory All Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/residents/{resident_id}/memory/pending": {
       "get": {
         "summary": "Pending Memory",
@@ -1133,6 +1226,83 @@
         }
       }
     },
+    "/residents/{resident_id}/care/history": {
+      "get": {
+        "summary": "Care History",
+        "description": "Recorded mood, pain and drink entries from the last `days` days, oldest first.",
+        "operationId": "care_history_residents__resident_id__care_history_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "default": 14,
+              "title": "Days"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EntryKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CareEntry"
+                  },
+                  "title": "Response Care History Residents  Resident Id  Care History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/residents/{resident_id}/care/summary": {
       "get": {
         "summary": "Care Summary",
@@ -1162,6 +1332,211 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Care Summary Residents  Resident Id  Care Summary Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/medical": {
+      "get": {
+        "summary": "Read Medical",
+        "operationId": "read_medical_residents__resident_id__medical_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicalRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Replace Medical",
+        "operationId": "replace_medical_residents__resident_id__medical_put",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicalIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicalRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/medical/entries": {
+      "post": {
+        "summary": "Add Medical Entry",
+        "operationId": "add_medical_entry_residents__resident_id__medical_entries_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicalEntryIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicalRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/notes/refine": {
+      "post": {
+        "summary": "Refine Note",
+        "description": "Tidy a staff note. Nothing is saved: staff review the result, then save it.",
+        "operationId": "refine_note_residents__resident_id__notes_refine_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefinedNote"
                 }
               }
             }
@@ -2403,6 +2778,17 @@
               }
             ],
             "title": "Resolved At"
+          },
+          "resolved_by_robot": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Robot"
           }
         },
         "type": "object",
@@ -2412,6 +2798,109 @@
           "created_at"
         ],
         "title": "Call"
+      },
+      "CallImport": {
+        "properties": {
+          "room": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Room"
+          },
+          "resident_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resident Id"
+          },
+          "urgency": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Urgency"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Category"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "robot_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Robot Id"
+          },
+          "by_robot": {
+            "type": "boolean",
+            "title": "By Robot",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "first_response_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Response At"
+          },
+          "resolved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Resolved At"
+          },
+          "transcript": {
+            "items": {
+              "$ref": "#/components/schemas/TurnImport"
+            },
+            "type": "array",
+            "maxItems": 60,
+            "title": "Transcript"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room",
+          "urgency",
+          "category",
+          "created_at",
+          "resolved_at"
+        ],
+        "title": "CallImport",
+        "description": "A finished call from the past (history import for demos and migrations)."
       },
       "CallStatus": {
         "type": "string",
@@ -2519,6 +3008,18 @@
               }
             ],
             "title": "Call Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           }
         },
         "type": "object",
@@ -2526,6 +3027,38 @@
           "kind"
         ],
         "title": "CareIn"
+      },
+      "Condition": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "since": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Since",
+            "default": "recently"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Condition"
       },
       "ContentItem": {
         "properties": {
@@ -2689,6 +3222,169 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "MedicalEntryIn": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/NoteCategory"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "reviewed_by": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Reviewed By",
+            "default": "Staff"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "text"
+        ],
+        "title": "MedicalEntryIn"
+      },
+      "MedicalIn": {
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Conditions"
+          },
+          "allergies": {
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Allergies"
+          },
+          "medicines": {
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Medicines"
+          },
+          "mobility": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Mobility",
+            "default": ""
+          },
+          "diet": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Diet",
+            "default": ""
+          },
+          "last_review": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Review"
+          },
+          "reviewed_by": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Reviewed By",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MedicalIn"
+      },
+      "MedicalRecord": {
+        "properties": {
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            },
+            "type": "array",
+            "title": "Conditions"
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies"
+          },
+          "medicines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Medicines"
+          },
+          "mobility": {
+            "type": "string",
+            "title": "Mobility",
+            "default": ""
+          },
+          "diet": {
+            "type": "string",
+            "title": "Diet",
+            "default": ""
+          },
+          "last_review": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Review"
+          },
+          "reviewed_by": {
+            "type": "string",
+            "title": "Reviewed By",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "resident_id"
+        ],
+        "title": "MedicalRecord",
+        "description": "Medical history entered by staff. Bellhop never learns or changes it by itself."
+      },
       "MemoryFact": {
         "properties": {
           "id": {
@@ -2714,6 +3410,55 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "staff"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 1.0
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "last_confirmed": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Confirmed"
+          },
+          "times_seen": {
+            "type": "integer",
+            "title": "Times Seen",
+            "default": 1
           }
         },
         "type": "object",
@@ -2753,6 +3498,42 @@
             "minimum": 0.0,
             "title": "Confidence",
             "default": 1.0
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           }
         },
         "type": "object",
@@ -2768,6 +3549,42 @@
           "from_resident"
         ],
         "title": "MessageDirection"
+      },
+      "NoteCategory": {
+        "type": "string",
+        "enum": [
+          "like",
+          "dislike",
+          "person",
+          "routine",
+          "style",
+          "condition",
+          "allergy",
+          "medicine",
+          "mobility",
+          "diet"
+        ],
+        "title": "NoteCategory",
+        "description": "What staff can add to a resident's profile. The first five become memory facts."
+      },
+      "NoteIn": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/NoteCategory"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "text"
+        ],
+        "title": "NoteIn"
       },
       "Nurse": {
         "properties": {
@@ -2905,6 +3722,28 @@
             "type": "number",
             "title": "Confidence",
             "default": 0.0
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
           }
         },
         "type": "object",
@@ -3019,6 +3858,42 @@
           "room"
         ],
         "title": "RaiseCall"
+      },
+      "RefinedNote": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/NoteCategory"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "text"
+        ],
+        "title": "RefinedNote",
+        "description": "A staff note after the tidy step: cleaner wording plus what was changed."
       },
       "Resident": {
         "properties": {
@@ -3348,6 +4223,32 @@
           "at"
         ],
         "title": "Turn"
+      },
+      "TurnImport": {
+        "properties": {
+          "speaker": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Speaker"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Text"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "speaker",
+          "text",
+          "at"
+        ],
+        "title": "TurnImport"
       },
       "TurnIn": {
         "properties": {

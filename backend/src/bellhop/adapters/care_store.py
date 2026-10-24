@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from bellhop.domain.care import CareEntry, EntryKind, FamilyMessage, Flag, Preferences
+from bellhop.domain.care import (
+    CareEntry,
+    EntryKind,
+    FamilyMessage,
+    Flag,
+    MedicalRecord,
+    Preferences,
+)
 
 
 class _Entries:
@@ -74,9 +81,22 @@ class _Messages:
         return [m.model_copy(deep=True) for m in sorted(hits, key=lambda m: m.created_at)]
 
 
+class _Medical:
+    def __init__(self) -> None:
+        self._items: dict[str, MedicalRecord] = {}
+
+    def get(self, resident_id: str) -> MedicalRecord:
+        m = self._items.get(resident_id)
+        return m.model_copy(deep=True) if m else MedicalRecord(resident_id=resident_id)
+
+    def save(self, record: MedicalRecord) -> None:
+        self._items[record.resident_id] = record.model_copy(deep=True)
+
+
 class InMemoryCareStore:
     def __init__(self) -> None:
         self.entries = _Entries()
         self.flags = _Flags()
         self.preferences = _Preferences()
         self.messages = _Messages()
+        self.medical = _Medical()

@@ -1,0 +1,28 @@
+name: simulator
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths: ["simulator/**", "backend/**", "contracts/**", ".github/workflows/simulator.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the backend (the tests start it)
+        run: uv sync --locked
+        working-directory: backend
+      - name: Install
+        run: uv sync --locked
+        working-directory: simulator
+      - name: Lint
+        working-directory: simulator
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+      - name: Test (runs against the real backend)
+        working-directory: simulator
+        run: uv run pytest

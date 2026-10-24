@@ -36,6 +36,7 @@ export function HBars({ rows, unit = '' }: { rows: { label: string; value: numbe
 }
 
 export function Sparkline({ values, min, max, color = 'var(--accent)', w = 120, h = 34 }: { values: number[]; min: number; max: number; color?: string; w?: number; h?: number }) {
+  if (values.length < 2) return <span className="spark-none">Not enough readings yet</span>
   const step = w / (values.length - 1)
   const y = (v: number) => h - 4 - ((v - min) / (max - min)) * (h - 8)
   const pts = values.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
