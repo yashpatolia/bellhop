@@ -1,8 +1,8 @@
 """(Mac) Run triage on labelled cases and count under-escalations (the number that matters).
 
-    uv run python scripts/eval_triage.py [cases.jsonl ...]
+    cd ml/pi && uv run python ../dev/eval_triage.py [cases.jsonl ...]
 
-Default cases: the backend's labelled set plus data/hard_cases.jsonl. Nothing is posted to the
+Default cases: the backend's labelled set plus dev/hard_cases.jsonl. Nothing is posted to the
 backend. Writes runs/predictions.json as {id: [urgency, confidence]} for the backend's
 threshold_report. Success looks like "UNDER-ESCALATIONS: 0".
 """
@@ -20,9 +20,10 @@ from rover import config
 from rover.agent.brain import claude_client
 from rover.triage.triage import triage
 
+HERE = Path(__file__).resolve().parent
 DEFAULT_CASES = [
-    config.ML_DIR / "../../calhacks-13-backend/backend/data/labelled_cases.jsonl",
-    config.ML_DIR / "data/hard_cases.jsonl",
+    HERE.parents[2] / "calhacks-13-backend/backend/data/labelled_cases.jsonl",
+    HERE / "hard_cases.jsonl",
 ]
 LEVELS = (1, 2, 3, 4)
 

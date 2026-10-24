@@ -4,10 +4,16 @@ The code that runs on the robot (Freenove 4WD car, Raspberry Pi 5 2 GB, Camera M
 
 - **vision**: camera, person tracking (YOLO26n), faces (YuNet), door markers (ArUco)
 - **voice**: mic, listen gates, Deepgram Flux speech-to-text, Claude replies, Piper voice "Poppy"
-- **agent context**: persona, activity rules and tools for Claude (`src/rover/agent/`)
-- **triage**: scores each visit and posts it to the backend (`src/rover/triage/`)
+- **agent context**: persona, activity rules and tools for Claude (`pi/src/rover/agent/`)
+- **triage**: scores each visit and posts it to the backend (`pi/src/rover/triage/`)
 
-It talks to the team backend only through its HTTP API. Every command below says where it runs: **(Mac)** or **(Pi)**.
+It talks to the team backend only through its HTTP API. Every command below says where it runs: **(Mac)** or **(Pi)**, and runs from `ml/pi/` (on the Pi: `~/ml/`) unless it says otherwise.
+
+| Folder | What | Sent to the Pi |
+| --- | --- | --- |
+| `pi/` | everything the robot runs: `src/rover/`, `scripts/`, `pyproject.toml`, `uv.lock`, and `models/` once downloaded | yes, the whole folder |
+| `tests/` | unit tests (pure logic, no hardware) | no |
+| `dev/` | triage eval script and extra test phrasings | no |
 
 ```mermaid
 flowchart LR
@@ -28,7 +34,7 @@ flowchart LR
 ## Quick start on the Mac
 
 ```
-(Mac) cd calhacks-13/ml
+(Mac) cd calhacks-13/ml/pi
 (Mac) uv sync
 (Mac) cp .env.example .env                            # add keys; without them the code prints "fallback: <reason>"
 (Mac) uv run python scripts/download_models.py        # YOLO26n -> NCNN, YuNet, Piper voice, Moonshine
@@ -38,13 +44,13 @@ flowchart LR
 Start the backend from its worktree (leave `BELLHOP_ROBOT_URL` unset on the Mac, so calls go to the seeded `robot_1`):
 
 ```
-(Mac) cd ../../calhacks-13-backend/backend && uv sync
+(Mac) cd ../../../calhacks-13-backend/backend && uv sync
 (Mac) BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --host 0.0.0.0 --port 8000
 ```
 
 Add `BELLHOP_STORE=spacetimedb` to keep calls across restarts (needs `spacetime start` and the module published; see the backend's docs).
 
-Then, in two more terminals from `ml/`:
+Then, in two more terminals from `ml/pi/`:
 
 ```
 (Mac) uv run python -m rover.vision --source 0 --show        # webcam window with boxes; q quits
@@ -55,15 +61,15 @@ Then, in two more terminals from `ml/`:
 
 ## Copy to the Pi
 
-Needs Raspberry Pi OS **Bookworm 64-bit** (Python 3.11), the camera connected, SSH and internet. The current default image is Trixie (Python 3.13), which `setup_pi.sh` rejects: in Raspberry Pi Imager pick **Raspberry Pi OS (Legacy, 64-bit)**, and check with `python3 --version` on the Pi. From the folder that holds `ml/`:
+Needs Raspberry Pi OS **Bookworm 64-bit** (Python 3.11), the camera connected, SSH and internet. The current default image is Trixie (Python 3.13), which `setup_pi.sh` rejects: in Raspberry Pi Imager pick **Raspberry Pi OS (Legacy, 64-bit)**, and check with `python3 --version` on the Pi. Only `ml/pi/` is sent; it lands as `~/ml` on the Pi. From `calhacks-13/`:
 
 ```
-(Mac) rsync -av --exclude .venv --exclude runs --exclude __pycache__ --exclude .env ml/ pi@<pi-host>:~/ml/
+(Mac) rsync -av --exclude .venv --exclude runs --exclude __pycache__ --exclude .env ml/pi/ pi@<pi-host>:~/ml/
 (Pi)  cd ~/ml && bash scripts/setup_pi.sh
 ```
 
 - `rsync` also copies `models/`, so the NCNN folder exported on the Mac arrives with it. Run `download_models.py` on the Mac first.
-- `scp -r ml pi@<pi-host>:~/` works too, but it copies the Mac's `.venv` (large, useless on the Pi; setup rebuilds it) and the Mac's `.env`.
+- `scp -r ml/pi pi@<pi-host>:~/ml` works too (when `~/ml` doesn't exist yet), but it copies the Mac's `.venv` (large, useless on the Pi; setup rebuilds it) and the Mac's `.env`.
 - Re-run the same `rsync` after every code change. `.env` is excluded so the Pi keeps its own.
 - Replace `pi` with your Pi's username.
 
@@ -143,14 +149,14 @@ On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:
 **Triage contract.** `POST /calls/{id}/score {"urgency": 1-4, "category", "summary", "confidence": 0-1}`; 1 chat, 2 routine, 3 nurse soon, 4 emergency. Confidence below 0.6 bumps urgency up one level; a keyword floor can only raise it; urgency never goes down on a call. If the models fail: `POST /calls/{id}/triage-failed` (backend defaults to 3). The summary is one plain line for the nurse, no diagnosis. Evaluate against the labelled set (under-escalations are what matter):
 
 ```
-(Mac) uv run python scripts/eval_triage.py ../../calhacks-13-backend/backend/data/labelled_cases.jsonl data/hard_cases.jsonl
+(Mac) uv run python ../dev/eval_triage.py     # default: the backend's labelled set + dev/hard_cases.jsonl
 ```
 
 Full API: `calhacks-13-backend/contracts/README.md` and `contracts/openapi.json`.
 
 ## Settings card
 
-All thresholds live in `src/rover/config.py`. These are start values: tune on site and change them there, nowhere else.
+All thresholds live in `pi/src/rover/config.py`. These are start values: tune on site and change them there, nowhere else.
 
 | Setting | Start value | What it does |
 | --- | --- | --- |
@@ -173,13 +179,13 @@ All thresholds live in `src/rover/config.py`. These are start values: tune on si
 ## Tests
 
 ```
-(Mac) uv run pytest                              # pure logic, no camera, mic, network or keys
-(Mac) uv run ruff check src tests scripts
+(Mac) uv run pytest                              # runs ../tests: pure logic, no camera, mic, network or keys
+(Mac) uv run ruff check src scripts ../tests ../dev
 ```
 
 ## Troubleshooting
 
-Work from the bottom layer up. Check `GOTCHAS.md` too.
+Work from the bottom layer up.
 
 | Layer | Symptom | Check | Fix |
 | --- | --- | --- | --- |

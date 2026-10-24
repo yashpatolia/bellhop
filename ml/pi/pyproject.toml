@@ -46,11 +46,13 @@ torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "../tests", "../dev"]
+cache-dir = "../.ruff_cache"  # keep pi/ to what the Pi needs
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["../tests"]  # tests stay on the Mac, outside the folder sent to the Pi
 addopts = "-q"
+cache_dir = "../.pytest_cache"
