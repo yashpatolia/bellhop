@@ -49,6 +49,50 @@ export interface Call {
   feedback: 1 | 2 | 3 | 4 | 5 | null
 }
 
+export type FactKind = 'like' | 'dislike' | 'person' | 'routine' | 'health' | 'style' | 'event'
+export type FactSource = 'resident' | 'staff' | 'family' | 'inferred'
+
+/** Something Bellhop has learned about a resident, with where it came from. */
+export interface LearnedFact {
+  id: string
+  kind: FactKind
+  text: string
+  source: FactSource
+  confidence: number // 0 to 1
+  quote: string | null // the resident's own words, when heard from them
+  learnedAt: number // epoch ms
+  lastConfirmed: number // epoch ms
+  timesSeen: number
+  status: 'active' | 'pending' // pending: waiting for a nurse to review
+}
+
+/** Entered by staff, not learned by Bellhop. */
+export interface MedicalHistory {
+  conditions: { name: string; since: string; note?: string }[]
+  allergies: string[]
+  medicines: string[] // names only, as listed by staff
+  mobility: string
+  diet: string
+  lastReview: number // epoch ms
+  reviewedBy: string
+}
+
+/** What staff can add to a resident's profile. The first five become learned facts, the rest medical history. */
+export type EntryCategory = 'like' | 'dislike' | 'person' | 'routine' | 'style' | 'condition' | 'allergy' | 'medicine' | 'mobility' | 'diet'
+
+export interface EntryDraft {
+  category: EntryCategory
+  text: string
+}
+
+/** A draft after the AI tidy step: cleaner wording plus notes on what changed or was removed. */
+export interface RefinedEntry {
+  category: EntryCategory
+  text: string
+  since?: string // conditions only
+  notes: string[]
+}
+
 export interface Resident {
   id: string
   name: string
@@ -61,6 +105,8 @@ export interface Resident {
   pain: number[] // last 7 days, 0 to 10
   aiCostToday: number
   callsToday: number
+  learned: LearnedFact[]
+  medical: MedicalHistory
 }
 
 export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging'
@@ -108,11 +154,16 @@ export interface Snapshot {
   hourly: number[] // 24 buckets of calls today
   alerts: Alert[]
   metrics: Metrics | null
+  pastCalls: Call[] // calls from before today, for history and tendencies
 }
 
 export interface Actions {
   nurseOnMyWay: (callId: string) => void
   resolve: (callId: string) => void
+  /** Tidy staff-written text into a clean entry for review. Nothing is saved yet. */
+  refineEntry: (draft: EntryDraft) => Promise<RefinedEntry>
+  /** Save a reviewed entry to the resident's profile. */
+  addEntry: (residentId: string, entry: RefinedEntry) => void
 }
 
 export interface BellhopData extends Snapshot {

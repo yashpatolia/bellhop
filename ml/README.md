@@ -180,9 +180,12 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
 | `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
-| `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only Jev answers (bumps urgency one level) |
+| `JEV_MIN_CONFIDENCE`, `JEV_TIMEOUT_S` | 0.7, 1.5 | Jev goes first for triage and for each reply's tone tag (so the voice and OLED eyes). At or above 0.7 it decides alone; below it, slow (1.5 s), failing or with no `TYPESAFE_API_KEY`, Claude decides (triage: higher urgency wins) |
+| `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only an unsure Jev answers (Claude failed): bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
+| `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
+| `EYES_MOOD_HOLD_S` | 3.0 | The reply's tone tag stays on the eyes this long after its last sentence |
 
 ## Local triage scorer (optional, offline, raise only)
 

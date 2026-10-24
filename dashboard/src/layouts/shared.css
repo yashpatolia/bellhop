@@ -36,12 +36,6 @@
 .lx .sb-nav a:hover { color: var(--ink); }
 .lx .sb-nav a[aria-current='page'] { background: var(--accent-tint); color: var(--ink); }
 
-.lx .sb-staff, .lx .sb-robots { list-style: none; margin: 0; padding: 0; }
-.lx .sb-staff li, .lx .sb-robots li { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
-.lx .sb-staff i { width: 8px; height: 8px; border-radius: 50%; background: var(--u1); align-self: center; }
-.lx .sb-staff li.busy i { background: var(--u3); }
-.lx .sb-staff li.with_resident i { background: var(--u2); }
-.lx .sb-staff span, .lx .sb-robots span { color: var(--ink-2); }
 .lx .sb-robots em { margin-left: auto; font-style: normal; font-family: var(--f-mono); font-size: 0.9em; color: var(--ink-2); }
 .lx .sb-robots li.low em { color: var(--u3); font-weight: 700; }
 
