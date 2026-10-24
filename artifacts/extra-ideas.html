@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bellhop · Extra ideas</title>
+<meta name="description" content="Feature ideas for Bellhop with rough hours, wow factor and status.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<a class="brand" href="index.html">Bell<span>hop</span></a>
+<nav aria-label="Pages"><a href="index.html">Overview</a><a href="project.html">Project plan</a><a href="research.html">Research</a><a href="extra-ideas.html" aria-current="page">Extra ideas</a></nav>
+</div></header>
+<main>
+<article class="prose-wide"><h1>Extra ideas</h1>
+<p>Additions that make Bellhop more than a talking car. Change the status column as we decide.</p>
+<h2>Ideas to add</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it adds</th>
+<th>Hours</th>
+<th>Wow</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nurse-minutes-saved dashboard</td>
+<td>A live counter of calls the robot resolved and the share of calls answered within 10 minutes, the 80/10 target from the Belgian study</td>
+<td>2</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>SBAR hand-off summary</td>
+<td>Every escalation reaches the nurse in Situation, Background, Assessment, Recommendation form, a format nurses already use</td>
+<td>2</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Mood and loneliness trend</td>
+<td>Tracks tone and engagement across visits and flags "quieter than usual this week", an early warning no bell would give</td>
+<td>4</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Multilingual conversation</td>
+<td>Detects the resident's language and replies in it; Cartesia covers 40+ languages</td>
+<td>2</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Shift-change digest</td>
+<td>One summary per resident for the incoming nurse, built from the visit log</td>
+<td>2</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Fall and distress detection</td>
+<td>Claude checks a camera snapshot for someone on the floor and escalates without waiting for words</td>
+<td>4</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Purposeful rounding mode</td>
+<td>The robot visits at-risk residents on a schedule and asks about toileting, position and pain before they ring, the pattern Studer describes for cutting calls</td>
+<td>4</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Pain check-in with trend</td>
+<td>Asks for a 1 to 10 pain score, charts it through the day and flags a rise</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Dementia-safe mode</td>
+<td>When the confusion question fires, the robot slows down, repeats gently, never corrects and alerts staff if distress grows</td>
+<td>2</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Staff task board</td>
+<td>Aides and kitchen tick off tasks the robot created, and the robot tells the resident "your tea is on its way"</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Accessibility settings</td>
+<td>Captions on a small screen plus slower or louder speech, set per resident</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Privacy mode and audit log</td>
+<td>A consent screen and a log of what was recorded and shared, which helps the pitch to care homes</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Multi-robot simulation</td>
+<td>A virtual fleet on the dashboard shows how the Dispatcher shares calls across robots and nurses</td>
+<td>4</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Family update (opt-in)</td>
+<td>A gentle daily note to family about how the day went; needs consent from the resident</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+</tbody>
+</table></div>
+<p>Hours are rough guesses per feature, assuming Claude writes most of the code.</p>
+<h3>Companionship ideas (added)</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it adds</th>
+<th>Hours</th>
+<th>Wow</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board games on the touchscreen (planned extension)</td>
+<td>A small touchscreen or tablet on the robot lets residents play tic-tac-toe, checkers, chess, Go, bingo, Wordle-style word games, trivia or cards against Claude. Large buttons and voice control, adjustable difficulty, and warm commentary. Engagement feeds the mood trend. Start with tic-tac-toe and trivia, then add checkers</td>
+<td>6</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Friendly conversation mode</td>
+<td>Scheduled social visits for lonely residents: reminiscing about their photos and past, jokes, stories, music, and today's weather or news (Context.dev). Uses the resident's memory so each visit builds on the last</td>
+<td>3</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+</tbody>
+</table></div>
+<p>The display also unlocks captions for hard-of-hearing residents, so it pairs with the accessibility idea above. Games are the strongest visual demo and fit after the first end-to-end run. They should stay optional and never replace human contact. Describe them as companionship and activity, not as therapy.</p>
+<h3>Team brainstorm (from the Calhacks ideas doc)</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it adds</th>
+<th>Hours</th>
+<th>Wow</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Call a specific nurse</td>
+<td>A resident says "I want to see [nurse]" and the robot calls that nurse's phone, so the nurse can answer out loud through the robot's speaker. Nurses get an "I'm busy" setting in the mobile app, since this could be used often</td>
+<td>3</td>
+<td>High</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Remote camera view (Jeremy's idea)</td>
+<td>A phone can open the robot's camera feed remotely, so staff can check on a room without walking there</td>
+<td>3</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Inventory tracking with x402 restocking (last step)</td>
+<td>Only after everything else works. The robot logs pills given and supplies used to the dashboard. When stock runs low, an agent drafts the order and pays in stablecoin through Coinbase's x402 protocol, but only after a nurse or doctor signs off. Takes inventory admin off nurses and gives Coinbase a sponsor role</td>
+<td>6</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+</tbody>
+</table></div>
+<p>Open questions from the brainstorm: would a care home fund stablecoin purchases from the same budget as normal inventory orders, and does restocking pull focus from the call-bell story? Hours and Wow for these three are rough guesses, like the rest.</p>
+<h3>Added after the team review</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Idea</th>
+<th>What it adds</th>
+<th>Hours</th>
+<th>Wow</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Call reason tracking</td>
+<td>Every call is tagged with why the robot was called and whether it was resolved, so we can see what residents need and improve</td>
+<td>2</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Resident feedback monitoring</td>
+<td>A spoken "did that help?" after each visit plus tone and engagement, logged per resident and flagged on the dashboard</td>
+<td>2</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+<tr>
+<td>Audiobook reader</td>
+<td>Reads an ebook aloud with pause, resume and saved position, using public-domain books</td>
+<td>4</td>
+<td>Medium</td>
+<td>If time allows</td>
+</tr>
+<tr>
+<td>Reminiscence mode (expanded)</td>
+<td>Guided memory chats using the resident's profile, era-specific music, news and photos, with life-story notes and mood signals. Companionship, not therapy</td>
+<td>4</td>
+<td>High</td>
+<td>If time allows</td>
+</tr>
+<tr>
+<td>Apify content feed</td>
+<td>Scrapes era-specific material for reminiscence, and supplier prices if we reach x402. Only if it does real work</td>
+<td>3</td>
+<td>Medium</td>
+<td>Conditional</td>
+</tr>
+<tr>
+<td>Fleet dispatch simulation</td>
+<td>A virtual fleet that shows the Dispatcher choosing robots by position, battery and workload</td>
+<td>4</td>
+<td>Medium</td>
+<td>Proposed</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Recommended bundle</h2>
+<p>Five software-only additions fit in about 12 hours of work alongside the hardware lane: the nurse-minutes-saved dashboard, SBAR hand-off, mood and loneliness trend, multilingual conversation and the shift-change digest. Each shows up on the dashboard, so judges see it without extra staging, and together they make Bellhop look like a nurse workflow tool rather than a talking car.</p>
+<ul>
+<li><strong>If hours remain:</strong> fall and distress detection, since it makes the emergency scene work even when the resident says nothing.</li>
+<li><strong>Pitch as roadmap:</strong> family updates and the privacy audit log need real consent flows.</li>
+<li><strong>Don't claim:</strong> that Bellhop diagnoses anything or reads health from a voice. It gathers information and passes it to staff.</li>
+</ul></article>
+</main>
+<footer>Bellhop · Cal Hacks 13 · The live Claude doc is the source of truth; these pages are a snapshot.</footer>
+</body>
+</html>

@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bellhop · Research</title>
+<meta name="description" content="Supporting research for Bellhop: staffing and call-bell numbers, cost model, Jev, sponsors, existing robots, hardware notes and sources.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<a class="brand" href="index.html">Bell<span>hop</span></a>
+<nav aria-label="Pages"><a href="index.html">Overview</a><a href="project.html">Project plan</a><a href="research.html" aria-current="page">Research</a><a href="extra-ideas.html">Extra ideas</a></nav>
+</div></header>
+<main>
+<article class="prose-wide"><h1>Research</h1>
+<p>Everything we looked up while shaping Bellhop, kept off the main page.</p>
+<h2>Why the problem is real</h2>
+<p>The best evidence we found says a large share of call-bell traffic does not need a nurse, and the reasons are predictable. Most of it comes from hospitals rather than care homes, and much of it is self-reported by staff.</p>
+<ul>
+<li><strong>Volume and speed.</strong> In a <a href="https://link.springer.com/article/10.1186/1472-6963-10-52">2010 survey of 808 nursing staff in four US hospitals</a>, each person answered about 6.5 calls an hour, and by their own estimate a call took about 4 minutes to answer.</li>
+<li><strong>Many calls don't need a nurse.</strong> In the same survey only 52% of staff said the calls required a nurse's attention, and 53% said answering them kept them from the critical parts of their job.</li>
+<li><strong>The reasons are predictable.</strong> Toileting, pain medication and IV alarms led the list. The survey's options also included getting a nurse's attention and asking for companionship at the bedside.</li>
+<li><strong>Tiers already exist on paper.</strong> The author suggests call panels with three levels: urgent, normal, and orderly assistance such as repositioning, personal help, information or companionship. That is close to our four-level triage.</li>
+<li><strong>Industry estimate.</strong> A <a href="https://www.studergroup.com/hardwired-results/hardwired-results-03/give-your-nurses-back-166-hours-every-month">Studer Group article</a> (a consulting firm, so read it as marketing) puts call-light time at about 10,000 minutes per nurse per month and says four reasons made up nearly 71% of calls on one orthopedic unit.</li>
+<li><strong>A target metric.</strong> A <a href="https://research.vu.nl/en/publications/care-on-demand-in-nursing-homes-a-queueing-theoretic-approach/">Belgian nursing-home study</a> built a queueing model from real call-button data and proposed an 80/10 service level: 80% of calls answered within 10 minutes. We can borrow that as a dashboard metric.</li>
+</ul>
+<p><strong>Not verified:</strong> no study we found counts deaths caused specifically by nurses being tied up on non-urgent calls. The "By the numbers" section below uses the nearest evidence instead.</p>
+<h2>By the numbers</h2>
+<p>The figures answer three questions in turn. Nursing-home data is used where we found it; hospital data fills gaps and is labelled. Several numbers are from a single home or a survey of staff, so treat them as ranges, not facts to quote without the caveat.</p>
+<h3>How many residents is one nurse responsible for?</h3>
+<p>The 20 to 50 residents in our brief is plausible for licensed nurses, but there is no single US figure because no federal ratio is in force.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Measure</th>
+<th>Figure</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Average nursing time per resident, all nursing staff</td>
+<td>3.68 hours a day in late 2023, against 4.10 recommended by a 2001 federal study</td>
+<td><a href="https://nursinghome411.org/data/staffing/staffing-q4-2023/">NursingHome411</a></td>
+</tr>
+<tr>
+<td>Federal minimum</td>
+<td>None. The 2024 rule (3.48 hours, with 0.55 RN and 2.45 aide hours) was repealed in December 2025</td>
+<td><a href="https://www.aha.org/news/headline/2025-12-02-cms-repeals-minimum-staffing-requirements-skilled-nursing-long-term-care-facilities">AHA</a></td>
+</tr>
+<tr>
+<td>Homes meeting the 2.45 aide-hour benchmark</td>
+<td>Nearly 30%; 70.3% fell short</td>
+<td><a href="https://www.hebrewseniorlife.org/news/new-study-shows-nursing-home-staffing-patterns-can-reduce-harmful-falls-among-residents">Hebrew SeniorLife</a></td>
+</tr>
+<tr>
+<td>Observed assignments, four New York homes</td>
+<td>8 to 13 residents per aide and 9 to 14 per LPN, with thinner staffing on evenings and nights</td>
+<td><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">JMIR 2020</a></td>
+</tr>
+<tr>
+<td>State minimums</td>
+<td>New Jersey 1 aide per 8 residents on days. Pennsylvania 1 aide per 10 (days), 11 (evenings), 15 (nights) and 1 LPN per 25, 30 and 40. Florida 1 aide per 20 and 1 licensed nurse per 40</td>
+<td><a href="https://boostpoint.com/industries-healthcare/nursing-home-staffing-ratios/">Boostpoint summary</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>Our arithmetic: 3.68 nursing hours per resident per day over 24 hours is about one nursing staff member for every 6.5 residents on average. That includes managers and breaks and is worse at night, so a nurse covering 20 to 50 residents on a shift is realistic.</p>
+<h3>How often do residents ring for things that don't need a nurse?</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Figure</th>
+<th>Setting and source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Staff who said calls needed a nurse</td>
+<td>52%, so about 48% did not</td>
+<td>808 staff in four hospitals, <a href="https://link.springer.com/article/10.1186/1472-6963-10-52">2010 survey</a></td>
+</tr>
+<tr>
+<td>Calls answered per staff member</td>
+<td>About 6.5 an hour, roughly 52 in an 8-hour shift</td>
+<td>Same survey</td>
+</tr>
+<tr>
+<td>Requests that needed no nurse</td>
+<td>Nearly half</td>
+<td>Hospital improvement project, from <a href="https://diglib.uwgb.edu/digital/api/collection/p17003coll5/id/69/download">call-system categories</a></td>
+</tr>
+<tr>
+<td>Staff saying residents use bells for non-urgent requests</td>
+<td>72% of those who answered the open questions, about 66 people</td>
+<td>One 300-bed nursing home, <a href="https://journals.sagepub.com/doi/10.1177/2377960820903546">2020 survey</a></td>
+</tr>
+<tr>
+<td>Common nursing-home requests</td>
+<td>Position changes first, then toileting and accidental presses, with peaks around mealtimes</td>
+<td>Same paper and the <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">JMIR study</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>Our estimate, from the hospital figures: about half of roughly 52 calls is 26 calls per 8-hour shift. At 4 minutes each that is about 104 minutes, or 1.7 hours, per staff member per shift spent on calls that didn't need a nurse. Nursing-home timings may differ.</p>
+<h3>How often does delay cause harm?</h3>
+<p>We found no study that links non-urgent calls to deaths. The evidence below shows that slow responses are common, that falls are the main danger, and that thin staffing goes with more injuries.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Figure</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Observed response times in a 300-bed home (201 calls)</td>
+<td>Average 9 minutes; about half over the home's 5-minute standard; some up to 20 minutes</td>
+<td><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">JMIR 2020</a></td>
+</tr>
+<tr>
+<td>Residents told to wait, or forgotten</td>
+<td>Asked to wait in 10% of calls; forgotten in about 3%</td>
+<td>Same study</td>
+</tr>
+<tr>
+<td>Residents who got up or shouted when no one came</td>
+<td>7.5% of calls (15 of 201)</td>
+<td>Same study</td>
+</tr>
+<tr>
+<td>Residents who fall each year</td>
+<td>More than half</td>
+<td><a href="https://nursinghome411.org/wp-content/uploads/2022/09/Fact-Sheet-Fall-Prevention.pdf">NursingHome411 fact sheet</a></td>
+</tr>
+<tr>
+<td>Deaths from falls in US nursing homes</td>
+<td>About 1,800 a year, with residents 5% of people over 65 but 20% of fall deaths in that age group</td>
+<td><a href="https://www.dsslaw.com/blog/nursing-home-slip-and-falls-how-big-is-the-problem/">Law-firm page citing the CDC</a></td>
+</tr>
+<tr>
+<td>Faster call response and falls</td>
+<td>Faster response linked to lower fall and injurious-fall rates in four hospitals</td>
+<td><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3364911/">BMC study</a></td>
+</tr>
+<tr>
+<td>Staffing and injurious falls</td>
+<td>In well-staffed homes, each extra RN hour went with nearly 40% fewer injurious falls (11,183 homes)</td>
+<td><a href="https://www.hebrewseniorlife.org/news/new-study-shows-nursing-home-staffing-patterns-can-reduce-harmful-falls-among-residents">Hebrew SeniorLife</a></td>
+</tr>
+<tr>
+<td>After-hours staffing, Australia</td>
+<td>An adverse event on average every second shift per home; fewer nurses after hours went with more falls and pressure injuries (10 homes, 1,020 beds)</td>
+<td><a href="https://researchonline.nd.edu.au/med_article/1523">Collegian 2022</a></td>
+</tr>
+<tr>
+<td>Preventable deaths, Australia</td>
+<td>Falls were 81.5% of preventable nursing-home deaths in a coronial review</td>
+<td><a href="https://www.nswnma.asn.au/?p=3127">Union summary</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>All of these are associations, and the staffing studies do not prove cause. The 1,800 figure comes through a secondary page, so check the CDC original before quoting it.</p>
+<p><strong>Safe claims for the pitch:</strong> staff report that a large share of calls don't need a nurse; responses in nursing homes are often slower than their own standard; falls are the main danger and track with thin staffing. Bellhop should claim to cut nurse time on non-urgent calls and to shorten response times, which the dashboard can measure, and not to prevent deaths.</p>
+<h2>Cost and savings model</h2>
+<p>In the base case one robot frees about 970 staff hours a year, worth about $24,100, for about $3,200 a year in running costs plus a one-time hardware cost that pays back in under two months. This is a model built on assumptions we have not tested, so treat it as a way to explain scale, not a forecast. Freed time turns into cash only when it cuts overtime or agency hours, or lets staff give more clinical care.</p>
+<h3>Assumptions (change these first)</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Value</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Loaded cost of care-staff time</td>
+<td>$24.80 an hour</td>
+<td><a href="https://www.bls.gov/opub/ted/2025/nursing-assistants-week-recognizes-the-third-largest-healthcare-occupation.htm">BLS mean nursing-assistant wage</a> of $19.84 (May 2024), times 1.25 for benefits, which is our assumption</td>
+</tr>
+<tr>
+<td>Minutes saved per call the robot resolves</td>
+<td>4</td>
+<td>From the hospital survey and Studer estimate; the nursing-home study saw 9-minute average responses</td>
+</tr>
+<tr>
+<td>Conversations per resolved call</td>
+<td>1.5</td>
+<td>Our assumption: some conversations end in a handoff to staff</td>
+</tr>
+<tr>
+<td>Hardware per fleet robot, one time</td>
+<td>$2,500</td>
+<td>Placeholder for a sturdier build. Our prototype is about $250, and the kit alone lists at $75.87</td>
+</tr>
+<tr>
+<td>Upkeep</td>
+<td>$375 a year</td>
+<td>15% of hardware, our assumption</td>
+</tr>
+<tr>
+<td>Residents covered per robot</td>
+<td>30</td>
+<td>Our assumption</td>
+</tr>
+</tbody>
+</table></div>
+<p>The API cost per conversation is our estimate for a 3-minute exchange:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Cost</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speech-to-text, 3 minutes</td>
+<td>$0.0065</td>
+<td>Ink at about <a href="https://www.cloudtalk.io/cartesia-pricing/">$0.13 an hour</a> on Cartesia's Scale plan</td>
+</tr>
+<tr>
+<td>Text-to-speech, 1.5 minutes</td>
+<td>$0.047</td>
+<td>About $1.87 per hour of speech on <a href="https://soniox.com/pricing/tts/soniox-vs-cartesia">Scale, per a competitor's comparison</a>, at roughly one credit per character per <a href="https://docs.cartesia.ai/pricing">Cartesia's docs</a></td>
+</tr>
+<tr>
+<td>Claude, about 30,000 input and 1,000 output tokens</td>
+<td>$0.07</td>
+<td><a href="https://anotherwrapper.com/tools/llm-pricing/claude-sonnet-5-5">$2 and $10 per million tokens</a> per a price tracker</td>
+</tr>
+<tr>
+<td>Jev, about 20,000 input tokens</td>
+<td>Under $0.001</td>
+<td>$0.042 per million input tokens</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>About $0.12, rounded up to $0.13</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h3>One robot, four usage levels</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Calls resolved a day</th>
+<th>Staff hours freed a year</th>
+<th>Equivalent staff</th>
+<th>Value of freed time</th>
+<th>API plus upkeep</th>
+<th>Net a year</th>
+<th>Hardware payback</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>243</td>
+<td>0.12</td>
+<td>$6,035</td>
+<td>$1,087</td>
+<td>$4,948</td>
+<td>6.1 months</td>
+</tr>
+<tr>
+<td>20</td>
+<td>487</td>
+<td>0.23</td>
+<td>$12,069</td>
+<td>$1,799</td>
+<td>$10,270</td>
+<td>2.9 months</td>
+</tr>
+<tr>
+<td>40 (base)</td>
+<td>973</td>
+<td>0.47</td>
+<td>$24,139</td>
+<td>$3,222</td>
+<td>$20,917</td>
+<td>1.4 months</td>
+</tr>
+<tr>
+<td>70</td>
+<td>1,703</td>
+<td>0.82</td>
+<td>$42,242</td>
+<td>$5,357</td>
+<td>$36,885</td>
+<td>0.8 months</td>
+</tr>
+</tbody>
+</table></div>
+<p>Equivalent staff uses 2,080 hours per full-time job. Even at 10 calls a day the hardware pays back inside a year.</p>
+<p><strong>Headline numbers for the base case:</strong></p>
+<ul>
+<li>A resolved call costs about $0.22 in running costs, against about $1.65 of staff time for the same 4 minutes. That is roughly 7.5 times cheaper.</li>
+<li>One robot does the work of about 0.47 of a full-time aide, whose loaded cost is about $51,600 a year.</li>
+<li>The net saving is about $700 per resident per year, at 30 residents per robot.</li>
+</ul>
+<h3>Extending to a fleet (base case)</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Robots</th>
+<th>One-time hardware</th>
+<th>Value of freed time a year</th>
+<th>Running cost a year</th>
+<th>Net a year</th>
+<th>Residents covered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>$2,500</td>
+<td>$24,139</td>
+<td>$3,222</td>
+<td>$20,917</td>
+<td>30</td>
+</tr>
+<tr>
+<td>5</td>
+<td>$12,500</td>
+<td>$120,695</td>
+<td>$16,110</td>
+<td>$104,585</td>
+<td>150</td>
+</tr>
+<tr>
+<td>10</td>
+<td>$25,000</td>
+<td>$241,390</td>
+<td>$32,220</td>
+<td>$209,170</td>
+<td>300</td>
+</tr>
+<tr>
+<td>25</td>
+<td>$62,500</td>
+<td>$603,475</td>
+<td>$80,550</td>
+<td>$522,925</td>
+<td>750</td>
+</tr>
+<tr>
+<td>50</td>
+<td>$125,000</td>
+<td>$1,206,950</td>
+<td>$161,100</td>
+<td>$1,045,850</td>
+<td>1,500</td>
+</tr>
+</tbody>
+</table></div>
+<p>The rows scale linearly because each robot is independent. The cost is mostly one-time hardware plus usage-based API fees, so there are no per-seat licences.</p>
+<p><strong>What this leaves out:</strong> connecting to real nurse-call systems, insurance and liability, regulatory review, staff training, repairs and Wi-Fi coverage, and any night shift where calls are fewer. Voice plans also have credit limits: Cartesia's Scale plan covers roughly 3 robots at the base usage, so a larger fleet needs volume pricing.</p>
+<p><strong>What the demo can measure:</strong> the dashboard can show calls resolved without a nurse, minutes saved using the 4-minute assumption (labelled on screen), cost per call against staff cost per call, and the share of calls answered within 10 minutes.</p>
+<h2>What Jev is</h2>
+<p>Jev is a model that makes decisions instead of writing text: you send it a piece of state and a set of typed questions, and it returns answers with probabilities in about a tenth of a second. It is the first "System One" model from TypeSafe AI, a San Francisco lab, and it launched in mid-September 2026.</p>
+<ul>
+<li><strong>How it works.</strong> Per <a href="https://vercel.com/changelog/typesafe-ai-jev-now-available-on-ai-gateway">Vercel's announcement</a>, you pass a state and named questions. Boolean returns a probability, Choice picks one option from a set you define, and Score grades against a scale you define. All questions are answered in parallel.</li>
+<li><strong>No words out.</strong> It does not write replies or explanations, which is why we would pair it with Claude rather than replace Claude.</li>
+<li><strong>Speed and price.</strong> <a href="https://typesafe.ai">TypeSafe's site</a> claims up to 193.6x faster and 444.6x cheaper than LLMs on its own workflows, with a demo finishing in 0.114 seconds. <a href="https://www.trendingtopics.eu/jev-warum-dieses-neuartige-ki-modell-gerade-entwickerinnen-begeistert/">Trending Topics</a> reports 70 to 500 ms responses and $0.042 per million input tokens, with no charge for output.</li>
+<li><strong>Calibrated confidence.</strong> It is trained to return probabilities you can set thresholds on, so software acts when confident and escalates when not. That is the behaviour we want from a triage step.</li>
+<li><strong>Where the claims are weak.</strong> The headline numbers are the vendor's own, and its reference answers were an average of two frontier chat models. Confidence scores need checking on our own data. Choice questions top out at 255 options, and it does not handle images.</li>
+<li><strong>Access.</strong> Early access with a waitlist, and the API briefly buckled under launch demand. <a href="https://vercel.com/changelog/typesafe-ai-jev-now-available-on-ai-gateway">Vercel AI Gateway</a> serves it as <code>typesafe-ai/jev</code>, which a community list says needs no TypeSafe waitlist. The same list names Cloudflare Workers AI, OpenRouter and Netlify as other routes.</li>
+<li><strong>The name.</strong> It comes from Jevons, the economist whose paradox says cheaper resources get used more.</li>
+</ul>
+<h2>How Jev could plug into Bellhop</h2>
+<p>Jev is worth using for one job, the Triage score, with Claude as the backup and the voice. Triage is a pure decision (conversation in, category out), it must be fast so the robot never goes quiet, and the probabilities tell us when to escalate. Jev should not touch conversation, memory or anything that needs words.</p>
+<p>The state is the transcript so far, a short description of what the camera sees, the resident's risk flags and the time of day. Questions we would ask on every turn:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Type</th>
+<th>What it decides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Does this resident need a nurse right now?</td>
+<td>Boolean</td>
+<td>Fires an immediate alert above a threshold we set</td>
+</tr>
+<tr>
+<td>How urgent is this, 1 to 4?</td>
+<td>Score</td>
+<td>The tier shown on the dashboard</td>
+</tr>
+<tr>
+<td>What is this about? Chat, comfort item, toileting, pain, medication, breathing or chest, fall, confusion, other</td>
+<td>Choice</td>
+<td>Who gets the task: aide, kitchen, nurse</td>
+</tr>
+<tr>
+<td>Does the resident seem confused or disoriented?</td>
+<td>Boolean</td>
+<td>Switches Companion into its gentle mode</td>
+</tr>
+</tbody>
+</table></div>
+<p>A tenth of a second for the decision means Jev can score the call while Claude is still forming its reply, so escalation never waits on the conversation. Because Jev gives no reasons, Claude writes the plain-English summary the nurse reads.</p>
+<p><strong>Ways to call it</strong>, easiest first:</p>
+<ol>
+<li>Vercel AI Gateway with the AI SDK's <code>evaluate</code> call (TypeScript). It also offers zero data retention and no-training options per request, which suits a health-data story.</li>
+<li>TypeSafe's own HTTP API or Python SDK, which needs an early-access key.</li>
+<li>Microsoft Agent Framework for Python, where <a href="https://learn.microsoft.com/pl-pl/agent-framework/integrations/by-provider/type-safe-ai">Microsoft documents an alpha TypeSafe integration</a>. Only relevant if we orchestrate with that framework.</li>
+</ol>
+<p><strong>Plan B and testing.</strong> Put Triage behind one small interface so the same four questions can go to Claude as a structured-output call if Jev access fails. Write about 30 labelled example calls from our demo scripts and use them to set the thresholds, which is also what Vercel's own guidance recommends.</p>
+<h2>Sponsor research</h2>
+<p>Details below come from public docs and news summaries, not from the sponsors' hackathon briefs. Confirm API access, credits and judging criteria at each sponsor's table before committing. Fetch.ai's criteria in particular are taken from its other hackathon packs.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Sponsor</th>
+<th>What it offers</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://docs.cartesia.ai/get-started/overview">Cartesia</a></td>
+<td>Sonic 3.5 text-to-speech streams the first audio in about 90 ms; Ink 2 speech-to-text with built-in turn detection; 40+ languages</td>
+<td>Strong fit. Its docs target real-time voice agents</td>
+</tr>
+<tr>
+<td><a href="https://spacetimedb.com/docs/resources/mcp">SpacetimeDB</a></td>
+<td>A database that runs your server logic inside it and pushes live updates to clients; has a <code>spacetime mcp</code> command for coding agents</td>
+<td>Strong fit for a live dashboard. Modules are written in Rust, C#, TypeScript or C++</td>
+</tr>
+<tr>
+<td><a href="https://docs.convex.dev/components/understanding">Convex</a></td>
+<td>Reactive TypeScript backend: queries update live, with built-in vector indexes and reusable components</td>
+<td>Same job as SpacetimeDB. Pick one</td>
+</tr>
+<tr>
+<td><a href="https://innovationlab.fetch.ai/events/hackathons/mhacks-2026/hackpack">Fetch.ai</a></td>
+<td>uAgents (Python agent library), Agentverse (registry and hosting), ASI:One (an LLM that finds and calls registered agents through a Chat Protocol)</td>
+<td>Its hackathon packs score registering agents on Agentverse and ASI:One discoverability. Good match for a multi-agent project</td>
+</tr>
+<tr>
+<td><a href="https://ycombinator.com/companies/moss">Moss</a></td>
+<td>Semantic search runtime that answers in under 10 ms and runs in the browser, on a device or in the cloud</td>
+<td>Fits memory recall inside a voice loop</td>
+</tr>
+<tr>
+<td><a href="https://www.testingcatalog.com/engramme-opens-memory-api-beta-for-app-developers-and-teams/">Engramme</a></td>
+<td>Memory API in public beta, built around retrieving real past events from tools like Gmail, Zoom and Slack</td>
+<td>Aimed at work apps, so fit for resident memory is unclear. Don't confuse it with Engram, a different memory startup</td>
+</tr>
+<tr>
+<td><a href="https://www.elastic.co/search-labs/blog/ai-agentic-workflows-elastic-ai-agent-builder">Elastic</a></td>
+<td>Hybrid keyword and vector search; Agent Builder for agents with tools; MCP and agent-to-agent support</td>
+<td>Heavier setup than Moss for the same recall job</td>
+</tr>
+<tr>
+<td><a href="https://www.testingcatalog.com/spacexai-launches-21-new-grok-voices-on-xai-console/">SpaceXAI</a></td>
+<td>Grok realtime voice agent, text-to-speech and speech-to-text APIs across 25+ languages (formerly xAI)</td>
+<td>Optional fallback voice stack</td>
+</tr>
+<tr>
+<td><a href="https://www.runpod.io/product/serverless">Runpod</a></td>
+<td>Serverless GPU endpoints with per-second billing</td>
+<td>Only needed for a vision or open model we host ourselves</td>
+</tr>
+<tr>
+<td><a href="https://toolradar.com/tools/context-dev">Context.dev</a></td>
+<td>Web scraping, search and structured extraction API with a free tier</td>
+<td>Light fit: fresh chat topics for the robot</td>
+</tr>
+<tr>
+<td><a href="https://pulse2.com/creao-ai-10-million-raised-to-build-autonomous-super-agent-platform-for-ai-workflows/">Creao</a></td>
+<td>Builds reusable scheduled agent apps from a chat prompt, with memory</td>
+<td>Light fit: a shift-summary agent</td>
+</tr>
+<tr>
+<td><a href="https://www.trendingaitools.com/?p=45165">Wajo</a></td>
+<td>Fo, an action agent that makes calls and emails and hands tasks to a human when stuck</td>
+<td>Invite-only alpha, so risky to depend on</td>
+</tr>
+<tr>
+<td><a href="https://decagon.ai/blog/aop-the-future-of-cx">Decagon</a></td>
+<td>Customer-support agents defined by natural-language "Agent Operating Procedures"</td>
+<td>Useful idea for writing our triage policy, but no public API we could plan around</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Checked and not a fit:</strong> Hyphenate builds finance automation agents, AfterQuery sells expert training data, and Armadin does offensive cybersecurity testing. The trading and payments sponsors (Visa, Capital One, Citadel, Jane Street, D. E. Shaw, Coinbase, MoonPay) have no obvious role in the core flow. The exception we're weighing is Coinbase's x402 for nurse-approved restocking, on the Extra ideas tab.</p>
+<p><strong>Not researched or not identified:</strong> Apify, Bright Data, Atlassian, Figma, Canva, Adobe, Meta, Scale AI, Factory, Greptile, Microsoft beyond the Agent Framework note above, and the sponsors we could not identify from the channel names, such as Opal Electronics and Savvy. Ask about those at the booths, especially any hardware or parts offers.</p>
+<h2>Existing robots and how Bellhop differs</h2>
+<p>Two robots are the closest neighbours. In what we found, neither is described as answering the call bell and triaging it.</p>
+<ul>
+<li><strong>Moxi</strong> from Diligent Robotics is a hospital robot that fetches and delivers supplies so clinical staff don't have to; <a href="https://www.therobotreport.com/diligent-robotics-joins-agetech-collaborative-aarp-accelerator-program/">per The Robot Report</a> it is expanding into senior living and long-term care.</li>
+<li><strong>ElliQ</strong> from Intuition Robotics is a <a href="https://venturebeat.com/ai/intuition-robotics-elliq-help-the-aged">tabletop AI companion for older adults</a> that talks, keeps them company and connects them to family and caregivers.</li>
+</ul>
+<p>Bellhop is mobile like Moxi and conversational like ElliQ, but its trigger is the call bell and its job is deciding who should respond. That claim comes from a quick search only, so check it before calling the idea novel on stage.</p>
+<h2>Notes on the Freenove kit</h2>
+<ul>
+<li><strong>What it is.</strong> Per the Amazon listing, a four-wheel-drive car with a rotatable head holding a camera and ultrasonic sensor, line tracking, app control from Android, iPhone or a computer, and downloadable step-by-step Python code. It works with Raspberry Pi 5, 4B, 3B+ and others. The Pi and batteries are not included.</li>
+<li><strong>Open code.</strong> The car's server code is on <a href="https://github.com/Freenove/Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi">Freenove's GitHub</a>, so we can run our own audio and navigation as a separate process and leave their drive code alone.</li>
+<li><strong>Proven on a Pi 5.</strong> One builder's <a href="https://denis-legault.duckdns.org/4wd-car-kit/index.html">hands-on page</a> covers motor, servo and ultrasonic tests on a Pi 5, controlled from Freenove's iPhone client. That client is our manual-drive fallback.</li>
+<li><strong>Gotchas from reviews.</strong> One <a href="https://www.desertcart.lk/products/166100862">reviewer</a> saw the Pi lose power at full throttle on weak batteries and a tutorial camera app fail until they tried libcamera. An older review mentions Python 2.7, so check which Python version the current download expects.</li>
+<li><strong>No audio.</strong> The listing mentions no microphone or speaker, and from general knowledge the Pi 5 has no headphone jack, so plan on a USB speakerphone.</li>
+</ul>
+<h2>Robot voice and personality</h2>
+<p>We want Bellhop to sound bubbly and energetic, closer to an excited kid than the calm tone most care assistants use, because it's a little robot car. The voice we're trying first is Piper's semaine voice at medium size with the poppy speaker. Test voices on the <a href="https://rhasspy.github.io/piper-samples/#en_US-amy-medium">Piper samples page</a>.</p>
+<p>Piper's English voices on Hugging Face (rhasspy/piper-voices), listed on 2026-10-21. Each comes in some of four sizes: x_low, low, medium and high, and not every voice has every size.</p>
+<ul>
+<li><strong>en_US (21):</strong> amy, arctic, bryce, danny, hfc_female, hfc_male, joe, john, kathleen, kristin, kusal, l2arctic, lessac, libritts, libritts_r, ljspeech, mike, norman, reza_ibrahim, ryan, sam</li>
+<li><strong>en_GB (9):</strong> alan, alba, aru, cori, jenny_dioco, northern_english_male, semaine, southern_english_female, vctk</li>
+</ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Voice</th>
+<th>Size</th>
+<th>Why it's a candidate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>semaine (speaker poppy)</td>
+<td>Medium</td>
+<td>Team's first pick to test</td>
+</tr>
+<tr>
+<td>amy</td>
+<td>Medium</td>
+<td>Warm, clear female voice; a common pick for friendly assistants</td>
+</tr>
+<tr>
+<td>kristin</td>
+<td>Medium</td>
+<td>Newer US female voice, more conversational than lessac</td>
+</tr>
+<tr>
+<td>jenny_dioco</td>
+<td>Medium</td>
+<td>British female with a friendly, bright tone</td>
+</tr>
+<tr>
+<td>cori</td>
+<td>Medium or high</td>
+<td>British female, clear and fairly lively</td>
+</tr>
+<tr>
+<td>ryan</td>
+<td>Medium or high</td>
+<td>The usual male pick; expressive for Piper</td>
+</tr>
+<tr>
+<td>libritts_r</td>
+<td>High</td>
+<td>Many speakers in one model, so we can pick the liveliest speaker ID; bigger and slower on the Pi</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Judge by ear.</strong> Nobody has listened to these yet. The "energetic" labels come from general reputation.</li>
+<li><strong>Energy comes partly from settings.</strong> Piper voices are trained on read speech, so none are truly bubbly. A slightly lower --length-scale (about 0.9) sounds faster and perkier, and a higher --noise-scale adds variation. For seniors, don't go much faster than 1.0, because clarity matters more than pace.</li>
+<li><strong>Size versus speed.</strong> On a 2 GB Pi 5, medium voices are comfortable. High voices work but add latency, which streaming sentence by sentence should mostly hide.</li>
+<li><strong>Piper or Cartesia.</strong> The Project tab plans on Cartesia Sonic for speech. Piper runs on the Pi with no network, so it's the fallback if venue Wi-Fi fails, or the main voice if we prefer how it sounds.</li>
+</ul>
+<h2>Sources</h2>
+<p>Pages we opened in full:</p>
+<ul>
+<li><a href="https://link.springer.com/article/10.1186/1472-6963-10-52">Tzeng 2010, patient-initiated call lights (BMC Health Services Research)</a></li>
+<li><a href="https://www.studergroup.com/hardwired-results/hardwired-results-03/give-your-nurses-back-166-hours-every-month">Studer Group, call-light time estimate</a></li>
+<li><a href="https://vercel.com/changelog/typesafe-ai-jev-now-available-on-ai-gateway">Vercel, Jev on AI Gateway (16 Sep 2026)</a></li>
+<li><a href="https://www.trendingtopics.eu/jev-warum-dieses-neuartige-ki-modell-gerade-entwickerinnen-begeistert/">Trending Topics, Jev explainer</a></li>
+<li><a href="https://typesafe.ai">TypeSafe AI home page</a></li>
+</ul>
+<p>Read through search summaries only: <a href="https://learn.microsoft.com/pl-pl/agent-framework/integrations/by-provider/type-safe-ai">Microsoft Learn, TypeSafe integration</a>, <a href="https://github.com/valentynkit/awesome-jev-typesafe/wiki">community Jev list</a>, the Belgian nursing-home queueing abstract and every sponsor and robot page linked above.</p>
+<p>Added with the numbers: the <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">JMIR nursing-home call-light study</a> and the <a href="https://journals.sagepub.com/doi/10.1177/2377960820903546">SAGE Open Nursing staff survey</a> were opened in full. The other figures in that section came from search summaries, so open the source before quoting any of them.</p></article>
+</main>
+<footer>Bellhop · Cal Hacks 13 · The live Claude doc is the source of truth; these pages are a snapshot.</footer>
+</body>
+</html>
