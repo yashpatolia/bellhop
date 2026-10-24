@@ -60,48 +60,82 @@ class SimNavigator:
         self._room = None
 
 
+class HeadScanner:
+    """Sweep the camera head while stationary, using only deployment-configured angles."""
+
+    def __init__(
+        self,
+        clock: Callable[[], float] = time.monotonic,
+        pans: tuple[int, ...] = config.HEAD_SCAN_PANS,
+        tilt: int = config.HEAD_SCAN_TILT,
+        dwell_s: float = config.HEAD_SCAN_DWELL_S,
+    ) -> None:
+        self._clock, self._pans, self._tilt = clock, pans, tilt
+        self._dwell_s = dwell_s
+        self._next_at = 0.0
+        self._index = 0
+
+    def reset(self) -> None:
+        self._next_at = 0.0
+        self._index = 0
+
+    def step(self, car: FakeCar | RealCar) -> None:
+        now = self._clock()
+        if now < self._next_at:
+            return
+        pan = self._pans[self._index]
+        car.look_at(pan, self._tilt)
+        self._index = (self._index + 1) % len(self._pans)
+        self._next_at = now + self._dwell_s
+
+
 class MarkerNavigator:
     """Steer only from fresh camera observations of the requested ArUco marker.
 
-    It never follows a closer non-target marker, and it never searches blindly: absent, stale or
-    malformed vision stops the car. Room names are resolved through deployment configuration.
+    It never follows a closer non-target marker. Absent, stale or malformed vision stops the
+    wheels and sweeps the camera head in safe configured positions; it never blindly drives.
+    Room names are resolved through deployment configuration.
     """
 
     def __init__(
         self,
         vision: VisionReceiver,
         marker_for_room: Callable[[str], int | None] = config.marker_for_room,
+        scanner: HeadScanner | None = None,
     ) -> None:
         self._vision, self._marker_for_room = vision, marker_for_room
         self._marker_id: int | None = None
+        self._scanner = scanner or HeadScanner()
 
     def start(self, room: str) -> None:
         self._marker_id = self._marker_for_room(room)
+        self._scanner.reset()
 
     def cancel(self) -> None:
         self._marker_id = None
+        self._scanner.reset()
+
+    def _search(self, car: FakeCar | RealCar) -> bool:
+        car.stop()
+        self._scanner.step(car)
+        return False
 
     def step(self, car: FakeCar | RealCar) -> bool:
         marker_id = self._marker_id
         if marker_id is None:
-            car.stop()
-            return False
+            return self._search(car)
         markers = self._vision.markers()
         if markers is None:
-            car.stop()
-            return False
+            return self._search(car)
         target = next((row for row in markers if row.get("id") == marker_id), None)
         if target is None:
-            car.stop()
-            return False
+            return self._search(car)
         try:
             distance, x = float(target["distance_m"]), float(target["x"])
         except (KeyError, TypeError, ValueError):
-            car.stop()
-            return False
+            return self._search(car)
         if not (0.0 < distance < float("inf")) or not (-1.0 <= x <= 1.0):
-            car.stop()
-            return False
+            return self._search(car)
         if distance <= config.ARRIVE_DISTANCE_M:
             car.stop()
             return True
