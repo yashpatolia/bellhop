@@ -43,6 +43,8 @@ Read from the environment by `Settings.from_env` in `src/bellhop/container.py`.
 | `BELLHOP_GUARDS` | `1` | `0` disables timeout guards around adapters |
 | `BELLHOP_ROBOT_URL` | unset | Robot HTTP gateway URL |
 | `BELLHOP_CONTENT` | `local` | Reminiscence content: `local`, `wikipedia` or `apify` |
+| `BELLHOP_LEARNING` | `rule` | How facts are learned from conversations: `rule` (offline baseline) or `claude` (needs `ANTHROPIC_API_KEY`) |
+| `BELLHOP_EXTRACTOR_MODEL` | `claude-opus-5-5` | Claude model used by the `claude` extractor |
 | `APIFY_TOKEN` | unset | Apify API token |
 | `BELLHOP_API_KEY` | unset | Shared secret. When set, every route except `GET /health` needs `X-API-Key` (401 otherwise); `GET /events` also accepts `?api_key=` for browser EventSource. Unset = open (dev) |
 | `BELLHOP_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins, e.g. `http://localhost:5173`. Use the dashboard origin outside dev |
