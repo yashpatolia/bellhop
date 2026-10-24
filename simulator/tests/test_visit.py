@@ -86,9 +86,16 @@ def test_a_nurse_call_waits_for_an_ack_then_resolves_not_by_the_robot():
     assert resolve == [{"by_robot": False}]
 
 
-def test_no_free_robot_means_the_simulator_stays_out_of_it():
+def test_no_free_robot_means_a_nurse_takes_it_and_closes_it():
     fake = FakeBackend(robot_id=None)
     run(fake, scenario(1))
+    assert fake.posts() == ["/calls", "/calls/c1/score", "/calls/c1/resolve"]
+    assert [b for m, p, b in fake.log if p.endswith("/resolve")] == [{"by_robot": False}]
+
+
+def test_with_the_nurse_left_to_the_dashboard_the_call_stays_open():
+    fake = FakeBackend(robot_id=None)
+    run(fake, scenario(1), VisitOptions(nurse_delay_s=0))
     assert fake.posts() == ["/calls"]
 
 
