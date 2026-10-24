@@ -41,16 +41,18 @@ class SeenCounter:
 class FaceFinder:
     def __init__(self) -> None:
         if not config.YUNET_MODEL.exists():
-            raise FileNotFoundError(
-                f"vision: {config.YUNET_MODEL} missing, run scripts/download_models.py"
+            print(f"vision: {config.YUNET_MODEL} missing; face detection disabled")
+            self.detector = None
+        else:
+            self.detector = cv2.FaceDetectorYN.create(
+                str(config.YUNET_MODEL), "", config.FRAME_SIZE, config.FACE_SCORE, 0.3
             )
-        self.detector = cv2.FaceDetectorYN.create(
-            str(config.YUNET_MODEL), "", config.FRAME_SIZE, config.FACE_SCORE, 0.3
-        )
         self.seen = SeenCounter()
         self.last_face: dict | None = None
 
     def _detect(self, frame: np.ndarray, person_box: list[int]) -> dict | None:
+        if self.detector is None:
+            return None
         height, width = frame.shape[:2]
         x1, y1, x2, y2 = person_box
         y2 = y1 + (y2 - y1) // 2  # faces sit in the top half of the person box

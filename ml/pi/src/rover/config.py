@@ -114,9 +114,43 @@ MANUAL_TIMEOUT_S = float(os.environ.get("BELLHOP_MANUAL_TIMEOUT_S", "0.35"))
 MANUAL_REFRESH_S = 0.1
 PAN_CENTER = 90
 TILT_DRIVE = 90  # level: door markers are mounted low
-SEARCH_TURN_DUTY = 1200  # spin in place to look for a marker
-SEARCH_TURN_S = 0.4  # turn this long, then hold still so the camera sees without blur
-SEARCH_PAUSE_S = 0.6
+# Freenove's servo client applies a +10-degree calibration error. Although its UI permits
+# pan 0..180, those end values overrun a normal servo's pulse range. Stock obstacle avoidance
+# uses this proven 30/90/150 sweep. Tilt below 80 can hit the chassis.
+HEAD_PAN_MIN = 30
+HEAD_PAN_MAX = 150
+HEAD_TILT_MIN = 80
+HEAD_TILT_MAX = 180
+
+
+def _head_scan_angles(name: str, raw: str, minimum: int, maximum: int) -> tuple[int, ...]:
+    """Parse safe, venue-tunable camera-head angles from the deployment environment."""
+    try:
+        pans = tuple(int(part.strip()) for part in raw.split(",") if part.strip())
+    except ValueError as exc:
+        raise ValueError(f"{name} must be comma-separated servo angles") from exc
+    if not pans or any(not minimum <= pan <= maximum for pan in pans):
+        raise ValueError(
+            f"{name} must contain safe angles from {minimum} through {maximum}"
+        )
+    return pans
+
+
+HEAD_SCAN_PANS = _head_scan_angles(
+    "BELLHOP_HEAD_SCAN_PANS",
+    os.environ.get("BELLHOP_HEAD_SCAN_PANS", "30,90,150"),
+    HEAD_PAN_MIN,
+    HEAD_PAN_MAX,
+)
+HEAD_SCAN_TILTS = _head_scan_angles(
+    "BELLHOP_HEAD_SCAN_TILTS",
+    os.environ.get("BELLHOP_HEAD_SCAN_TILTS", "80,90,110"),
+    HEAD_TILT_MIN,
+    HEAD_TILT_MAX,
+)
+HEAD_SCAN_DWELL_S = float(os.environ.get("BELLHOP_HEAD_SCAN_DWELL_S", "0.6"))
+if HEAD_SCAN_DWELL_S <= 0:
+    raise ValueError("head scan dwell must be positive")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)
