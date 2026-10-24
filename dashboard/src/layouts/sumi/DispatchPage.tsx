@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import type { BellhopData, Call, Resident } from '../../data/types'
-import { clock, closestFreeRobot, initials, isOpen, openCallIn, robotAvailability, statusText } from '../../lib'
+import type { BellhopData, Resident } from '../../data/types'
+import { clock, closestFreeRobot, initials, isOpen, robotAvailability } from '../../lib'
 import { Chip } from '../shared'
 import { recordDispatch, useDispatched } from '../board'
 
-// Staff send a chosen robot to a room by hand (POST /robots/{id}/dispatch). The call and the visit
-// then run as for any bell and show on the Live tab. The closest free robot is preselected.
+// Staff drive a chosen robot to a room by hand (POST /robots/{id}/navigate) and can stop it
+// (POST /robots/{id}/stop). It only drives: no call is made and the robot does not start a visit.
+// The Pi decides what the target means (a configured room name or a marker id) and reports where
+// the robot really is. The closest free robot is preselected.
 
 const byRoom = (a: Resident, b: Resident) => a.room.localeCompare(b.room, undefined, { numeric: true })
 
@@ -24,7 +26,7 @@ function RoomList({ data, selected }: { data: BellhopData; selected?: string }) 
       {shown.length === 0 && <p className="sm-empty">No room matches "{query}".</p>}
       <ul>
         {shown.map((r) => {
-          const open = openCallIn(data.calls, r.room)
+          const open = data.calls.find((c) => c.room === r.room && isOpen(c))
           return (
             <li key={r.id}>
               <a href={`#/dispatch/${encodeURIComponent(r.room)}`} aria-current={r.room === selected ? 'page' : undefined}>
@@ -47,7 +49,7 @@ function RoomList({ data, selected }: { data: BellhopData; selected?: string }) 
       >
         <label>
           Another place, such as the lobby
-          <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={32} placeholder="Room or place name" />
+          <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={32} placeholder="Room, place or marker id" />
         </label>
         <button className="sb-btn" type="submit" disabled={!other.trim()}>
           Choose
@@ -75,6 +77,11 @@ function RobotRows({ data, room, chosen, onChoose }: { data: BellhopData; room: 
                 {Math.round(r.battery)}%{r.room ? `, ${r.room}` : ''}
               </em>
             </label>
+            {r.state === 'en_route' && (
+              <button className="sb-btn sm-stop" onClick={() => void data.actions.stopRobot(r.id)} aria-label={`Stop ${r.name}`}>
+                Stop {r.name}
+              </button>
+            )}
           </li>
         )
       })}
@@ -84,22 +91,23 @@ function RobotRows({ data, room, chosen, onChoose }: { data: BellhopData; room: 
 
 function Sent({ data }: { data: BellhopData }) {
   const sent = useDispatched()
-  const find = (id: string): Call | undefined => [...data.calls, ...data.pastCalls].find((c) => c.id === id)
   return (
     <section>
-      <h2>Sent from here</h2>
+      <h2>Driven from here</h2>
       {sent.length === 0 ? (
         <p className="sm-empty">Nothing sent from this screen yet.</p>
       ) : (
         <ul className="sm-sent">
           {sent.map((s) => {
-            const call = find(s.callId)
-            const robot = call?.robotId ? data.robots.find((r) => r.id === call.robotId)?.name : undefined
+            const robot = data.robots.find((r) => r.id === s.robotId)
+            const driving = robot?.state === 'en_route'
             return (
-              <li key={s.callId} className={call && isOpen(call) ? 'open' : 'done'}>
+              <li key={`${s.robotId}-${s.at}`} className={driving ? 'open' : 'done'}>
                 <time>{clock(s.at)}</time>
-                <b>Room {s.room}</b>
-                <span>{call ? (isOpen(call) ? `${robot ?? 'A nurse'}: ${statusText(call)}` : call.resolvedByRobot ? 'Finished, the robot handled it' : 'Finished') : 'Waiting for the backend'}</span>
+                <b>{robot?.name ?? s.robotId}</b>
+                <span>
+                  to {s.room}: {!robot ? 'no longer reporting' : driving ? 'driving' : robot.state === 'with_resident' ? 'now with a resident' : 'standing by (arrived or stopped)'}
+                </span>
               </li>
             )
           })}
@@ -116,17 +124,15 @@ function Body({ data, room, resident }: { data: BellhopData; room?: string; resi
   // The nurse's pick, as long as that robot is still free; otherwise the closest free robot.
   const pickedRobot = data.robots.find((r) => r.id === picked && robotAvailability(r).free)
   const robot = pickedRobot ?? closest
-  const open = room ? openCallIn(data.calls, room) : undefined
   let reason = ''
   if (data.connection.state !== 'live') reason = 'Bellhop cannot be reached right now.'
-  else if (open) reason = `Room ${room} already has an open call: ${statusText(open).toLowerCase()}. Sending another robot would only double up.`
-  else if (!robot) reason = 'No robot is free, so none can be sent. Robots that are charging return when they are full.'
+  else if (!robot) reason = 'No robot is free, so none can be driven. A robot that is driving, with a resident or charging cannot take a new target.'
   const send = async () => {
     if (!room || !robot) return
     setBusy(true)
-    const id = await data.actions.sendRobot(robot.id, room)
+    const ok = await data.actions.driveRobot(robot.id, room)
     setBusy(false)
-    if (id) recordDispatch({ callId: id, room, at: Date.now() })
+    if (ok) recordDispatch({ robotId: robot.id, room, at: Date.now() })
   }
   return (
     <>
@@ -136,19 +142,18 @@ function Body({ data, room, resident }: { data: BellhopData; room?: string; resi
       </section>
       {room && (
         <section>
-          <h2>Send</h2>
+          <h2>Drive</h2>
           {reason ? (
             <p className="sm-why" role="status">
               {reason}
             </p>
           ) : (
             <p className="sm-empty">
-              {robot?.name} drives to room {room}
-              {resident ? ` and talks with ${resident.name.split(' ')[0]}` : ''}. The call shows on the Live tab like any other. Choose a different free robot above if you prefer.
+              {robot?.name} drives to {resident ? `room ${room}, where ${resident.name.split(' ')[0]} is` : room}. It only drives: no call is made and it does not start a visit. Use Stop beside a driving robot to halt it. Choose a different free robot above if you prefer.
             </p>
           )}
           <button className="sb-btn primary big sm-send" onClick={() => void send()} disabled={busy || Boolean(reason)}>
-            {busy ? 'Sending...' : robot ? `Send ${robot.name} to room ${room}` : `Send a robot to room ${room}`}
+            {busy ? 'Sending...' : robot ? `Drive ${robot.name} to ${room}` : `Drive a robot to ${room}`}
           </button>
         </section>
       )}
@@ -167,8 +172,8 @@ export function DispatchPage({ data, room }: { data: BellhopData; room?: string 
             {resident ? initials(resident.name) : '?'}
           </span>
           <div>
-            <h1>{room ? `Room ${room}` : 'Send a robot'}</h1>
-            <p>{room ? (resident ? `${resident.name}${resident.flags.length ? `, ${resident.flags.join(', ')}` : ''}` : 'No resident on record for this place') : 'Choose a room on the left, then choose which free robot to send.'}</p>
+            <h1>{room ? `Room ${room}` : 'Drive a robot'}</h1>
+            <p>{room ? (resident ? `${resident.name}${resident.flags.length ? `, ${resident.flags.join(', ')}` : ''}` : 'No resident on record for this place') : 'Choose a room on the left, then choose which free robot to drive there.'}</p>
           </div>
         </header>
         <Body key={room ?? ''} data={data} room={room} resident={resident} />

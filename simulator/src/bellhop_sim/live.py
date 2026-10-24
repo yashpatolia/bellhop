@@ -17,6 +17,8 @@ from bellhop_sim.visit import DEFAULT_OPTS, Pace, VisitOptions, attend, play_cal
 log = logging.getLogger("bellhop_sim")
 
 HEARTBEAT_S = 2.0
+DRIVE_S = 10.0  # how long a manual drive takes (the simulator has no map)
+OPEN = ("assigned", "robot_en_route", "in_visit", "escalated", "nurse_acked")
 LEVEL_WEIGHTS = {1: 55, 2: 20, 3: 20, 4: 5}  # how often each urgency level rings
 
 # Named bursts. Each entry is (category, resident id, how many seconds after the start).
@@ -64,6 +66,7 @@ class Home:
         self.fleet = fleet or new_fleet()
         self._busy: set[str] = set()  # residents with a call in progress
         self._played: set[str] = set()  # calls this simulator rang or has taken over
+        self._driving: set[str] = set()  # robots staff sent by hand (no call)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self.threads: list[threading.Thread] = []
@@ -82,6 +85,36 @@ class Home:
                 log.warning("heartbeat for %s failed: %s", r.id, exc)
         self.fleet.tick()
 
+    def adopt_drives(self) -> None:
+        """Follow manual drives and stops from the dashboard (`/navigate` and `/stop`). The backend
+        marks a robot busy without a call; the simulator drives for a while, then stands by."""
+        backend = {r["id"]: r for r in self.api.get("/robots")}
+        holding = {
+            c["robot_id"]
+            for c in self.api.get("/calls", params={"limit": 50})
+            if c["status"] in OPEN and c.get("robot_id")
+        }
+        for r in self.fleet.snapshot():
+            status = backend.get(r.id, {}).get("status")
+            if (
+                r.status == "idle"
+                and status == "busy"
+                and r.id not in holding
+                and r.id not in self._driving
+            ):
+                self._driving.add(r.id)
+                self.fleet.set(r.id, status="busy")
+                threading.Thread(target=self._finish_drive, args=(r.id,), daemon=True).start()
+            elif r.id in self._driving and status == "idle":  # stopped from the dashboard
+                self._driving.discard(r.id)
+                self.fleet.set(r.id, status="idle")
+
+    def _finish_drive(self, robot_id: str) -> None:
+        self.pace.wait(DRIVE_S)
+        if robot_id in self._driving:
+            self._driving.discard(robot_id)
+            self.fleet.set(robot_id, status="idle")
+
     def start(self) -> None:
         """Begin reporting the robots every couple of seconds."""
         if self._heartbeat is None:
@@ -90,6 +123,10 @@ class Home:
 
     def _heartbeat_loop(self) -> None:
         while not self._stop.is_set():
+            try:
+                self.adopt_drives()
+            except BackendError as exc:
+                log.warning("could not follow manual drives: %s", exc)
             self.heartbeat()
             try:
                 self.adopt()

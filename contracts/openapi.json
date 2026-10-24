@@ -3663,7 +3663,23 @@
         ],
         "title": "MessageDirection"
       },
-<<<<<<< HEAD
+      "NavigateIn": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Target"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "title": "NavigateIn",
+        "description": "An opaque navigation label. The Pi resolves it to its local map/marker configuration."
+      },
       "NoteCategory": {
         "type": "string",
         "enum": [
@@ -3690,31 +3706,15 @@
             "type": "string",
             "maxLength": 500,
             "title": "Text"
-=======
-      "NavigateIn": {
-        "properties": {
-          "target": {
-            "type": "string",
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Target"
->>>>>>> 62c6548 (Add dashboard robot navigation controls)
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-<<<<<<< HEAD
           "category",
           "text"
         ],
         "title": "NoteIn"
-=======
-          "target"
-        ],
-        "title": "NavigateIn",
-        "description": "An opaque navigation label. The Pi resolves it to its local map/marker configuration."
->>>>>>> 62c6548 (Add dashboard robot navigation controls)
       },
       "Nurse": {
         "properties": {

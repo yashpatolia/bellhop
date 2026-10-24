@@ -94,3 +94,21 @@ def test_a_call_to_a_place_with_no_resident_is_played_too(api):
     assert home.adopt(min_age_s=0) == 1
     home.join(timeout=30)
     assert api.get(f"/calls/{call['id']}")["transcript"]
+
+
+def test_a_manual_drive_keeps_the_robot_busy_until_it_arrives_or_is_stopped(api):
+    import threading
+
+    arrive = threading.Event()
+    home = Home(api, Pace(1, sleep=lambda _s: arrive.wait(10)), random.Random(7), new_fleet())
+    home.heartbeat()
+    api.post("/robots/bellhop_2/navigate", {"target": "104"})  # what the dashboard's Drive does
+    home.adopt_drives()
+    home.heartbeat()
+    status = {r["id"]: r["status"] for r in api.get("/robots")}
+    assert status["bellhop_2"] == "busy"  # the heartbeat did not undo the drive
+    api.post("/robots/bellhop_2/stop")  # staff stop it
+    home.adopt_drives()
+    home.heartbeat()
+    assert {r["id"]: r["status"] for r in api.get("/robots")}["bellhop_2"] == "idle"
+    arrive.set()

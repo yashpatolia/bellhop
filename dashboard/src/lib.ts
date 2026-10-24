@@ -128,25 +128,21 @@ export function clearedAlerts(s: Snapshot, limit = 12): Snapshot['alerts'] {
     .slice(0, limit)
 }
 
-/** The backend will not send a robot with less charge than this (percent). */
-export const MIN_DISPATCH_BATTERY = 20
+/** Below this charge staff are warned before driving a robot (percent). The backend does not refuse. */
+export const LOW_BATTERY = 20
 
-/** Whether a robot can take a new call right now, in words. Mirrors the backend's dispatch rule. */
+/** Whether a robot can take a manual drive now, in words. The backend accepts only an idle robot. */
 export function robotAvailability(r: Robot): { free: boolean; words: string } {
   if (r.state === 'fault') return { free: false, words: 'Needs attention' }
   if (r.state === 'charging') return { free: false, words: 'Charging' }
-  if (r.state === 'en_route' || r.state === 'with_resident') return { free: false, words: r.targetRoom ? `Busy, room ${r.targetRoom}` : 'Busy' }
-  if (r.battery < MIN_DISPATCH_BATTERY) return { free: false, words: `Battery too low (${Math.round(r.battery)}%)` }
+  if (r.state === 'en_route') return { free: false, words: r.targetRoom ? `Driving, room ${r.targetRoom}` : 'Driving' }
+  if (r.state === 'with_resident') return { free: false, words: r.targetRoom ? `With a resident, room ${r.targetRoom}` : 'With a resident' }
+  if (r.battery < LOW_BATTERY) return { free: true, words: `Free, low battery (${Math.round(r.battery)}%)` }
   return { free: true, words: 'Free' }
 }
 
-/** The robot the backend picks: a free one already in the room, otherwise the first free one. */
+/** A free robot already in the room, otherwise the free one with the most charge. */
 export function closestFreeRobot(robots: Robot[], room: string): Robot | undefined {
   const free = robots.filter((r) => robotAvailability(r).free)
-  return free.find((r) => r.room === room) ?? free[0]
-}
-
-/** The call still open for a room, if there is one: a second bell there would only double up. */
-export function openCallIn(calls: Call[], room: string): Call | undefined {
-  return calls.find((c) => c.room === room && isOpen(c))
+  return free.find((r) => r.room === room) ?? free.sort((a, b) => b.battery - a.battery)[0]
 }

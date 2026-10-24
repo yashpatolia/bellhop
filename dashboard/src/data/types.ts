@@ -154,8 +154,10 @@ export interface Connection {
 export type ReviewDecision = 'approve' | 'reject'
 
 export interface Actions {
-  /** Send this robot to a room (POST /robots/{id}/dispatch). Returns the new call's id, or null if it failed. */
-  sendRobot: (robotId: string, room: string) => Promise<string | null>
+  /** Drive this robot to a room or marker (POST /robots/{id}/navigate). True once the robot accepted it. */
+  driveRobot: (robotId: string, target: string) => Promise<boolean>
+  /** Ask this robot to stop where it is (POST /robots/{id}/stop). */
+  stopRobot: (robotId: string) => Promise<boolean>
   /** Acknowledge the call's alert, so the nurse shows as on the way. */
   nurseOnMyWay: (callId: string) => Promise<void>
   /** Mark a call done by staff. */

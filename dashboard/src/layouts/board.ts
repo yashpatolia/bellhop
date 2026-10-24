@@ -21,9 +21,9 @@ export function useBoard(data: BellhopData) {
 
 export const residentOf = (data: BellhopData, c: Call) => data.residents.find((r) => r.id === c.residentId)
 
-/** Robots sent from the Dispatch tab during this visit to the dashboard, newest first. */
+/** Robots driven from the Dispatch tab during this visit to the dashboard, newest first. */
 export interface Dispatched {
-  callId: string
+  robotId: string
   room: string
   at: number
 }
