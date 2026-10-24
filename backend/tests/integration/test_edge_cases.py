@@ -47,7 +47,7 @@ def test_second_call_never_double_assigns_busy_robot(app):
     assert second.status is CallStatus.ASSIGNED
     assert len(second.assigned_to) == 1  # fell back to a nurse
     assert second.assigned_to[0].startswith("nurse_")
-    assert app.gateway.commands == [("go_to", "robot_1", "12")]
+    assert [c for c in app.gateway.commands if c[0] == "go_to"] == [("go_to", "robot_1", "12")]
 
 
 def test_second_call_escalates_when_robot_busy_and_no_nurse_on_shift(app):
@@ -56,7 +56,7 @@ def test_second_call_escalates_when_robot_busy_and_no_nurse_on_shift(app):
     second = app.call_service.raise_call("14")
     assert app.store.calls.get(second.id).status is CallStatus.ESCALATED
     assert app.store.calls.get(second.id).robot_id is None
-    assert len(app.gateway.commands) == 1
+    assert len([c for c in app.gateway.commands if c[0] == "go_to"]) == 1
 
 
 def test_concurrent_calls_to_same_room_use_one_robot_command(app):

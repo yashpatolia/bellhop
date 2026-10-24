@@ -137,6 +137,13 @@ class RobotStatus(StrEnum):
     FAULT = "fault"
 
 
+class LedState(StrEnum):
+    IDLE = "idle"
+    LISTENING = "listening"
+    NURSE_ON_WAY = "nurse_on_way"
+    EMERGENCY = "emergency"
+
+
 class Robot(BaseModel):
     id: str
     status: RobotStatus = RobotStatus.IDLE

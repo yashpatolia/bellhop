@@ -16,7 +16,7 @@ def test_scene1_lonely_resident_resolved_by_robot_without_nurse_alert(app):
     stored = app.store.calls.get(call.id)
     assert stored.status is CallStatus.ASSIGNED
     assert stored.robot_id == "robot_1"
-    assert app.gateway.commands == [("go_to", "robot_1", "12")]
+    assert [c for c in app.gateway.commands if c[0] == "go_to"] == [("go_to", "robot_1", "12")]
 
     context = app.memory.prompt_context(stored.resident_id, "can I get a cup of tea and a chat")
     assert "two sugars" in context

@@ -44,6 +44,7 @@ def main() -> None:
     dump(ex / "alerts.json", c.get("/alerts").json())
     dump(ex / "metrics.json", c.get("/metrics").json())
     dump(ex / "calls_list.json", c.get("/calls").json())
+    dump(ex / "robots.json", c.get("/robots").json())
     margaret = c.get("/residents/res_margaret/memory", params={"q": "tea please"}).json()
     dump(ex / "memory_recall.json", margaret)
 

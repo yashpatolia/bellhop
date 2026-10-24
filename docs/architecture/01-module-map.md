@@ -4,7 +4,7 @@ Paths are under `backend/src/bellhop/`. Tests mirror them under `backend/tests/{
 Status: everything below is implemented and green unless marked `later`.
 
 ## domain/ (done)
-`models.py`: `Urgency`, `CallStatus`, `Call`, `Turn`, `Resident`, `MemoryFact`, `Nurse`, `Robot`, `RobotStatus`, `Alert`, `Visit`, `InvalidTransition`.
+`models.py`: `Urgency`, `CallStatus`, `Call`, `Turn`, `Resident`, `MemoryFact`, `Nurse`, `Robot`, `RobotStatus`, `LedState`, `Alert`, `Visit`, `InvalidTransition`.
 `events.py`: `CallRaised`, `CallAssigned`, `CallScored`, `CallResolved`, `AlertRaised` (frozen dataclasses).
 Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nurse_tasks`); `Call.robot_id` is the robot assigned. `Call.transition(to, at)` enforces the state machine; `Call.score(urgency, category)` only ratchets up; `Call.needs_nurse` is urgency >= 3.
 
@@ -42,8 +42,14 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 ### WP-D: composition and HTTP
 | File | Public interface |
 | --- | --- |
-| `container.py` | `build_container(settings) -> Container` wiring everything; `Settings.from_env()` (`BELLHOP_MEMORY=local|moss`, `BELLHOP_STORE=memory`, `BELLHOP_SEED_DEMO=1`, `MOSS_PROJECT_ID`, `MOSS_PROJECT_KEY`). `BELLHOP_STORE=spacetimedb` with `BELLHOP_STDB_URL`, `BELLHOP_STDB_DB`, `BELLHOP_STDB_TOKEN` (see below); unreachable server at build time logs and falls back to memory |
-| `api/app.py` | `create_app(container) -> FastAPI`. Routes: `POST /calls {room}`, `GET /calls`, `GET /calls/{id}`, `POST /calls/{id}/turns`, `POST /calls/{id}/score`, `POST /calls/{id}/resolve`, `POST /alerts/{id}/ack`, `GET /residents/{id}/memory?q=&k=`, `POST /residents/{id}/memory`, `GET /metrics`, `GET /health` |
+| `container.py` | `build_container(settings) -> Container` wiring everything; `Settings.from_env()` (`BELLHOP_MEMORY=local|moss`, `BELLHOP_STORE=memory`, `BELLHOP_SEED_DEMO=1`, `MOSS_PROJECT_ID`, `MOSS_PROJECT_KEY`, `BELLHOP_ROBOT_URL` selects `HttpRobotGateway`). `BELLHOP_STORE=spacetimedb` with `BELLHOP_STDB_URL`, `BELLHOP_STDB_DB`, `BELLHOP_STDB_TOKEN` (see below); unreachable server at build time logs and falls back to memory |
+| `api/app.py` | `create_app(container) -> FastAPI`. Routes: `POST /calls {room}`, `GET /calls`, `GET /calls/{id}`, `POST /calls/{id}/turns`, `POST /calls/{id}/score`, `POST /calls/{id}/resolve`, `POST /alerts/{id}/ack`, `GET /residents/{id}/memory?q=&k=`, `POST /residents/{id}/memory`, `GET /robots`, `PUT /robots/{id}` (idle report ignored while the robot holds an open call), `GET /metrics`, `GET /health` |
+
+### Robot interface
+| File | Public interface |
+| --- | --- |
+| `adapters/http_robot_gateway.py` | `HttpRobotGateway(base_url, timeout=2.0)`: `go_to` POSTs `/go_to {room}`, `set_led` POSTs `/led {state}`; non-2xx or transport error raises |
+| `services/robot_signals.py` | `RobotSignals(calls, gateway, bus)`: urgency 4 -> `emergency`, 3 -> `nurse_on_way`, assigned -> `listening`, resolved -> `idle`, only for the call's `robot_id`; gateway errors are logged, never raised |
 
 ### Reminiscence content (optional, Apify)
 | File | Public interface |
