@@ -1,8 +1,9 @@
-"""OLED eyes in the style of Astro Bot: round when listening, upside-down crescents when happy.
+"""Eyes in the style of Astro Bot on the HDMI screen: round when listening, upside-down crescents
+when happy.
 
 The voice process sets `base` (idle, listening, thinking) and calls feel(tone) as each sentence is
-spoken, so the face follows Claude's tone tag. A thread draws ~10 frames a second and sends only
-the 8-row pages that changed, because the I2C bus is shared with the motor board.
+spoken, so the face follows Claude's tone tag. A thread draws EYES_FPS frames a second straight
+into the Linux framebuffer, so the Pi must show the console on HDMI, not the desktop.
 """
 
 from __future__ import annotations
@@ -12,12 +13,13 @@ import math
 import random
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
 from rover import config
 
-W, H = 128, 64
+W, H = 128, 64  # the face is designed in these "face pixels" and drawn `scale` times bigger
 EYE_GAP = 24  # each eye's centre this far from the middle of the screen
 # happy: an oval below the centre is carved out, leaving a thick dome with short legs
 HAPPY_CUT_Y, HAPPY_CUT_W, HAPPY_CUT_H = 0.75, 0.85, 0.7  # its centre, width, height (x the eye)
@@ -33,73 +35,69 @@ EXPRESSIONS = {
     "calm": (14, 14, 0, 2, "round"),  # + slow blinks
     "gentle": (15, 15, 0, 8, "soft"),  # looks down, lids lowered
 }
-_Y, _X = np.mgrid[0:H, 0:W]
 
 
-def _oval(cx: float, cy: float, rx: float, ry: float) -> np.ndarray:
-    return ((_X - cx) / rx) ** 2 + ((_Y - cy) / ry) ** 2 < 1  # "<": no 1-px spikes at the tips
+def _axis(n: int, scale: int) -> np.ndarray:
+    return (np.arange(n * scale) + 0.5) / scale - 0.5  # pixel centres, in face pixels
 
 
-def draw(expression: str, blink: float = 0.0, look: tuple[int, int] = (0, 0), bob: int = 0):
-    """A (64, 128) bool frame. blink 0..1 squashes the eyes shut; bob moves them up."""
+def _oval(x, y, cx: float, cy: float, rx: float, ry: float) -> np.ndarray:
+    return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1  # "<": no 1-px spikes at the tips
+
+
+def draw(
+    expression: str,
+    blink: float = 0.0,
+    look: tuple[int, int] = (0, 0),
+    bob: float = 0,
+    scale: int = 1,
+):
+    """A (64, 128) x scale bool frame. blink 0..1 squashes the eyes shut; bob moves them up."""
     rx, ry, dx, dy, shape = EXPRESSIONS.get(expression, EXPRESSIONS["idle"])
     ry = max(ry * (1 - blink), 1)
-    frame = np.zeros((H, W), bool)
+    y, x = _axis(H, scale)[:, None], _axis(W, scale)[None, :]  # broadcast: no full-size grids
+    frame = np.zeros((H * scale, W * scale), bool)
     for side in (-1, 1):
         cx = (W - 1) / 2 + side * EYE_GAP + dx + look[0]  # (W - 1) / 2: the true middle
         cy = (H - 1) / 2 + dy + look[1] - bob
-        eye = _oval(cx, cy, rx, ry)
+        eye = _oval(x, y, cx, cy, rx, ry)
         if shape == "happy":
-            eye &= ~_oval(cx, cy + ry * HAPPY_CUT_Y, rx * HAPPY_CUT_W, ry * HAPPY_CUT_H)
+            eye &= ~_oval(x, y, cx, cy + ry * HAPPY_CUT_Y, rx * HAPPY_CUT_W, ry * HAPPY_CUT_H)
         elif shape == "soft":
-            eye &= _Y >= cy - ry * SOFT_LID + SOFT_TILT * side * (_X - cx)
+            eye &= y >= cy - ry * SOFT_LID + SOFT_TILT * side * (x - cx)
         frame |= eye
-    return frame[::-1, ::-1] if config.OLED_FLIP else frame
+    return frame[::-1, ::-1] if config.EYES_FLIP else frame
 
 
-class Oled:
-    """SSD1306 (or SH1106 with a column offset) over I2C, with smbus like the battery reader."""
+class Screen:
+    """The HDMI screen through the Linux framebuffer, sized from sysfs (16 or 32 bits a pixel)."""
 
-    INIT = [
-        0xAE, 0xD5, 0x80, 0xA8, H - 1, 0xD3, 0x00, 0x40, 0x8D, 0x14, 0x20, 0x02,
-        0xA1, 0xC8, 0xDA, 0x12, 0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF,
-    ]  # fmt: skip
-    CHUNK = 32  # smbus block writes carry at most 32 bytes
-
-    def __init__(self, bus=None, address: int = config.OLED_ADDRESS) -> None:
-        if bus is None:
-            import smbus  # apt python3-smbus on the Pi
-
-            bus = smbus.SMBus(1)
-        self._bus, self._address = bus, address
-        self._pages: list[bytes | None] = [None] * (H // 8)
-        self._command(*self.INIT)
-
-    def _command(self, *codes: int) -> None:
-        self._bus.write_i2c_block_data(self._address, 0x00, list(codes))
+    def __init__(self, device: str = config.EYES_FB, sysfs: Path | None = None) -> None:
+        info = sysfs or Path("/sys/class/graphics") / Path(device).name
+        width, height = (int(v) for v in (info / "virtual_size").read_text().split(","))
+        self.bits = int((info / "bits_per_pixel").read_text())
+        dtype = {16: np.uint16, 32: np.uint32}[self.bits]  # KeyError: an unsupported depth
+        stride = int((info / "stride").read_text()) // np.dtype(dtype).itemsize
+        self.size, self.scale = (width, height), min(width // W, height // H)
+        r, g, b = config.EYES_RGB
+        self._on = r >> 3 << 11 | g >> 2 << 5 | b >> 3 if self.bits == 16 else r << 16 | g << 8 | b
+        self._fb = np.memmap(device, dtype, "r+", shape=(height, stride))
+        self._image = np.zeros(self._fb.shape, dtype)
+        top, left = (height - H * self.scale) // 2, (width - W * self.scale) // 2
+        self._face = self._image[top : top + H * self.scale, left : left + W * self.scale]
 
     def show(self, frame: np.ndarray) -> None:
-        # each byte is a column of 8 rows, top row in the lowest bit
-        pages = np.packbits(frame.reshape(H // 8, 8, W), axis=1, bitorder="little")[:, 0, :]
-        column = config.OLED_COLUMN_OFFSET
-        for page, row in enumerate(pages):
-            data = row.tobytes()
-            if data == self._pages[page]:
-                continue
-            self._pages[page] = None  # a failed write below must be resent next frame
-            self._command(0xB0 | page, column & 0x0F, 0x10 | column >> 4)
-            for i in range(0, W, self.CHUNK):
-                self._bus.write_i2c_block_data(self._address, 0x40, list(data[i : i + self.CHUNK]))
-            self._pages[page] = data
+        self._face[:] = frame
+        self._face *= self._on
+        self._fb[:] = self._image  # the whole screen: console text under the face is wiped too
 
     def off(self) -> None:
-        self.show(np.zeros((H, W), bool))
-        self._command(0xAE)
+        self._fb[:] = 0
 
 
 class Eyes:
-    def __init__(self, oled: Oled | None = None) -> None:
-        self.oled = oled
+    def __init__(self, screen: Screen | None = None) -> None:
+        self.screen = screen
         self.base = "idle"
         self._mood, self._mood_until = "", 0.0
         self._blink_at = self._glance_at = 0.0  # the first frame blinks: it wakes up
@@ -135,16 +133,16 @@ class Eyes:
             if now < self._look_until:
                 look = self._look
         elif expression == "excited":
-            bob = round(BOUNCE_PX * abs(math.sin(math.pi * BOUNCE_HZ * now)))
-        return draw(expression, blink, look, bob)
+            bob = BOUNCE_PX * abs(math.sin(math.pi * BOUNCE_HZ * now))
+        return draw(expression, blink, look, bob, self.screen.scale if self.screen else 1)
 
     def tick(self) -> None:
         try:
-            self.oled.show(self.frame(time.monotonic()))
+            self.screen.show(self.frame(time.monotonic()))
             self._failing = False
-        except Exception as exc:  # noqa: BLE001 - a loose wire must not stop the visit
+        except Exception as exc:  # noqa: BLE001 - a screen problem must not stop the visit
             if not self._failing:
-                print(f"fallback: OLED write failed ({exc!r}); retrying every frame")
+                print(f"fallback: face screen write failed ({exc!r}); retrying every frame")
             self._failing = True
 
     def _run(self) -> None:
@@ -152,12 +150,12 @@ class Eyes:
             self.tick()
 
     def start(self) -> Eyes:
-        """Open the OLED and animate it; without one (a Mac, no wire) the face is just skipped."""
-        if self.oled is None:
+        """Open the screen and animate it; without one (a Mac, no HDMI) the face is just skipped."""
+        if self.screen is None:
             try:
-                self.oled = Oled()
-            except Exception as exc:  # noqa: BLE001 - ImportError on a Mac, OSError with no screen
-                print(f"fallback: no OLED face ({type(exc).__name__}: {exc})")
+                self.screen = Screen()
+            except Exception as exc:  # noqa: BLE001 - no sysfs on a Mac, OSError with no screen
+                print(f"fallback: no face screen ({type(exc).__name__}: {exc})")
                 return self
         atexit.register(self.stop)  # a dead program must not leave the eyes frozen open
         self._thread = threading.Thread(target=self._run, daemon=True, name="eyes")
@@ -168,8 +166,8 @@ class Eyes:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(1)  # a frame half-sent after off() would light the eyes again
-        if self.oled is not None:
+        if self.screen is not None:
             try:
-                self.oled.off()
+                self.screen.off()
             except Exception as exc:  # noqa: BLE001
-                print(f"eyes: could not switch the OLED off: {exc!r}")
+                print(f"eyes: could not blank the face screen: {exc!r}")

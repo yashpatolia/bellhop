@@ -295,11 +295,11 @@ TONES = {
 DEFAULT_TONE = "cheerful"
 SLOW_LENGTH_BONUS = 0.1  # added to length_scale when speech-settings say rate "slow"
 
-# OLED eyes: a 128x64 I2C screen. SSD1306 (0.96 inch) by default; a 1.3 inch SH1106 needs offset 2
-OLED_ADDRESS = int(os.environ.get("OLED_ADDRESS", "0x3C"), 16)
-OLED_COLUMN_OFFSET = int(os.environ.get("OLED_COLUMN_OFFSET", "0"))
-OLED_FLIP = os.environ.get("OLED_FLIP", "0") == "1"  # screen mounted upside down
-EYES_FPS = 10  # each changed 8-row page costs ~12 ms of the I2C bus shared with the motor board
+# Eyes on the HDMI screen (7 inch 1024x600, landscape), drawn straight into its framebuffer
+EYES_FB = "/dev/fb0"
+EYES_FLIP = os.environ.get("EYES_FLIP", "0") == "1"  # screen mounted upside down
+EYES_RGB = (0, 255, 255)  # cyan
+EYES_FPS = 20  # a 0.15 s blink spans 3 frames; check_face.py --screen prints the draw cost
 EYES_MOOD_HOLD_S = 3.0  # a reply's tone stays on the face this long after its last sentence
 EYES_BLINK_EVERY_S = (3.0, 6.0)  # random gap between blinks
 EYES_BLINK_S = 0.15

@@ -70,6 +70,13 @@ sudo raspi-config nonint do_i2c 0
 sudo raspi-config nonint do_spi 0
 [[ -e /dev/i2c-1 ]] || echo "WARNING: /dev/i2c-1 missing: reboot (sudo reboot), then re-run this script"
 [[ -e /dev/spidev0.0 ]] || echo "WARNING: /dev/spidev0.0 missing: reboot for the SPI LEDs"
+# Face screen: the eyes draw into the console framebuffer, so boot to the console (the desktop stays
+# installed: sudo systemctl start display-manager), hide its cursor, and keep Pi Connect's remote
+# shell running with nobody logged in.
+sudo systemctl set-default multi-user.target
+grep -q vt.global_cursor_default /boot/firmware/cmdline.txt ||
+  sudo sed -i '1 s/$/ vt.global_cursor_default=0/' /boot/firmware/cmdline.txt
+sudo loginctl enable-linger "$USER"
 freenove="$HOME/Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi"
 if [[ ! -f "$freenove/Code/Server/motor.py" ]]; then
   git clone --depth 1 https://github.com/Freenove/Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi "$freenove"

@@ -95,7 +95,18 @@ Then check the hardware one piece at a time (stop `rover.vision` and Freenove's 
 (Pi) uv run python -m sounddevice                    # list audio devices; put part of the names in .env
 (Pi) uv run python scripts/check_level.py            # speech at 30 cm peaks around -12 to -6 dBFS
 (Pi) uv run python scripts/check_marker.py --at 1.0  # marker held at 1.0 m -> MARKER_FOCAL_PX for config.py
+(Pi) uv run python scripts/check_face.py --screen    # cyan eyes on the screen, prints ms a frame
 ```
+
+**Face screen** (7" 1024x600 HDMI touchscreen, landscape). Plug it into the Pi 5's micro-HDMI 0 (next to USB-C; its own cable is full-size HDMI, so use a micro-HDMI adapter) and its touch USB into the Pi. The eyes draw straight into the console framebuffer, so `setup_pi.sh` makes the Pi boot to the console; the desktop stays installed:
+
+```
+(Pi) sudo systemctl start display-manager        # desktop now, e.g. for Pi Connect screen sharing (hides the face)
+(Pi) sudo systemctl stop display-manager         # back to the face
+(Pi) sudo systemctl set-default graphical.target # desktop at every boot again
+```
+
+The Pi 5 gives USB only 600 mA without a 5 A supply. If `throttled` is not `0x0` or the screen flickers, power the screen from its power-only USB port instead.
 
 ## Running on the Pi
 
@@ -265,7 +276,7 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
-| `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
+| `EYES_FLIP`, `EYES_RGB`, `EYES_FPS` | off, cyan, 20 | Eyes on the HDMI screen (`rover/eyes.py`): upside-down mount, colour, frame rate. Check: `scripts/check_face.py [--screen]` |
 | `EYES_MOOD_HOLD_S` | 3.0 | The reply's tone tag stays on the eyes this long after its last sentence |
 
 ## Local triage scorer (optional, offline, raise only)
@@ -325,6 +336,7 @@ Work from the bottom layer up.
 | Pi/Python | Low fps, `throttled` is `0x0` | First vision line prints `OMP_NUM_THREADS=` | Try 1-3 via `config.VISION_OMP_THREADS` (or `OMP_NUM_THREADS=` before `uv run`) |
 | Pi/Python | `ImportError: libGL.so.1` on `import cv2` | `dpkg -l libgl1` | `sudo apt install libgl1 libglib2.0-0` (setup does this) |
 | Pi/Python | `rsync: command not found` | `which rsync` on both machines | `sudo apt install rsync` on the Pi |
+| Face | Screen shows the desktop or stays blank | `systemctl is-active display-manager`; `check_face.py --screen` | Stop the desktop (`sudo systemctl stop display-manager`); boot default `multi-user.target` (`setup_pi.sh`) |
 | Camera | `IndexError` from `Picamera2()` | `rpicam-hello -n --list-cameras` shows `imx708` | Reseat the ribbon cable |
 | Camera | Camera busy / no frames | `ps aux \| grep -i -E "freenove\|rpicam\|python"` | Stop the other camera user (Freenove server, `rpicam-*`, a check script) |
 | Camera | Colours swapped (blue faces) | `check_camera.py` image | Camera must use `RGB888` (BGR order) |

@@ -1,24 +1,17 @@
 import numpy as np
+import pytest
 
 from rover import config
-from rover.eyes import EXPRESSIONS, Eyes, H, Oled, W, draw
+from rover.eyes import EXPRESSIONS, Eyes, H, Screen, W, draw
 
 
-class FakeBus:
-    def __init__(self):
-        self.writes = []
-
-    def write_i2c_block_data(self, address, control, data):
-        self.writes.append((control, list(data)))
-
-    def data_bytes(self):
-        return sum(len(data) for control, data in self.writes if control == 0x40)
-
-
-def test_every_expression_draws_two_mirrored_eyes():
+@pytest.mark.parametrize("scale", [1, 8])
+def test_every_expression_draws_two_mirrored_eyes(scale):
+    half = W * scale // 2
     for name, (_, _, dx, _, _) in EXPRESSIONS.items():
-        frame = draw(name)
-        assert frame.shape == (H, W) and frame[:, : W // 2].any() and frame[:, W // 2 :].any()
+        frame = draw(name, scale=scale)
+        assert frame.shape == (H * scale, W * scale)
+        assert frame[:, :half].any() and frame[:, half:].any()
         if dx == 0:
             assert (frame == frame[:, ::-1]).all(), name
 
@@ -38,28 +31,27 @@ def test_blink_squashes_the_eyes_to_a_line():
 
 def test_flip_turns_the_frame_upside_down(monkeypatch):
     upright = draw("cheerful")
-    monkeypatch.setattr(config, "OLED_FLIP", True)
+    monkeypatch.setattr(config, "EYES_FLIP", True)
     assert (draw("cheerful") == upright[::-1, ::-1]).all()
 
 
-def test_oled_packs_pages_and_only_resends_what_changed(monkeypatch):
-    monkeypatch.setattr(config, "OLED_COLUMN_OFFSET", 2)
-    bus = FakeBus()
-    oled = Oled(bus)
-    bus.writes.clear()
-    frame = np.zeros((H, W), bool)
-    frame[9, 5] = True  # page 1, bit 1
-    oled.show(frame)
-    assert bus.data_bytes() == W * H // 8
-    page1 = [data for control, data in bus.writes if control == 0x40][4:8]
-    assert sum(page1, [])[5] == 0b10
-    assert (0x00, [0xB1, 0x02, 0x10]) in bus.writes  # page 1, column offset 2
-    bus.writes.clear()
-    oled.show(frame)
-    assert bus.writes == []
-    frame[60, 0] = True
-    oled.show(frame)
-    assert bus.data_bytes() == W and bus.writes[0] == (0x00, [0xB7, 0x02, 0x10])
+@pytest.mark.parametrize("bits, cyan", [(16, 0x07FF), (32, 0x00FFFF)])
+def test_screen_draws_the_face_centred_in_cyan(tmp_path, bits, cyan):
+    width, height, dtype = 1024, 600, {16: np.uint16, 32: np.uint32}[bits]
+    (tmp_path / "virtual_size").write_text(f"{width},{height}\n")
+    (tmp_path / "bits_per_pixel").write_text(f"{bits}\n")
+    (tmp_path / "stride").write_text(f"{width * bits // 8}\n")
+    fb = tmp_path / "fb0"
+    fb.write_bytes(bytes(width * height * bits // 8))
+    screen = Screen(str(fb), sysfs=tmp_path)
+    assert screen.scale == 8  # 1024x512, 44 rows of black above and below
+    screen.show(draw("idle", scale=screen.scale))
+    pixels = np.fromfile(fb, dtype).reshape(height, width)
+    assert pixels[300, 704] == cyan  # middle of the right eye
+    assert not pixels[:44].any() and not pixels[-44:].any() and pixels[44:-44, 0].max() == 0
+    assert set(np.unique(pixels)) == {0, cyan}
+    screen.off()
+    assert not np.fromfile(fb, dtype).any()
 
 
 def test_a_tone_holds_then_the_face_returns_to_its_base(monkeypatch):
@@ -69,4 +61,4 @@ def test_a_tone_holds_then_the_face_returns_to_its_base(monkeypatch):
     now = eyes._mood_until - 0.1
     assert eyes.expression(now) == "excited"
     assert eyes.expression(now + 0.2) == "listening"
-    eyes.frame(now)  # draws without an OLED
+    eyes.frame(now)  # draws without a screen
