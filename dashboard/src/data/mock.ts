@@ -1,5 +1,6 @@
 import type {
   Alert,
+  RefinedEntry,
   Call,
   Category,
   CallStatus,
@@ -11,13 +12,16 @@ import type {
   Urgency,
 } from './types'
 import { DOCK_POINT, FLOOR, ROOMS, roomByNumber } from './layout'
+import { profileFor } from './profiles'
+import { buildPastCalls } from './history'
+import { applyEntry, refineLocally } from './staffEntries'
 
 // Everything in this file is dummy data. It is replaced by the real store
 // (SpacetimeDB) by swapping the source in source.ts.
 
 const MIN = 60_000
 
-export const RESIDENTS: Resident[] = [
+const BASE_RESIDENTS: Omit<Resident, 'learned' | 'medical'>[] = [
   { id: 'r101', name: 'Margaret Alvarez', room: 101, age: 84, flags: ['Fall risk'], likes: ['Tea, two sugars', 'Her grandson Mateo', 'Old Spanish ballads'], language: 'English, Spanish', mood: [4, 4, 5, 4, 3, 4, 4], pain: [2, 3, 2, 4, 5, 4, 4], aiCostToday: 0, callsToday: 0 },
   { id: 'r102', name: 'Harold Chen', room: 102, age: 79, flags: ['Hard of hearing'], likes: ['Chess', 'Baseball', 'Green tea'], language: 'English, Cantonese', mood: [3, 3, 4, 4, 4, 5, 4], pain: [1, 1, 2, 1, 1, 2, 1], aiCostToday: 0, callsToday: 0 },
   { id: 'r103', name: 'Dorothy Okafor', room: 103, age: 88, flags: ['Dementia', 'Fall risk'], likes: ['Gospel music', 'Her late husband Emeka', 'Crosswords'], language: 'English, Igbo', mood: [4, 3, 3, 2, 3, 3, 2], pain: [3, 3, 3, 4, 3, 3, 3], aiCostToday: 0, callsToday: 0 },
@@ -31,6 +35,8 @@ export const RESIDENTS: Resident[] = [
   { id: 'r111', name: 'Mabel Johnson', room: 111, age: 89, flags: ['Fall risk', 'Hard of hearing'], likes: ['Quilting', 'Soap operas', 'Peppermints'], language: 'English', mood: [4, 3, 4, 4, 3, 3, 4], pain: [3, 4, 3, 3, 4, 4, 3], aiCostToday: 0, callsToday: 0 },
   { id: 'r112', name: 'Frank Delgado', room: 112, age: 74, flags: ['Diabetic'], likes: ['Salsa music', 'Boxing', 'Cafe con leche'], language: 'English, Spanish', mood: [5, 4, 4, 5, 4, 5, 4], pain: [1, 1, 1, 1, 2, 1, 1], aiCostToday: 0, callsToday: 0 },
 ]
+
+export const RESIDENTS: Resident[] = BASE_RESIDENTS.map((r) => ({ ...r, ...profileFor(r.id) }))
 
 interface Scenario {
   category: Category
@@ -171,6 +177,8 @@ export class Simulator {
   private paths = new Map<string, Waypoint[]>()
   private phaseAt = new Map<string, number>()
   private alertLog = new Map<string, Alert>()
+  private past: Call[]
+  private overrides = new Map<string, Resident>() // residents changed by staff entries
   private snapshot!: Snapshot
   private listeners = new Set<() => void>()
   private timer: number | undefined
@@ -182,6 +190,10 @@ export class Simulator {
     this.live = live
     const now = Date.now()
     this.calls = seedCalls(now)
+    this.past = buildPastCalls(now, RESIDENTS, (category, resident, at, k) => {
+      const options = SCENARIOS.filter((s) => s.category === category)
+      return makeCall(options[k % options.length], resident, at, 'resolved', 'b' + (1 + (k % 3)))
+    })
     this.robots = initialRobots()
     this.nurses = [
       { id: 'n1', name: 'Nurse Okoro', status: 'free' },
@@ -223,6 +235,13 @@ export class Simulator {
   }
   resolve = (id: string) => {
     this.finish(id)
+  }
+  refineEntry = refineLocally
+  addEntry = (residentId: string, entry: RefinedEntry) => {
+    const current = this.overrides.get(residentId) ?? RESIDENTS.find((r) => r.id === residentId)
+    if (!current) return
+    this.overrides.set(residentId, applyEntry(current, entry, Date.now()))
+    this.rebuild()
   }
 
   private update(id: string, fn: (c: Call) => Call) {
@@ -400,7 +419,8 @@ export class Simulator {
 
   private rebuild() {
     const now = Date.now()
-    const residents = RESIDENTS.map((r) => {
+    const residents = RESIDENTS.map((base) => {
+      const r = this.overrides.get(base.id) ?? base
       const mine = this.calls.filter((c) => c.residentId === r.id)
       return { ...r, callsToday: mine.length, aiCostToday: +mine.reduce((s, c) => s + c.costUsd, 0).toFixed(2) }
     })
@@ -422,6 +442,7 @@ export class Simulator {
       alerts,
       metrics,
       calls: this.calls.map((c) => ({ ...c, transcript: c.transcript.slice(0, linesSoFar(c.status)) })),
+      pastCalls: this.past,
       residents,
       robots: this.robots.map((r) => ({ ...r })),
       nurses: this.nurses,

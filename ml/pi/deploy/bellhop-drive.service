@@ -1,0 +1,19 @@
+[Unit]
+Description=Bellhop drive server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ml
+EnvironmentFile=/etc/bellhop/env
+ExecStart=/home/pi/ml/.venv/bin/python -m rover.drive
+ExecStopPost=-/usr/bin/python3 /home/pi/ml/scripts/motors_off.py
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

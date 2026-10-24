@@ -1,4 +1,4 @@
-/* Ink & Rust: quiet focus. The most urgent call fills the page; everything else waits at the side. */
+/* Slate & Coral: quiet focus. The most urgent call fills the page; everything else waits at the side. */
 .lx-sumi {
   --vh: 100dvh;
   container-type: inline-size;
@@ -17,8 +17,7 @@
 .lx-sumi .sm-brand { font-family: var(--f-display); font-weight: var(--d-weight); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
 .lx-sumi .sm-brand small { margin-left: 12px; font-family: var(--f-body); font-weight: 400; font-size: 0.9rem; color: var(--ink-2); }
 .lx-sumi .sb-nav a[aria-current='page'] { background: var(--ink); color: var(--bg); }
-.lx-sumi .sb-staff { display: flex; gap: 20px; margin-left: auto; }
-.lx-sumi .sm-clock { font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink-2); }
+.lx-sumi .sm-clock { margin-left: auto; font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink-2); }
 .lx-sumi .sb-btn.primary { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
 .lx-sumi .sm-first { height: calc(var(--vh) - 64px); min-height: 520px; display: flex; flex-direction: column; padding: 0 40px; }
@@ -59,3 +58,80 @@
   .lx-sumi .sm-main { grid-template-columns: 1fr; }
   .lx-sumi .sm-side { border-left: 0; padding-left: 0; }
 }
+
+/* residents: list on the left, one resident's profile on the right */
+.lx-sumi .sm-people { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 48px; align-items: start; }
+.lx-sumi .sm-reslist { position: sticky; top: 16px; max-height: calc(100dvh - 96px); overflow-y: auto; scrollbar-width: thin; padding-right: 8px; }
+.lx-sumi .sm-reslist h2, .lx-sumi .sm-profile h2 { margin: 0 0 8px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); }
+.lx-sumi .sm-reslist ul { margin: 0; padding: 0; list-style: none; }
+.lx-sumi .sm-reslist a { display: block; padding: 10px 12px; border-bottom: 1px solid var(--line); border-left: 4px solid transparent; color: inherit; text-decoration: none; }
+.lx-sumi .sm-reslist a:hover { background: var(--surface-2); }
+.lx-sumi .sm-reslist a[aria-current='page'] { background: var(--accent-tint); border-left-color: var(--accent); }
+.lx-sumi .sm-resname { display: block; font-weight: 700; font-size: 1.05rem; }
+.lx-sumi .sm-resname small { margin-left: 6px; font-weight: 400; color: var(--ink-2); }
+.lx-sumi .sm-resmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 2px; font-size: 0.9rem; color: var(--ink-2); }
+.lx-sumi .sm-watch { color: var(--u3); font-weight: 600; }
+.lx-sumi .sm-review { padding: 0 8px; border: 1px solid var(--ink-3); border-radius: 999px; font-size: 0.82rem; font-weight: 600; }
+
+.lx-sumi .sm-profile > header { display: flex; align-items: center; gap: 18px; padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
+.lx-sumi .sm-avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 1.4rem; font-weight: 700; }
+.lx-sumi .sm-profile h1 { margin: 0; font-family: var(--f-display); font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.15; }
+.lx-sumi .sm-profile header p { margin: 2px 0 0; color: var(--ink-2); }
+.lx-sumi .sm-flags span { display: inline-block; margin: 6px 6px 0 0; padding: 1px 10px; border: 1px solid var(--ink-3); border-radius: 4px; font-size: 0.9rem; color: var(--ink); }
+.lx-sumi .sm-profile section { padding: 22px 0; border-bottom: 1px solid var(--line); }
+.lx-sumi .sm-profile section:last-child { border-bottom: 0; }
+.lx-sumi .sm-empty { margin: 0 0 8px; color: var(--ink-2); font-size: 0.95rem; }
+.lx-sumi .sm-kind { margin-top: 16px; }
+.lx-sumi .sm-kind h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.lx-sumi .sm-kind ul { margin: 0; padding: 0; list-style: none; }
+.lx-sumi .sm-kind li { display: grid; gap: 1px; padding: 8px 0 8px 14px; border-left: 3px solid var(--line); margin-bottom: 4px; }
+.lx-sumi .sm-fact { font-size: 1.05rem; }
+.lx-sumi .sm-factmeta { font-size: 0.88rem; color: var(--ink-2); }
+.lx-sumi .sm-quote { font-size: 0.92rem; font-style: italic; color: var(--ink-2); }
+.lx-sumi .sm-quote::before { content: '\201C'; }
+.lx-sumi .sm-quote::after { content: '\201D'; }
+.lx-sumi .sm-pending li { border-left-color: var(--u3); }
+.lx-sumi .sm-facts { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 10px 20px; margin: 0; }
+.lx-sumi .sm-facts dt { color: var(--ink-2); font-weight: 600; }
+.lx-sumi .sm-facts dd { margin: 0; }
+.lx-sumi .sm-trend { display: flex; align-items: center; gap: 14px; }
+.lx-sumi .sm-plainlist { margin: 0; padding: 0; list-style: none; }
+.lx-sumi .sm-plainlist li { padding: 2px 0; }
+
+@container (max-width: 1000px) {
+  .lx-sumi .sm-people { grid-template-columns: 1fr; gap: 24px; }
+  .lx-sumi .sm-reslist { position: static; max-height: 40vh; }
+  .lx-sumi .sm-facts { grid-template-columns: 1fr; gap: 2px; }
+  .lx-sumi .sm-facts dd { margin-bottom: 10px; }
+}
+
+/* search, tendencies, add note, call history */
+.lx-sumi .sm-search { width: 100%; padding: 10px 12px; margin-bottom: 6px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; }
+.lx-sumi .sm-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lx-sumi .sm-count { margin: 0 0 8px; font-size: 0.88rem; color: var(--ink-2); }
+.lx-sumi .sm-tendencies { margin: 0 0 14px; padding: 0; list-style: none; }
+.lx-sumi .sm-tendencies li { display: grid; gap: 1px; padding: 8px 0 8px 14px; border-left: 4px solid var(--accent); margin-bottom: 6px; }
+.lx-sumi .sm-tendencies strong { font-size: 1.08rem; }
+.lx-sumi .sm-tendencies span { font-size: 0.9rem; color: var(--ink-2); }
+
+.lx-sumi .sm-form { display: grid; gap: 14px; max-width: 640px; }
+.lx-sumi .sm-form label { display: grid; gap: 4px; font-weight: 600; color: var(--ink-2); }
+.lx-sumi .sm-form select, .lx-sumi .sm-form textarea, .lx-sumi .sm-form input { padding: 10px 12px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
+.lx-sumi .sm-form textarea { resize: vertical; }
+.lx-sumi .sm-form :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.lx-sumi .sm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.lx-sumi .sm-original { margin: 0; color: var(--ink-2); }
+.lx-sumi .sm-changes { margin: 0; padding: 0 0 0 18px; color: var(--ink-2); }
+.lx-sumi .sm-added { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--u1); background: var(--surface); }
+.lx-sumi .sm-error { margin: 0; color: var(--u4); font-weight: 600; }
+.lx-sumi .sb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.lx-sumi .sm-recentcalls { margin: 0 0 12px; padding: 0; list-style: none; }
+.lx-sumi .sm-day { display: block; margin-top: 14px; padding-bottom: 4px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.lx-sumi .sm-recentcalls li:first-child .sm-day { margin-top: 0; }
+.lx-sumi .sm-recentcalls a { display: flex; align-items: baseline; gap: 12px; padding: 9px 8px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.lx-sumi .sm-recentcalls a:hover { background: var(--surface-2); }
+.lx-sumi .sm-recentcalls time { min-width: 84px; font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink-2); }
+.lx-sumi .sm-open { margin-left: auto; font-weight: 700; color: var(--accent); }
+.lx-sumi .sm-back { display: inline-block; margin-bottom: 14px; font-weight: 700; color: var(--accent); }
+.lx-sumi .sm-callview .sb-detail { max-width: 760px; }

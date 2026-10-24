@@ -24,6 +24,7 @@ export default function App() {
     document.documentElement.dataset.theme = THEME
   }, [])
 
-  const view: View = route === 'insights' ? 'insights' : route === 'residents' ? 'residents' : 'live'
-  return <Screen data={data} view={view} theme={THEME} />
+  const [page, residentId, callId] = route.split('/')
+  const view: View = page === 'insights' ? 'insights' : page === 'residents' ? 'residents' : 'live'
+  return <Screen data={data} view={view} theme={THEME} residentId={residentId || undefined} callId={callId || undefined} />
 }

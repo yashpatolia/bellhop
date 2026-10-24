@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: Bellhop robot (rover.drive)
+  version: 0.1.0
+  description: >
+    The Pi's HTTP server. The backend calls /go_to and /led; the voice process calls /stop,
+    /follow, /face and reads /snapshot. Commands answer at once and never wait for the drive.
+    Fuzz it with: uv run --group fuzz python ../dev/e2e/fuzz_drive.py
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /go_to:
+    post:
+      operationId: goTo
+      summary: Start driving to a room (202), or refresh the command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [room]
+              properties:
+                room:
+                  type: string
+                  enum: ["lobby", "12", "14"]
+      responses:
+        "202":
+          description: Accepted, driving started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomAccepted" }
+        "4XX":
+          description: Bad request (400) or unknown room (404)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /led:
+    post:
+      operationId: setLed
+      summary: Set the status LED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state:
+                  type: string
+                  enum: [idle, listening, nurse_on_way, emergency]
+      responses:
+        "200":
+          description: LED set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+        "4XX":
+          description: Unknown LED state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /stop:
+    post:
+      operationId: stop
+      summary: Stop at once and forget the goal
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, maxProperties: 5, additionalProperties: { type: string, maxLength: 50 } }
+      responses:
+        "200":
+          description: Stopped
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+        "4XX":
+          description: Body is not a JSON object
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /follow:
+    post:
+      operationId: follow
+      summary: Follow the person in front of the robot (flag only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, maxProperties: 5, additionalProperties: { type: string, maxLength: 50 } }
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+        "4XX":
+          description: Body is not a JSON object
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /face:
+    post:
+      operationId: face
+      summary: Turn to face the person (flag only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, maxProperties: 5, additionalProperties: { type: string, maxLength: 50 } }
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+        "4XX":
+          description: Body is not a JSON object
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /snapshot:
+    get:
+      operationId: snapshot
+      summary: Robot state for the status reporter
+      responses:
+        "200":
+          description: Current state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Snapshot" }
+components:
+  schemas:
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    RoomAccepted:
+      type: object
+      required: [ok, room]
+      properties:
+        ok: { type: boolean }
+        room: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    Snapshot:
+      type: object
+      required: [room, target, mode, moving, battery, led, last_command_age_s, motors_failed, power, wifi_rssi_dbm]
+      properties:
+        room: { type: string }
+        target: { type: string, nullable: true }
+        mode: { type: string, enum: [idle, going, following, facing] }
+        moving: { type: boolean }
+        battery: { type: number, nullable: true, minimum: 0, maximum: 1 }
+        led: { type: string, enum: [idle, listening, nurse_on_way, emergency] }
+        last_command_age_s: { type: number, nullable: true }
+        motors_failed: { type: boolean }
+        power:
+          type: object
+          nullable: true
+          description: >
+            Raspberry Pi throttle flags from vcgencmd (undervoltage_now, undervoltage_since_boot,
+            ...), null where vcgencmd does not exist.
+          additionalProperties: { type: boolean }
+        wifi_rssi_dbm: { type: integer, nullable: true, description: "Wi-Fi signal, null when unknown" }
