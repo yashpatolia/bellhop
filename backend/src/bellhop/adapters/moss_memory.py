@@ -52,8 +52,29 @@ class MossMemoryIndex:
                 log.warning("moss search failed; using fallback index", exc_info=True)
         return self._fallback.recall(resident_id, utterance, k)
 
+    def remove(self, fact_id: str) -> bool:
+        """Forget one fact: drop it here and in the wrapped index."""
+        self._facts.pop(fact_id, None)
+        remover = getattr(self._fallback, "remove", None)
+        return bool(remover(fact_id)) if remover else False
+
+    def remove_all(self, resident_id: str) -> int:
+        """Forget every fact for a resident."""
+        for fid in [i for i, f in self._facts.items() if f.resident_id == resident_id]:
+            del self._facts[fid]
+        remover = getattr(self._fallback, "remove_all", None)
+        return int(remover(resident_id)) if remover else 0
+
+    def facts(self, resident_id: str) -> list[MemoryFact]:
+        lister = getattr(self._fallback, "facts", None)
+        if lister is not None:
+            return lister(resident_id)
+        return [f for f in self._facts.values() if f.resident_id == resident_id]
+
     def _resolve(self, resident_id: str, fact_ids: list[str]) -> list[MemoryFact]:
-        facts = (self._facts.get(i) for i in fact_ids)
+        # The wrapped index is the source of truth: Moss may still hold deleted facts.
+        live = {f.id for f in self.facts(resident_id)}
+        facts = (self._facts.get(i) for i in fact_ids if i in live)
         return [f for f in facts if f is not None and f.resident_id == resident_id]
 
     # --- Moss SDK boundary: the only code that touches the SDK (API shape unverified). ---

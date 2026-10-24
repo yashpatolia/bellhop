@@ -19,3 +19,13 @@
 2. Public interface matches `01-module-map.md` exactly.
 3. No new dependency, no I/O in `domain/`, services import only `domain` and `ports`.
 4. Docs updated if behaviour or interface changed.
+
+## Roles actually used
+Manager, architect, builders, testers, researcher, tech scout, reviewer (see `10-review.md`) and docs. The reviewer reads finished work and reports findings without editing production code; docs edits only markdown and checks it against the code.
+
+## Working rules learned
+- Verify builder claims independently: re-run the suite and read the diff; a "green" report is not evidence.
+- One owner per shared file (`container.py`, `api/app.py`, `contracts/`). Builders add new files; the manager wires them.
+- Evaluate on fresh inputs: tune on one set, measure on another written afterwards (the triage guard fell from 20/24 to 11/24 that way).
+- Record a bug as a strict xfail test before fixing it.
+- Do not run formatters while other agents are editing the same tree.

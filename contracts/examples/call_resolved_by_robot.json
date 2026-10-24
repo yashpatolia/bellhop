@@ -1,5 +1,5 @@
 {
-  "id": "call_d88b8b18",
+  "id": "call_41a43806",
   "room": "12",
   "resident_id": "res_margaret",
   "urgency": 1,
@@ -13,8 +13,8 @@
   ],
   "robot_id": "robot_1",
   "nurse_tasks": [],
-  "created_at": "2026-10-24T03:29:55.159474Z",
-  "assigned_at": "2026-10-24T03:29:55.159604Z",
+  "created_at": "2026-10-24T03:42:40.782871Z",
+  "assigned_at": "2026-10-24T03:42:40.783013Z",
   "first_response_at": null,
-  "resolved_at": "2026-10-24T03:29:55.169405Z"
+  "resolved_at": "2026-10-24T03:42:40.792141Z"
 }

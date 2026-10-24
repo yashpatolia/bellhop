@@ -40,6 +40,10 @@ def main() -> None:
     )
     dump(ex / "call_needs_nurse.json", c.get(f"/calls/{hip['id']}").json())
 
+    c.post(f"/calls/{tea['id']}/override", json={"urgency": 3, "nurse_id": "nurse_priya"})
+    dump(ex / "call_override.json", c.get(f"/calls/{tea['id']}").json())
+    dump(ex / "labelled_examples.json", c.get("/labelled-examples").json())
+
     fall = c.post("/calls", json={"room": "12"}).json()
     c.post(f"/calls/{fall['id']}/score", json={"urgency": 4, "category": "fall"})
     dump(ex / "alerts.json", c.get("/alerts").json())

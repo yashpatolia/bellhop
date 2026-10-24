@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -29,7 +30,9 @@ from bellhop.adapters.system import SystemClock, UuidIds
 from bellhop.adapters.wikipedia_content import WikipediaContentFeed
 from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
 from bellhop.ports.content import ContentFeed
+from bellhop.scenarios import apply_scenario, load_scenario
 from bellhop.seed import seed_demo
+from bellhop.services.admin import AdminService
 from bellhop.services.analytics import Analytics
 from bellhop.services.call_service import CallService
 from bellhop.services.care_signals import CareSignals
@@ -54,18 +57,22 @@ class Settings:
     memory: str = "local"  # local | moss
     store: str = "memory"  # memory | spacetimedb
     seed_demo: bool = False
+    seed_file: str | None = None  # scenario JSON; wins over seed_demo
     spacetimedb_url: str = "http://127.0.0.1:3000"
     spacetimedb_db: str = "bellhop"
-    spacetimedb_token: str | None = None
+    spacetimedb_token: str | None = field(default=None, repr=False)
     moss_project_id: str | None = None
-    moss_project_key: str | None = None
+    moss_project_key: str | None = field(default=None, repr=False)
     guard_timeouts: bool = True
     notifier_timeout: float = 2.0
     gateway_timeout: float = 2.0
     memory_budget_ms: float = 50
     robot_url: str | None = None
     content: str = "local"  # local | wikipedia | apify
-    apify_token: str | None = None
+    apify_token: str | None = field(default=None, repr=False)
+    api_key: str | None = field(default=None, repr=False)  # unset = API is open
+    cors_origins: tuple[str, ...] = ("*",)
+    allow_new_robots: bool = True  # False: PUT /robots/{id} only updates known robots
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -74,6 +81,7 @@ class Settings:
             memory=env.get("BELLHOP_MEMORY", "local"),
             store=env.get("BELLHOP_STORE", "memory"),
             seed_demo=env.get("BELLHOP_SEED_DEMO", "") == "1",
+            seed_file=env.get("BELLHOP_SEED_FILE") or None,
             spacetimedb_url=env.get("BELLHOP_STDB_URL", "http://127.0.0.1:3000"),
             spacetimedb_db=env.get("BELLHOP_STDB_DB", "bellhop"),
             spacetimedb_token=env.get("BELLHOP_STDB_TOKEN"),
@@ -83,6 +91,12 @@ class Settings:
             robot_url=env.get("BELLHOP_ROBOT_URL") or None,
             content=env.get("BELLHOP_CONTENT", "local"),
             apify_token=env.get("APIFY_TOKEN") or None,
+            api_key=env.get("BELLHOP_API_KEY") or None,
+            cors_origins=tuple(
+                o.strip() for o in env.get("BELLHOP_CORS_ORIGINS", "*").split(",") if o.strip()
+            )
+            or ("*",),
+            allow_new_robots=env.get("BELLHOP_ALLOW_NEW_ROBOTS", "1") not in ("0", "false", "no"),
         )
 
 
@@ -108,9 +122,16 @@ class Container:
     memory_guard: MemoryGuard
     triage_guard: TriageGuard
     reminiscence: ReminiscenceService
+    admin: AdminService
     # Guarded wrappers actually injected into services (None when guards are off).
     guarded_notifier: GuardedNotifier | None = None
     guarded_gateway: GuardedRobotGateway | None = None
+    settings: Settings = field(default_factory=Settings)
+
+
+def _require_http_url(name: str, url: str) -> None:
+    if urlsplit(url).scheme not in ("http", "https"):
+        raise ValueError(f"{name} must start with http:// or https://")
 
 
 def _memory_index(
@@ -144,6 +165,7 @@ def _build_store(
         return InMemoryStore()
     if settings.store != "spacetimedb":
         raise ValueError(f"unsupported store: {settings.store}")
+    _require_http_url("BELLHOP_STDB_URL", settings.spacetimedb_url)
     stdb = SpacetimeDBStore(
         settings.spacetimedb_url,
         settings.spacetimedb_db,
@@ -155,7 +177,7 @@ def _build_store(
     except (httpx.HTTPError, ValueError, KeyError) as exc:
         log.warning(
             "SpacetimeDB at %s unusable (%s); falling back to in-memory store",
-            settings.spacetimedb_url,
+            urlsplit(settings.spacetimedb_url).netloc.rpartition("@")[2],
             type(exc).__name__,
         )
         return InMemoryStore()
@@ -166,6 +188,8 @@ def build_container(
     settings: Settings | None = None, *, stdb_client: httpx.Client | None = None
 ) -> Container:
     settings = settings or Settings()
+    if settings.robot_url:
+        _require_http_url("BELLHOP_ROBOT_URL", settings.robot_url)
     clock, ids = SystemClock(), UuidIds()
     store, bus = _build_store(settings, stdb_client), InMemoryEventBus()
     notifier = RecordingNotifier()
@@ -219,10 +243,14 @@ def build_container(
         memory_guard=MemoryGuard(memory, local_index),
         triage_guard=TriageGuard(),
         reminiscence=ReminiscenceService(_content_feed(settings), memory, store.residents),
+        admin=AdminService(store.residents, store.nurses, store.robots, store.calls, clock, ids),
         guarded_notifier=guarded_notifier,
         guarded_gateway=guarded_gateway,
+        settings=settings,
     )
     RobotSignals(store.calls, out_gateway, bus)
-    if settings.seed_demo:
+    if settings.seed_file:
+        apply_scenario(load_scenario(settings.seed_file), store, memory, care_store)
+    elif settings.seed_demo:
         seed_demo(store, memory)
     return container

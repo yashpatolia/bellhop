@@ -1,4 +1,8 @@
-"""Plain-English answers about calls, alerts and metrics. Pure: no I/O, no uagents."""
+"""Plain-English answers about calls, alerts and metrics. Pure: no I/O, no uagents.
+
+Privacy: replies carry only room, urgency (in words), status and times. Never transcript
+text, summaries, resident names or care notes.
+"""
 
 import re
 from typing import Any
@@ -21,7 +25,7 @@ def _call_line(c: dict[str, Any]) -> str:
     when = str(c.get("created_at") or "")[:16].replace("T", " ")
     status = str(c.get("status") or "unknown").replace("_", " ")
     text = f"{when}: {_level(c.get('urgency'))}, {status}."
-    return f"{text} {c['summary']}" if c.get("summary") else text
+    return text
 
 
 def _room_history(room: str, calls: list[dict[str, Any]]) -> str:
@@ -46,7 +50,7 @@ def _open_alerts(alerts: list[dict[str, Any]], calls: list[dict[str, Any]]) -> s
     for a in open_[:5]:
         room = rooms.get(a.get("call_id"))
         where = f"Room {room}" if room else "A room"
-        lines.append(f"- {where}: {_level(a.get('level'))}. {a.get('message') or ''}".rstrip())
+        lines.append(f"- {where}: {_level(a.get('level'))}.")
     return "Open alerts, most urgent first:\n" + "\n".join(lines)
 
 

@@ -21,8 +21,9 @@ The `artifacts/` folder is static HTML and CSS with no build step; open `artifac
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Start here if you are an AI agent or new contributor: commands and rules |
 | [docs/architecture/](docs/architecture/README.md) | Architecture, module map, extension guide, agent roles, decisions, testing |
-| [contracts/](contracts/README.md) | Frontend contract: OpenAPI spec plus real example payloads, kept in sync by a test |
-| [backend/](backend) | Python backend (`uv`): call state, dispatch, memory recall, staff alerts |
+| [contracts/](contracts/README.md) | Frontend contract: OpenAPI spec plus real example payloads, kept in sync by a drift test |
+| [docs/architecture/11-status.md](docs/architecture/11-status.md) | Progress checklist: done and verified, unverified, gaps, blocked, next, team handoff |
+| [backend/](backend/README.md) | Python backend (`uv`): call state, dispatch, memory recall, staff alerts, config table |
 
 ## Ask Bellhop through ASI:One (optional)
 ```

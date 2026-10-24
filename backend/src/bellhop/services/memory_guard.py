@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import count
@@ -57,10 +58,16 @@ class _Index(Protocol):
     def remove_all(self, resident_id: str) -> int: ...
 
 
-def _jaccard(a: set[str], b: set[str]) -> float:
-    if not a and not b:
-        return 1.0
-    return len(a & b) / len(a | b)
+def _normalise(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _similar(a: str, b: str) -> bool:
+    ta, tb = tokenize(a), tokenize(b)
+    if not ta and not tb:
+        # Nothing to compare lexically: only identical text is a duplicate.
+        return _normalise(a) == _normalise(b)
+    return len(ta & tb) / len(ta | tb) >= DUPLICATE_JACCARD
 
 
 class MemoryGuard:
@@ -69,6 +76,7 @@ class MemoryGuard:
         self._index = index
         self._pending: dict[str, PendingFact] = {}
         self._seq = count(1)
+        self._lock = threading.RLock()  # makes check-then-store atomic
 
     def propose(
         self,
@@ -79,6 +87,19 @@ class MemoryGuard:
         confidence: float = 1.0,
     ) -> Result:
         text = text.strip()
+        with self._lock:
+            if (rejected := self._check(resident_id, text)) is not None:
+                return rejected
+            if source != "staff" and confidence < MIN_CONFIDENCE:
+                pid = f"pending-{next(self._seq)}"
+                self._pending[pid] = PendingFact(
+                    pid, resident_id, text, tuple(tags), source, confidence
+                )
+                return Rejected("pending_review")
+            return Accepted(self._memory.remember(resident_id, text, tags))
+
+    def _check(self, resident_id: str, text: str) -> Rejected | None:
+        """Safety and duplicate rules shared by propose and approve."""
         if len(text) < MIN_LEN:
             return Rejected("too_short")
         if len(text) > MAX_LEN:
@@ -87,13 +108,7 @@ class MemoryGuard:
             return Rejected("clinical_claim")
         if self._is_duplicate(resident_id, text):
             return Rejected("duplicate")
-        if source != "staff" and confidence < MIN_CONFIDENCE:
-            pid = f"pending-{next(self._seq)}"
-            self._pending[pid] = PendingFact(
-                pid, resident_id, text, tuple(tags), source, confidence
-            )
-            return Rejected("pending_review")
-        return Accepted(self._memory.remember(resident_id, text, tags))
+        return None
 
     def pending(self, resident_id: str) -> list[PendingFact]:
         return [p for p in self._pending.values() if p.resident_id == resident_id]
@@ -104,10 +119,17 @@ class MemoryGuard:
             raise KeyError(pending_id)
         return item
 
-    def approve(self, pending_id: str, resident_id: str | None = None) -> Accepted:
-        item = self._owned(pending_id, resident_id)
-        del self._pending[pending_id]
-        return Accepted(self._memory.remember(item.resident_id, item.text, item.tags))
+    def approve(self, pending_id: str, resident_id: str | None = None) -> Result:
+        """Store a pending fact after re-running the safety and duplicate rules.
+
+        A fact that is now unsafe or a duplicate is dropped and returned as Rejected.
+        """
+        with self._lock:
+            item = self._owned(pending_id, resident_id)
+            del self._pending[pending_id]
+            if (rejected := self._check(item.resident_id, item.text)) is not None:
+                return rejected
+            return Accepted(self._memory.remember(item.resident_id, item.text, item.tags))
 
     def reject(self, pending_id: str, resident_id: str | None = None) -> None:
         self._owned(pending_id, resident_id)
@@ -124,8 +146,4 @@ class MemoryGuard:
         return self._index.remove_all(resident_id)
 
     def _is_duplicate(self, resident_id: str, text: str) -> bool:
-        tokens = tokenize(text)
-        return any(
-            _jaccard(tokens, tokenize(f.text)) >= DUPLICATE_JACCARD
-            for f in self._index.facts(resident_id)
-        )
+        return any(_similar(text, f.text) for f in self._index.facts(resident_id))

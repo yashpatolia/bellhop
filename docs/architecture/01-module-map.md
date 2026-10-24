@@ -42,12 +42,17 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 ### WP-D: composition and HTTP
 | File | Public interface |
 | --- | --- |
-| `container.py` | `build_container(settings) -> Container` wiring everything; `Settings.from_env()` (`BELLHOP_MEMORY=local|moss`, `BELLHOP_STORE=memory`, `BELLHOP_SEED_DEMO=1`, `MOSS_PROJECT_ID`, `MOSS_PROJECT_KEY`, `BELLHOP_ROBOT_URL` selects `HttpRobotGateway`). `BELLHOP_STORE=spacetimedb` with `BELLHOP_STDB_URL`, `BELLHOP_STDB_DB`, `BELLHOP_STDB_TOKEN` (see below); unreachable server at build time logs and falls back to memory |
-| `api/app.py` | `create_app(container) -> FastAPI`. Routes: `POST /calls {room}`, `GET /calls`, `GET /calls/{id}`, `POST /calls/{id}/turns`, `POST /calls/{id}/score`, `POST /calls/{id}/resolve`, `POST /alerts/{id}/ack`, `GET /residents/{id}/memory?q=&k=`, `POST /residents/{id}/memory`, `GET /robots`, `PUT /robots/{id}` (idle report ignored while the robot holds an open call), `GET /metrics`, `GET /health` |
+| `container.py` | `build_container(settings=None, *, stdb_client=None) -> Container` wiring everything; `Settings.from_env()` reads the variables in the table in [backend/README.md](../../backend/README.md#configuration) (`BELLHOP_MEMORY`, `BELLHOP_STORE`, `BELLHOP_SEED_DEMO`, `BELLHOP_STDB_URL/DB/TOKEN`, `MOSS_PROJECT_ID/KEY`, `BELLHOP_GUARDS`, `BELLHOP_ROBOT_URL`, `BELLHOP_CONTENT`, `APIFY_TOKEN`, `BELLHOP_API_KEY`, `BELLHOP_CORS_ORIGINS`, `BELLHOP_ALLOW_NEW_ROBOTS`). `Settings` also has `notifier_timeout`, `gateway_timeout`, `memory_budget_ms` (not env-driven). Robot and SpacetimeDB URLs must be http(s). Unreachable SpacetimeDB at build time logs and falls back to memory |
+| `api/app.py` | `create_app(container) -> FastAPI`. 38 operations, listed once in [HTTP routes](#http-routes) below. Optional `X-API-Key` auth on every route but `/health` (`BELLHOP_API_KEY`), 1 MB body limit, field length limits, `?limit=` on `/calls` and `/alerts` |
+| `api/deps.py` | Helpers the routes use: `get_call`, `ack_alert`, `require_resident`, `triage_score` (runs `TriageGuard.decide`, then `CallService.score`), `AlertNotFound`, `ResidentNotFound` |
+| `api/main.py` | ASGI entry: `app = create_app(build_container(Settings.from_env()))`; run `uv run uvicorn bellhop.api.main:app` |
+| `scripts/demo_scenes.py` | Plays the three demo scenes against a running server over HTTP (`--base-url`, `--scene`, `--pace`, `--room`) |
+| `scripts/export_contract.py` | Regenerates `contracts/openapi.json` and the example payloads; `tests/unit/test_contract.py` fails on drift |
 
 ### Robot interface
 | File | Public interface |
 | --- | --- |
+| `adapters/robot_gateway.py` | `RecordingRobotGateway`: default `RobotGateway`; `go_to` and `set_led` append to `.commands` (a `BoundedLog` of the last 1000 `(kind, robot_id, arg)`). `BoundedLog` lives in `adapters/notifiers.py` |
 | `adapters/http_robot_gateway.py` | `HttpRobotGateway(base_url, timeout=2.0)`: `go_to` POSTs `/go_to {room}`, `set_led` POSTs `/led {state}`; non-2xx or transport error raises |
 | `services/robot_signals.py` | `RobotSignals(calls, gateway, bus)`: urgency 4 -> `emergency`, 3 -> `nurse_on_way`, assigned -> `listening`, resolved -> `idle`, only for the call's `robot_id`; gateway errors are logged, never raised |
 
@@ -75,10 +80,10 @@ Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` al
 | File | Public interface |
 | --- | --- |
 | `adapters/spacetimedb_store.py` | `SpacetimeDBStore(url, db, token=None, *, client=None, max_queue=500)` with `.calls .residents .nurses .robots .visits .alerts` like `InMemoryStore`. Reads from an in-memory mirror; each `save` also POSTs the reducer (`save_*`, `append_turn` for new turns) with a 2 s timeout. Failures are logged and queued, retried in order on the next save, never raised. `pending`, `flush()`, `hydrate()` (SQL into the mirror; raises `httpx.HTTPError` if unreachable) |
-| `../spacetimedb/` | TypeScript module (tables `call call_turn resident nurse robot alert visit memory_fact`, reducers `save_*` upserts); build and run steps in its README |
+| `spacetimedb/src/index.ts` (repo root) | TypeScript module (tables `call call_turn resident nurse robot alert visit memory_fact`, reducers `save_*` upserts, `append_turn`); build and run steps in `spacetimedb/README.md` |
 
-### Research and `later` work
-- `06-integrations.md`: SpacetimeDB (TypeScript module, Python via HTTP), Moss (async SDK bridged with a 50 ms timeout), Fetch.ai (one Liaison uAgent). Moss and Fetch.ai adapters are `later`; the SpacetimeDB store is built.
+### Research
+- `06-integrations.md`: SpacetimeDB (TypeScript module, Python via HTTP), Moss (async SDK bridged with a 50 ms timeout), Fetch.ai (one Liaison uAgent). All three adapters are written; verification state is in [11-status.md](11-status.md).
 - `07-tech-scout.md`: bottlenecks, library verdicts, pipelines. Adopted so far: `httpx` (runtime), `hypothesis`, `pytest-cov`.
 
 ## Ownership across the team
@@ -89,16 +94,44 @@ Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` al
 | Triage call | Gordon | Posts to `POST /calls/{id}/score` |
 | Memory call | Yash / Companion | `MemoryService.recall`, under 50 ms |
 
-## HTTP API
-Also served by `api/app.py` beyond the WP-D list: `POST /calls/{id}/in-visit`, `GET /alerts` (newest first), `POST /alerts/{id}/ack {nurse_id}` (sets `acked_at`, moves the call to `nurse_acked`). `POST /calls/{id}/resolve` takes optional `{by_robot}`. Errors: unknown call/alert/resident/flag 404, invalid state transition 409, bad body (urgency outside 1..4) 422. CORS allows all origins. Run with `uv run uvicorn bellhop.api.main:app`.
+## HTTP routes
+Schemas and examples: [contracts/openapi.json](../../contracts/openapi.json) and [contracts/README.md](../../contracts/README.md). Auth: every route except `GET /health` needs `X-API-Key` when `BELLHOP_API_KEY` is set (401), open otherwise. Errors: unknown id 404, illegal state change 409, bad body 422, body over 1 MB 413. CORS from `BELLHOP_CORS_ORIGINS` (default all).
+
+| Area | Method and path | Purpose |
+| --- | --- | --- |
+| Health | `GET /health` | Liveness; the only unauthenticated route |
+| Calls | `POST /calls` | Bell press `{room}`; assigns robot and nurse |
+| | `GET /calls`, `GET /calls/{id}` | List (newest first, `?limit=`) and one call |
+| | `POST /calls/{id}/turns` | Add transcript turn |
+| | `POST /calls/{id}/score` | Triage result through `TriageGuard` |
+| | `POST /calls/{id}/triage-failed` | Model failed: urgency 3 default |
+| | `GET /calls/{id}/note` | One-line visit note |
+| | `POST /calls/{id}/in-visit` | Robot arrived |
+| | `POST /calls/{id}/resolve` | Finish call (optional `{by_robot}`) |
+| | `POST /calls/{id}/override` | Nurse corrects urgency (409 before resolution) |
+| | `GET /labelled-examples` | Calls with a nurse override |
+| Alerts | `GET /alerts` | Newest first, read from the store, `?limit=` |
+| | `POST /alerts/{id}/ack` | Nurse acks `{nurse_id}`; call becomes `nurse_acked` |
+| Memory | `GET`, `POST /residents/{id}/memory` | Recall (`?q=&k=`) / add through `MemoryGuard` (201, 202 pending, 422) |
+| | `DELETE /residents/{id}/memory`, `DELETE .../memory/{fact_id}` | Forget all / one |
+| | `GET .../memory/pending`, `POST .../pending/{pid}/approve`, `.../reject` | Nurse review queue |
+| Reminiscence | `PUT /residents/{id}` | Set `birth_year` |
+| | `GET /residents/{id}/reminiscence` | Era items (`?k=`) |
+| | `POST /residents/{id}/reminiscence/ingest` | Store items as memory facts |
+| Care | `POST /residents/{id}/care`, `GET .../care/summary` | Record entry / trends |
+| | `GET /flags`, `POST /flags/{id}/resolve` | Care flags |
+| Preferences | `GET`, `PUT /residents/{id}/preferences`; `GET .../speech-settings` | Preferences and derived speech settings |
+| Family | `POST`, `GET /residents/{id}/family/messages`; `POST .../family/replies`; `GET .../postcard` | Voice notes, replies, positive-only postcard |
+| Robots | `GET /robots`, `PUT /robots/{id}` | Fleet; Pi status report (idle ignored while a call is open) |
+| Metrics | `GET /metrics` | Savings counter and breakdowns |
 
 ## Care, visit notes, family, memory guard, triage guard
 All wired in `container.py` (`care_store`, `care_signals`, `visit_notes`, `family`, `preferences`, `memory_guard`, `triage_guard`) and exposed by `api/app.py`; endpoints are in `contracts/README.md`.
 - **Care** (`domain/care.py`, `ports/care.py`, `adapters/care_store.py`, `services/care_signals.py`): mood/pain/drink/repeat-question entries, trends (pain streak, mood lower than usual, hydration) and flags. Three days of pain in a row raises one open PAIN flag with a reason. Observations only, no diagnosis.
 - **Visit notes** (`services/visit_notes.py`): one-line note per call built from care entries and urgency.
-- **Family** (`services/family.py`): voice notes to the resident, replies, and a daily postcard built only from positive entries (pain and urgency never appear).
+- **Family** (`services/family.py`): voice notes to the resident, replies, and a daily postcard built only from fixed templates and allowlisted drink names (care notes are never echoed).
 - **Preferences** (`services/preferences_service.py`): hearing, quiet, night mode, favourite drink; `speech_settings` derives rate, volume, captions, tone.
-- **Memory guard** (`services/memory_guard.py`, `adapters/deletable_memory.py`): `POST .../memory` goes through it. Rejects too short/long, clinical claims and duplicates; low-confidence non-staff facts wait in a pending queue for nurse approval. Forget one or all facts. It shares one `DeletableLocalMemoryIndex` with `MemoryService`; the Moss index wraps that local index, so with Moss on, a forgotten fact is removed locally only (Moss copy not deleted yet).
+- **Memory guard** (`services/memory_guard.py`, `adapters/deletable_memory.py`): `POST .../memory` goes through it. Rejects too short/long, clinical claims and duplicates; low-confidence non-staff facts wait in a pending queue for nurse approval (approving re-runs the rules: 409 if now a duplicate, 422 if unsafe). Check-and-store is atomic under one lock; unknown resident 404. Forget one or all facts. It shares one `DeletableLocalMemoryIndex` with `MemoryService`; the Moss index wraps that local index, so with Moss on, a forgotten fact is removed locally only (Moss copy not deleted yet).
 - **Triage guard** (`services/triage_guard.py`): `POST /calls/{id}/score` computes the final urgency as max(model, keyword floor), with +1 for confidence under 0.6, then the existing ratchet applies. `POST /calls/{id}/triage-failed` is the explicit model-failure path (defaults to urgency 3). The reason is appended to the call summary when the guard raised urgency.
   - Known limits: the keyword floor is a backstop behind the model, never a replacement for it. Measured recall on unseen paraphrases was roughly 20/24 and 19/24 in two independent fresh batches before fixes, and a further blind set of 17 escalating phrasings missed 10 before fixes. It leans toward over-escalation, handles negation and hedging by a short look-back window, and cannot understand context beyond a clause. Expect misses on novel wording; the model, low-confidence bump and nurse review remain the primary defence.
   - **Measured, do not over-trust:** a fourth independent batch of 24 paraphrase-heavy phrasings (idioms, euphemisms, indirect descriptions) was written after the guard had been tuned on three earlier batches. It caught only 3 of 15 escalating phrasings (12 under-escalations, 1 false trigger in 9 benign phrases). Phrase lists do not generalise. The real safety net must be the model plus an LLM second opinion on low-confidence or no-keyword calls, and the default when the model is unavailable stays nurse-soon (3). Judge the whole pipeline on Gordon's model with the labelled set, not on this guard alone.
@@ -121,3 +154,22 @@ Stdlib-only package for checking and tuning triage against hand-labelled calls. 
 | `GuardedRobotGateway(inner, timeout=2.0)` | Raises `GuardTimeout` so the Dispatcher falls back to a nurse |
 | `GuardedMemoryIndex(inner, fallback, budget_ms=50)` | Falls back and trips the breaker on slow or failing recall |
 Container wiring: `Container.guarded_notifier` / `guarded_gateway` (None when `Settings(guard_timeouts=False)`, env `BELLHOP_GUARDS=0`); the memory index is wrapped only for `moss`. `Container.notifier` and `gateway` remain the recorders.
+
+## Scenarios and admin
+- `scenarios.py` (`Scenario`, `load_scenario`, `apply_scenario`, `ScenarioError`) loads a JSON setup (format in `backend/scenarios/README.md`). `seed.py` is a thin wrapper over `scenarios/demo.json`. `BELLHOP_SEED_FILE` (`Settings.seed_file`) applies any scenario at startup and beats `BELLHOP_SEED_DEMO`; a bad file fails startup.
+- `services/admin.py` (`AdminService`, exposed as `Container.admin`): `create_resident`, `update_resident`, `list_residents`, `get_resident`, `create_nurse`, `update_nurse`, `list_nurses`. Errors: `ResidentNotFound` / `NurseNotFound` (`LookupError`, API maps to 404) and `Conflict` (`ValueError`: duplicate id or a room another resident occupies).
+
+### Admin routes (to wire)
+Not yet in `api/app.py`. Resident JSON: `{id, name, room, risk_flags: [str], birth_year: int|null}`. Nurse JSON: `{id, name, on_shift, open_tasks}`.
+
+| Route | Request body | Success | Errors |
+| --- | --- | --- | --- |
+| `POST /residents` | `{id?: str, name, room, risk_flags?: [str], birth_year?: int}` | 201, resident | 409 duplicate id or room taken, 422 invalid |
+| `GET /residents` | none | 200, `[resident]` | none |
+| `GET /residents/{id}` | none | 200, resident | 404 unknown |
+| `PATCH /residents/{id}` | any of `name`, `room`, `risk_flags`, `birth_year` (unknown keys 422) | 200, resident | 404 unknown, 409 room taken, 422 invalid |
+| `POST /nurses` | `{id?: str, name, on_shift?: bool = true}` | 201, nurse | 409 duplicate id, 422 invalid |
+| `GET /nurses` | none | 200, `[nurse]` | none |
+| `PATCH /nurses/{id}` | any of `name`, `on_shift` | 200, nurse | 404 unknown, 422 invalid |
+
+Call `container.admin.<method>(**body.model_dump(exclude_unset=True))`; `create_*` take `id` (None generates one). `update_resident` takes the id positionally. Going off shift never changes `open_tasks`. `PUT /residents/{id}` for an unknown id may keep returning 404.

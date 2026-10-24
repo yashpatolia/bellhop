@@ -109,7 +109,9 @@ def test_postcard_is_positive_and_never_mentions_pain(client):
     _care(client, "mood", value=5, note="enjoyed bingo")
     _care(client, "drink", note="tea")
     lines = client.get(f"{RES}/postcard").json()["lines"]
-    assert "Enjoyed bingo" in lines
+    assert "Enjoyed some tea" in lines
+    assert "Was in good spirits" in lines
+    assert not any("bingo" in line.lower() for line in lines)  # notes are never echoed
     assert not any("pain" in line.lower() or "knee" in line.lower() for line in lines)
 
 

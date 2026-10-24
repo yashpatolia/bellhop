@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import functools
+import threading
+from collections.abc import Callable
+from typing import Any
+
 from bellhop.domain import Call, CallStatus, Urgency
 from bellhop.domain.events import CallRaised, CallResolved, CallScored
 from bellhop.ports import (
@@ -19,6 +24,15 @@ _ESCALATABLE = {
     CallStatus.ROBOT_EN_ROUTE,
     CallStatus.IN_VISIT,
 }
+
+
+def _locked[F: Callable[..., Any]](fn: F) -> F:
+    @functools.wraps(fn)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return fn(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
 
 
 class CallNotFound(LookupError):
@@ -41,7 +55,9 @@ class CallService:
         self._bus = bus
         self._clock = clock
         self._ids = ids
+        self._lock = threading.RLock()  # guards read-modify-write of a call
 
+    @_locked
     def raise_call(self, room: str) -> Call:
         resident = self._residents.by_room(room)
         call = Call(
@@ -54,11 +70,13 @@ class CallService:
         self._bus.publish(CallRaised(call_id=call.id, room=room))
         return call
 
+    @_locked
     def add_turn(self, call_id: str, speaker: str, text: str) -> None:
         call = self._get(call_id)
         call.add_turn(speaker, text, self._clock.now())
         self._calls.save(call)
 
+    @_locked
     def score(
         self, call_id: str, urgency: Urgency, category: str, summary: str | None = None
     ) -> None:
@@ -76,9 +94,11 @@ class CallService:
             CallScored(call_id=call.id, urgency=call.urgency, category=call.category or category)
         )
 
+    @_locked
     def mark_in_visit(self, call_id: str) -> None:
         self._transition(call_id, CallStatus.IN_VISIT)
 
+    @_locked
     def resolve(self, call_id: str, by_robot: bool = True) -> None:
         call = self._transition(call_id, CallStatus.RESOLVED)
         # a call that needed a nurse is never credited to the robot alone
@@ -89,6 +109,7 @@ class CallService:
             )
         )
 
+    @_locked
     def ack_by_nurse(self, call_id: str, nurse_id: str) -> None:
         call = self._get(call_id)
         if self._nurses is not None and self._nurses.get(nurse_id) is None:

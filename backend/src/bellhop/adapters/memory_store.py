@@ -28,7 +28,7 @@ class _Table(Generic[M]):  # noqa: UP046
         return item.model_copy(deep=True) if item else None
 
     def list_all(self) -> list[M]:
-        return [i.model_copy(deep=True) for i in self._items.values()]
+        return [i.model_copy(deep=True) for i in list(self._items.values())]
 
 
 class _Calls(_Table[Call]):

@@ -19,8 +19,11 @@ cd backend
 uv sync
 BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --port 8000
 ```
-Open http://localhost:8000/docs for interactive docs. CORS allows every origin, so a Vite dev server on another port works.
+Open http://localhost:8000/docs for interactive docs. CORS allows every origin by default (`BELLHOP_CORS_ORIGINS` narrows it), so a Vite dev server on another port works.
 Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses `nurse_priya` and `nurse_sam`, robot `robot_1`.
+
+## Auth header
+When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on every request except `GET /health`; a missing or wrong key is `401`. When unset (dev) no header is needed. The scheme (`ApiKeyAuth`, header `X-API-Key`) is always in `openapi.json`, so generated clients carry it. Browser origins other than the configured `BELLHOP_CORS_ORIGINS` (default `*`) are blocked by CORS. Limits: bodies over 1 MB are `413`, over-long strings or lists are `422`, `GET /calls` and `GET /alerts` take `?limit=` (default 200, max 1000).
 
 ## Endpoints
 | Method and path | Use |
@@ -35,10 +38,12 @@ Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
 | `GET /robots` | Robots with `status`, `battery`, `room` |
-| `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created. An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
+| `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created unless the server sets `BELLHOP_ALLOW_NEW_ROBOTS=0` (then 404). An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
 | `PUT /residents/{id} {birth_year}` | Set the resident's birth year (1880 to 2015, else 422; unknown id 404). Needed for reminiscence |
 | `GET /residents/{id}/reminiscence?k=3` | Era-appropriate `ContentItem`s `{id, kind song|film|news|event, year, title, blurb}` from the resident's youth (ages 15-25); empty list without a birth year. Source chosen by `BELLHOP_CONTENT` (`local` default, `wikipedia`, `apify`). See `examples/reminiscence.json` |
 | `POST /residents/{id}/reminiscence/ingest?k=5` | Store the era items as memory facts tagged `reminiscence`; returns the 201 list of `MemoryFact`s. Run it at ingest time, not in the voice loop |
+| `POST /calls/{id}/override {urgency, nurse_id?}` | Nurse corrects the robot's urgency (1 to 4). Returns the `Call`. Unknown call 404; call not yet resolved (no visit) 409. See `examples/call_override.json` |
+| `GET /labelled-examples` | Calls with a nurse override: `{call_id, transcript, robot_urgency, nurse_urgency}`. See `examples/labelled_examples.json` |
 | `GET /alerts` | Alerts for nurses, newest first |
 | `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
 | `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |

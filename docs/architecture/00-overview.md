@@ -33,7 +33,7 @@ Hexagonal (ports and adapters) with a small event bus.
 | Observer / event bus | `EventBus` | Liaison and analytics react to calls without Dispatcher knowing them |
 | Composition root | `container.py` | One place to change wiring |
 
-Nothing else. No DI framework, no CQRS, no repositories-per-aggregate beyond the ports listed.
+Nothing else. No DI framework, no CQRS. Storage is a facade with one repository port per aggregate (ADR-10). Current verification state: [11-status.md](11-status.md).
 
 ## Data flow (the milestone path)
 1. Bell press -> `POST /calls` -> `CallService.raise_call(room)` -> `CallRaised`.

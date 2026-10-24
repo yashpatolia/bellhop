@@ -10,6 +10,15 @@ from bellhop.fetchai.client import BellhopApi, BellhopApiError
 UNREACHABLE = "I cannot reach the Bellhop system right now. Please try again in a moment."
 
 
+def is_allowed(sender: str, allowed: str | None) -> bool:
+    """Sender allowlist from BELLHOP_AGENT_ALLOWED_SENDERS (comma separated addresses).
+
+    Unset or empty means allow everyone (open demo mode).
+    """
+    names = {a.strip() for a in (allowed or "").split(",") if a.strip()}
+    return not names or sender in names
+
+
 def reply_for(question: str, api: BellhopApi) -> str:
     """Fetch data and answer; never raises on backend failure."""
     try:
@@ -41,6 +50,8 @@ def build_agent(api: BellhopApi | None = None):  # noqa: ANN201
 
     @protocol.on_message(ChatMessage)
     async def on_chat(ctx: Context, sender: str, msg: ChatMessage) -> None:
+        if not is_allowed(sender, os.environ.get("BELLHOP_AGENT_ALLOWED_SENDERS")):
+            return None
         await ctx.send(
             sender,
             ChatAcknowledgement(timestamp=datetime.now(UTC), acknowledged_msg_id=msg.msg_id),

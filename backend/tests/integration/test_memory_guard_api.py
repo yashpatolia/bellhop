@@ -3,13 +3,17 @@ from fastapi.testclient import TestClient
 
 from bellhop.api.app import create_app
 from bellhop.container import Settings, build_container
+from bellhop.domain import Resident
 
 R = "/residents/res_margaret/memory"
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(create_app(build_container(Settings())))
+    container = build_container(Settings())
+    for rid in ("res_margaret", "res_arthur"):
+        container.store.residents.save(Resident(id=rid, name=rid, room="1"))
+    return TestClient(create_app(container))
 
 
 def test_accepted_fact_is_201_and_recalled(client):
