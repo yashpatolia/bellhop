@@ -1,5 +1,6 @@
 """Settings card: every threshold in one place. Start values; tune on site and update here."""
 
+import json
 import os
 from pathlib import Path
 
@@ -48,9 +49,46 @@ ARUCO_DICT = "DICT_4X4_250"
 MARKER_SIZE_M = 0.15
 MARKER_FOCAL_PX = 470.0  # from scripts/check_marker.py with the marker at 1.0 m
 ARRIVE_DISTANCE_M = 1.0
-# Printed sheet aruco_201-210 (4x4_250, 15 cm). Room strings match the backend's demo data.
-MARKER_ROOMS = {201: "12", 202: "14", 203: "lobby"}
-HOME_ROOM = "lobby"  # the robot's start position in the backend
+def _marker_rooms() -> dict[int, str]:
+    """Load physical-marker-to-backend-room names from deployment configuration."""
+    raw = os.environ.get("BELLHOP_MARKER_ROOMS", "{}").strip()
+    try:
+        rows = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("BELLHOP_MARKER_ROOMS must be a JSON object") from exc
+    if not isinstance(rows, dict):
+        raise ValueError("BELLHOP_MARKER_ROOMS must be a JSON object")
+    parsed: dict[int, str] = {}
+    for marker, room in rows.items():
+        try:
+            marker_id = int(marker)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("BELLHOP_MARKER_ROOMS keys must be ArUco marker IDs") from exc
+        if not 0 <= marker_id < 250 or not isinstance(room, str) or not room.strip():
+            raise ValueError("BELLHOP_MARKER_ROOMS has an invalid marker or room")
+        parsed[marker_id] = room.strip()
+    return parsed
+
+
+MARKER_ROOMS = _marker_rooms()
+HOME_ROOM = os.environ.get("BELLHOP_HOME_ROOM", "lobby")
+
+
+def room_for_marker(marker_id: int) -> str:
+    """Configured logical name, or direct numeric addressing for any valid ArUco marker."""
+    return MARKER_ROOMS.get(marker_id, str(marker_id))
+
+
+def marker_for_room(room: str) -> int | None:
+    """Resolve backend target to marker ID without embedding venue rooms in code."""
+    for marker_id, configured_room in MARKER_ROOMS.items():
+        if room == configured_room:
+            return marker_id
+    try:
+        marker_id = int(room)
+    except (TypeError, ValueError):
+        return None
+    return marker_id if 0 <= marker_id < 250 else None
 
 # Driving (rover.drive owns the motors, servos, ultrasonic and the robot HTTP server)
 FREENOVE_DIR = Path(
@@ -105,6 +143,7 @@ PLANNER_MAX_TOKENS = 1024  # room for any thinking plus one tool call
 # Vision -> voice / driving
 VISION_HOST = "127.0.0.1"
 VISION_PORTS = (5005, 5006)  # 5005 voice, 5006 driving
+DRIVE_VISION_PORT = VISION_PORTS[1]
 VISION_STALE_S = 2.0
 LATEST_JPG = RUNS_DIR / "latest.jpg"
 LATEST_JPG_EVERY_S = 1.0

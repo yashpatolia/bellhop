@@ -55,7 +55,7 @@ class MarkerFinder:
             markers.append(
                 {
                     "id": marker_id,
-                    "room": config.MARKER_ROOMS.get(marker_id),
+                    "room": config.room_for_marker(marker_id),
                     "distance_m": round(distance, 3),
                     "x": round(float(marker_corners[:, 0].mean()) / half_width - 1, 3),
                 }
