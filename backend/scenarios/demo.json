@@ -1,0 +1,38 @@
+{
+  "residents": [
+    {
+      "id": "res_margaret",
+      "name": "Margaret",
+      "room": "12",
+      "risk_flags": ["falls"],
+      "birth_year": 1938,
+      "facts": [
+        {"text": "Takes her tea with two sugars", "tags": ["tea", "preferences"]},
+        {
+          "text": "Her grandson Tom is studying to be a vet and visits on Sundays",
+          "tags": ["family", "grandson"]
+        },
+        {
+          "text": "History of left hip pain since her hip replacement in 2023",
+          "tags": ["health", "hip", "pain"]
+        }
+      ]
+    },
+    {
+      "id": "res_arthur",
+      "name": "Arthur",
+      "room": "14",
+      "facts": [
+        {"text": "Likes his coffee black and reads the paper at breakfast"},
+        {"text": "His daughter Ruth phones on Wednesdays", "tags": ["family"]}
+      ]
+    }
+  ],
+  "nurses": [
+    {"id": "nurse_priya", "name": "Priya"},
+    {"id": "nurse_sam", "name": "Sam"}
+  ],
+  "robots": [
+    {"id": "robot_1", "room": "lobby"}
+  ]
+}

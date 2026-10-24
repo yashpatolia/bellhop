@@ -1,0 +1,28 @@
+{
+  "id": "call_aee8b4f3",
+  "room": "12",
+  "resident_id": "res_margaret",
+  "urgency": 3,
+  "category": "pain",
+  "status": "escalated",
+  "transcript": [
+    {
+      "speaker": "resident",
+      "text": "My hip aches",
+      "at": "2026-10-24T03:48:59.886594Z"
+    }
+  ],
+  "summary": "Hip pain since last night",
+  "assigned_to": [
+    "robot_1",
+    "nurse_priya"
+  ],
+  "robot_id": "robot_1",
+  "nurse_tasks": [
+    "nurse_priya"
+  ],
+  "created_at": "2026-10-24T03:48:59.880632Z",
+  "assigned_at": "2026-10-24T03:48:59.880787Z",
+  "first_response_at": null,
+  "resolved_at": null
+}
