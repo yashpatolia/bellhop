@@ -11,7 +11,6 @@ import httpx
 
 from bellhop.adapters.apify_content import ApifyContentFeed
 from bellhop.adapters.care_store import InMemoryCareStore
-from bellhop.adapters.claude_extractor import ClaudeFactExtractor
 from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
 from bellhop.adapters.event_bus import InMemoryEventBus
 from bellhop.adapters.guards import (
@@ -173,6 +172,8 @@ def _fact_extractor(settings: Settings) -> FactExtractor:
     if settings.learning == "rule":
         return RuleFactExtractor()
     if settings.learning == "claude":
+        from bellhop.adapters.claude_extractor import ClaudeFactExtractor
+
         return ClaudeFactExtractor()
     raise ValueError(f"unsupported learning setting: {settings.learning}")
 
