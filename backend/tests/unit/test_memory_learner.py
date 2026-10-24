@@ -201,3 +201,30 @@ def test_nothing_extracted_gives_an_empty_report():
     learner, _, _, _ = make([])
     report = learner.learn("r1", TALK)
     assert report.stored == [] and report.pending == 0 and report.dropped == {}
+
+
+def test_a_stored_fact_keeps_its_quote_and_call_id():
+    from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
+    from bellhop.adapters.rule_extractor import RuleFactExtractor
+    from bellhop.services.memory_guard import MemoryGuard
+    from bellhop.services.memory_learner import MemoryLearner
+    from bellhop.services.memory_service import MemoryService
+
+    class Ids:
+        n = 0
+
+        def new_id(self, prefix="id"):
+            Ids.n += 1
+            return f"{prefix}-{Ids.n}"
+
+    class Clock:
+        def now(self):
+            return AT
+
+    index = DeletableLocalMemoryIndex()
+    guard = MemoryGuard(MemoryService(index, Clock(), Ids()), index)
+    talk = [Turn(speaker="resident", text="I love gardening, always have.", at=AT)]
+    report = MemoryLearner(RuleFactExtractor(), guard).learn("r1", talk, call_id="call_7")
+    [fact] = report.stored
+    assert fact.call_id == "call_7"
+    assert fact.quote and "gardening" in fact.quote

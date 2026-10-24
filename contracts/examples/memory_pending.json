@@ -5,6 +5,8 @@
     "text": "Has a grandson named Theo",
     "tags": [],
     "source": "conversation",
-    "confidence": 0.3
+    "confidence": 0.3,
+    "quote": null,
+    "call_id": null
   }
 ]

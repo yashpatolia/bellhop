@@ -14,16 +14,35 @@ class MemoryService:
         self._clock = clock
         self._ids = ids
 
-    def remember(self, resident_id: str, text: str, tags: Sequence[str] = ()) -> MemoryFact:
+    def remember(
+        self,
+        resident_id: str,
+        text: str,
+        tags: Sequence[str] = (),
+        *,
+        source: str = "staff",
+        confidence: float = 1.0,
+        quote: str | None = None,
+        call_id: str | None = None,
+    ) -> MemoryFact:
+        now = self._clock.now()
         fact = MemoryFact(
             id=self._ids.new_id("fact"),
             resident_id=resident_id,
             text=text,
             tags=list(tags),
-            created_at=self._clock.now(),
+            created_at=now,
+            source=source,
+            confidence=confidence,
+            quote=quote,
+            call_id=call_id,
+            last_confirmed=now,
         )
         self._index.add(fact)
         return fact
+
+    def now(self):
+        return self._clock.now()
 
     def recall(self, resident_id: str, utterance: str, k: int = 3) -> list[MemoryFact]:
         return self._index.recall(resident_id, utterance, k)
