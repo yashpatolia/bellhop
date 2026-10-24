@@ -1,4 +1,4 @@
-import type { Call, Category, Snapshot, Urgency } from './data/types'
+import type { Call, Category, Robot, Snapshot, Urgency } from './data/types'
 
 export const URGENCY_LABEL: Record<Urgency, string> = {
   1: 'Robot resolving',
@@ -126,4 +126,27 @@ export function clearedAlerts(s: Snapshot, limit = 12): Snapshot['alerts'] {
     .filter((a) => !active.has(a.id))
     .sort((a, b) => (b.clearedAt ?? b.createdAt) - (a.clearedAt ?? a.createdAt))
     .slice(0, limit)
+}
+
+/** The backend will not send a robot with less charge than this (percent). */
+export const MIN_DISPATCH_BATTERY = 20
+
+/** Whether a robot can take a new call right now, in words. Mirrors the backend's dispatch rule. */
+export function robotAvailability(r: Robot): { free: boolean; words: string } {
+  if (r.state === 'fault') return { free: false, words: 'Needs attention' }
+  if (r.state === 'charging') return { free: false, words: 'Charging' }
+  if (r.state === 'en_route' || r.state === 'with_resident') return { free: false, words: r.targetRoom ? `Busy, room ${r.targetRoom}` : 'Busy' }
+  if (r.battery < MIN_DISPATCH_BATTERY) return { free: false, words: `Battery too low (${Math.round(r.battery)}%)` }
+  return { free: true, words: 'Free' }
+}
+
+/** The robot the backend picks: a free one already in the room, otherwise the first free one. */
+export function closestFreeRobot(robots: Robot[], room: string): Robot | undefined {
+  const free = robots.filter((r) => robotAvailability(r).free)
+  return free.find((r) => r.room === room) ?? free[0]
+}
+
+/** The call still open for a room, if there is one: a second bell there would only double up. */
+export function openCallIn(calls: Call[], room: string): Call | undefined {
+  return calls.find((c) => c.room === room && isOpen(c))
 }

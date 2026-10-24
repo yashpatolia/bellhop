@@ -24,7 +24,8 @@ export default function App() {
     document.documentElement.dataset.theme = THEME
   }, [])
 
-  const [page, residentId, callId] = route.split('/')
-  const view: View = page === 'insights' ? 'insights' : page === 'residents' ? 'residents' : 'live'
-  return <Layout data={data} view={view} residentId={residentId || undefined} callId={callId || undefined} />
+  const [page, second, third] = route.split('/')
+  const view: View = page === 'insights' ? 'insights' : page === 'residents' ? 'residents' : page === 'dispatch' ? 'dispatch' : 'live'
+  const room = page === 'dispatch' && second ? decodeURIComponent(second) : undefined
+  return <Layout data={data} view={view} residentId={page === 'residents' ? second || undefined : undefined} callId={page === 'residents' ? third || undefined : undefined} room={room} />
 }

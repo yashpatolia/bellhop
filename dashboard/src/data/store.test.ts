@@ -136,6 +136,26 @@ describe('actions', () => {
     store.stop()
   })
 
+  it('sending a robot rings the bell for the room and returns the new call', async () => {
+    const created = { ...(callsList[0] as object), id: 'call_new', room: '104', status: 'robot_en_route', robot_id: 'robot_1' }
+    const b = fakeBackend({ 'POST /calls': () => new Response(JSON.stringify(created), { status: 201 }) })
+    const store = make(b)
+    await store.loadLive()
+    expect(await store.actions.sendRobot('104')).toBe('call_new')
+    expect(b.seen.find((r) => r.method === 'POST')).toEqual({ method: 'POST', path: '/calls', body: { room: '104' } })
+    expect(store.getSnapshot().calls.some((c) => c.id === 'call_new' && c.robotId === 'robot_1')).toBe(true)
+  })
+
+  it('a robot that cannot be sent says why and returns nothing', async () => {
+    const b = fakeBackend({ 'POST /calls': () => new Response(JSON.stringify({ detail: 'room is too long' }), { status: 422 }) })
+    const store = make(b)
+    store.start()
+    await vi.waitFor(() => expect(store.getSnapshot().connection.state).toBe('live'))
+    expect(await store.actions.sendRobot('x')).toBeNull()
+    expect(store.getSnapshot().connection.problem).toBe('room is too long')
+    store.stop()
+  })
+
   it('marking a call done resolves it as staff, not as the robot', async () => {
     const b = fakeBackend({ 'POST /calls/call_x/resolve': {} })
     await make(b).actions.resolve('call_x')

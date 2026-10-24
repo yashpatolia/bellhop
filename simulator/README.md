@@ -11,6 +11,8 @@ It has two jobs:
 - **seed** an empty backend with a fictional home: three nurses, three robots, twelve residents (what Bellhop has learned about each with its quote and how often it was heard, a nurse review queue, medical history, seven days of mood and pain readings) and fourteen days of past calls with full conversations, patterned per resident so the dashboard finds real tendencies.
 - **run** the live part: ring bells at random, and play the robot for each one: `in-visit`, the conversation turns, `score`, wait for a nurse to acknowledge when the level needs one, `resolve`. Robots report status and battery every two seconds and go to charge when low. All residents and conversations are fictional.
 
+A call rung from the dashboard's Dispatch tab is picked up too: when the backend sends one of the simulator's robots, the simulator plays that visit as well.
+
 Because the conversations reach the backend as real turns, the backend's own learning (`MemoryLearner`) runs on them when a call resolves.
 
 ## Run it

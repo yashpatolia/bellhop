@@ -22,6 +22,10 @@ The dashboard reads only the backend. Whatever writes to the backend, the simula
 
 `scripts/dev.sh` passes extra arguments to the simulator in mock mode: `scripts/dev.sh mock --scene busy --rate 3 --speed 2`. Set `BELLHOP_API_KEY` in the environment of all three (and `VITE_BELLHOP_API_KEY` for the dashboard) to try with auth on.
 
+## Sending a robot by hand
+
+The dashboard's Dispatch tab rings the bell for a room (`POST /calls {room}`), so the backend's own dispatcher picks the nearest free robot, as for a resident's bell. Choosing a specific robot is not possible yet: it needs a backend route. In the mock environment the simulator plays the visit for that robot.
+
 ## Adding a home by hand (empty environment)
 
 ```bash

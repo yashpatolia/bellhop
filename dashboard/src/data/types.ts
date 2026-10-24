@@ -154,6 +154,8 @@ export interface Connection {
 export type ReviewDecision = 'approve' | 'reject'
 
 export interface Actions {
+  /** Ring the bell for a room so the nearest free robot drives there. Returns the new call's id, or null if it failed. */
+  sendRobot: (room: string) => Promise<string | null>
   /** Acknowledge the call's alert, so the nurse shows as on the way. */
   nurseOnMyWay: (callId: string) => Promise<void>
   /** Mark a call done by staff. */
