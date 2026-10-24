@@ -67,10 +67,11 @@ class HeadScanner:
         self,
         clock: Callable[[], float] = time.monotonic,
         pans: tuple[int, ...] = config.HEAD_SCAN_PANS,
-        tilt: int = config.HEAD_SCAN_TILT,
+        tilts: tuple[int, ...] = config.HEAD_SCAN_TILTS,
         dwell_s: float = config.HEAD_SCAN_DWELL_S,
     ) -> None:
-        self._clock, self._pans, self._tilt = clock, pans, tilt
+        self._clock = clock
+        self._positions = tuple((pan, tilt) for tilt in tilts for pan in pans)
         self._dwell_s = dwell_s
         self._next_at = 0.0
         self._index = 0
@@ -83,9 +84,9 @@ class HeadScanner:
         now = self._clock()
         if now < self._next_at:
             return
-        pan = self._pans[self._index]
-        car.look_at(pan, self._tilt)
-        self._index = (self._index + 1) % len(self._pans)
+        pan, tilt = self._positions[self._index]
+        car.look_at(pan, tilt)
+        self._index = (self._index + 1) % len(self._positions)
         self._next_at = now + self._dwell_s
 
 

@@ -31,10 +31,11 @@ def head_test(car: FakeCar | RealCar, sleep: Callable[[float], None] = time.slee
     # Keep this test separate from Controller so it cannot activate any navigation or HTTP path.
     car.stop()
     print("head-test: wheels stopped; sweeping configured camera positions", flush=True)
-    for pan in config.HEAD_SCAN_PANS:
-        car.look_at(pan, config.HEAD_SCAN_TILT)
-        print(f"head-test: pan={pan} tilt={config.HEAD_SCAN_TILT}", flush=True)
-        sleep(config.HEAD_SCAN_DWELL_S)
+    for tilt in config.HEAD_SCAN_TILTS:
+        for pan in config.HEAD_SCAN_PANS:
+            car.look_at(pan, tilt)
+            print(f"head-test: pan={pan} tilt={tilt}", flush=True)
+            sleep(config.HEAD_SCAN_DWELL_S)
     car.look_ahead()
     car.stop()
     print("head-test: complete; wheels stopped", flush=True)

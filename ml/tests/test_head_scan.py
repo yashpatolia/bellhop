@@ -13,13 +13,20 @@ class Clock:
 
 def test_scanner_never_drives_wheels_and_cycles_configured_positions():
     clock, car = Clock(), FakeCar()
-    scan = HeadScanner(clock, pans=(60, 90, 120), tilt=80, dwell_s=0.5)
+    scan = HeadScanner(clock, pans=(60, 90, 120), tilts=(80, 100), dwell_s=0.5)
     scan.step(car)
     assert car._last["head"] == (60, 80)
     assert "drive" not in car._last
     clock.now = 0.5
     scan.step(car)
     assert car._last["head"] == (90, 80)
+    assert "drive" not in car._last
+    clock.now = 1.0
+    scan.step(car)
+    assert car._last["head"] == (120, 80)
+    clock.now = 1.5
+    scan.step(car)
+    assert car._last["head"] == (60, 100)
     assert "drive" not in car._last
 
 
