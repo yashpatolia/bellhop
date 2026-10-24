@@ -13,8 +13,8 @@ The plan, research and polished HTML pages live in `artifacts/` (index at the bo
 5. [Backend and the data contract](#backend-and-the-data-contract)
 6. [The nurse dashboard](#the-dashboard)
 7. [Live data: SSE, REST and polling](#live-data-sse-rest-and-polling)
-8. [Theming and layouts](#theming-and-layouts)
-9. [The mock simulator](#the-mock-simulator)
+8. [Theming](#theming)
+9. [The simulator and the two environments](#the-simulator-and-the-two-environments)
 10. [Metrics and the savings claim](#metrics-and-the-savings-claim)
 11. [Safety guardrails](#safety-guardrails)
 12. [Design decisions and tradeoffs](#design-decisions-and-tradeoffs)
@@ -53,13 +53,13 @@ The key architectural rule is that **the backend API is the single source of tru
 
 ## The call lifecycle
 
-A call moves through a small state machine. The same statuses are used by the backend, the mock simulator and every dashboard layout (`dashboard/src/data/types.ts`).
+A call moves through a small state machine. The backend owns it (`ringing, assigned, robot_en_route, in_visit, escalated, nurse_acked, resolved, closed`); the dashboard shows the simpler view below, mapped in `dashboard/src/data/adapt.ts`.
 
 ```text
-robot_en_route -> robot_with_resident -> resolved                  (urgency 1, robot handles it)
-robot_en_route -> robot_with_resident -> nurse_notified -> resolved (urgency 2, task for aide or kitchen)
+robot_en_route -> robot_with_resident -> resolved                  (urgency 1 and 2, robot handles it)
 robot_en_route -> robot_with_resident -> nurse_notified -> nurse_en_route -> resolved   (urgency 3)
 robot_en_route -> nurse_notified (immediately, robot stays) -> nurse_en_route -> resolved (urgency 4)
+waiting -> nurse_notified -> ...                                   (no robot was free, a nurse owns it)
 ```
 
 Urgency levels, always shown with words as well as colour:
@@ -67,11 +67,11 @@ Urgency levels, always shown with words as well as colour:
 | Level | Label | Who acts |
 | --- | --- | --- |
 | 1 | Robot resolving | Robot only. Chat, comfort. Never reaches a nurse. |
-| 2 | Staff task | Robot creates a task for an aide or the kitchen. |
-| 3 | Needs a nurse | Nurse gets a written SBAR summary. |
+| 2 | Staff task | Routine help. The robot stays with the resident. |
+| 3 | Needs a nurse | Nurse gets a short written summary. |
 | 4 | Emergency | Alert fires immediately. Robot stays with the resident. |
 
-Each call carries its own explanation: a one line `summary`, an SBAR block (Situation, Background, Assessment, Recommendation), the full transcript, the triage `confidence`, and the AI `costUsd` for that call. Nurses use SBAR in handovers, so the format is already familiar.
+Each call carries its own explanation: the triage `summary` (including the reason when a safety rule raised the level) and the full transcript. The dashboard adds the resident's background from what Bellhop knows about them.
 
 ## The agents
 
@@ -125,56 +125,43 @@ The original shared-state plan was SpacetimeDB (live subscriptions with no polli
 
 ## The dashboard
 
-`dashboard/` is Vite, React 19 and TypeScript, with Motion for animation. There is no router library and no state library.
+`dashboard/` is Vite, React 19 and TypeScript, with Motion for animation. There is no router library and no state library. It has **no data of its own**: everything it shows comes from the backend over HTTP and SSE, so it behaves the same whether the backend holds a real home or the simulator's example home.
 
 ```text
 dashboard/src/
-  App.tsx               source creation, hash routing, theme selection
+  App.tsx               source creation and hash routing
+  api/                  schema.d.ts (generated from contracts/openapi.json), types.ts
   data/
-    types.ts            Call, Robot, Resident, Snapshot, Actions (the contract)
-    source.ts           THE seam: picks live or mock, exposes the React hooks
-    live.ts             REST + SSE source for the real backend
-    mock.ts             Simulator that fakes calls and robot movement
-    layout.ts           24 room East Wing floor plan geometry
-  lib.ts                labels, status text, KPI maths (shared by all layouts)
-  components/           Screen, Header, FloorMap, Charts, CallParts
-  views/                LiveView, InsightsView, ResidentsView, ThemesPage
-  layouts/<theme>/      Layout.tsx + layout.css per theme (5 live)
-  theme/                themes.css (tokens), themes.ts (metadata)
+    types.ts            the view model the screens read: Call, Robot, Resident, Snapshot, Actions
+    adapt.ts            wire format to view model. Pure, tested against contracts/examples
+    store.ts            REST for the first load, SSE for updates, polling as a safety net, the actions
+    source.ts           the React hooks and the backend address
+  lib.ts                labels, status text, KPI maths
+  components/           Charts
+  views/                InsightsView
+  layouts/sumi/         the one layout ("Slate & Coral"): Layout.tsx, ResidentsPage.tsx, layout.css
+  layouts/shared.tsx    blocks used by the layout (activity log, detail, numbers, robots)
+  theme/themes.css      tokens
 ```
 
-### The data seam
-
-All data goes through `src/data/source.ts`. A source implements:
-
-```ts
-interface DataSource {
-  subscribe: (fn: () => void) => () => void
-  getSnapshot: () => Snapshot
-  actions: { nurseOnMyWay(id): void; resolve(id): void }
-  start: () => void
-  stop: () => void
-}
-```
-
-`useLiveData(source)` wires this into React with `useSyncExternalStore`, which gives tear-free reads and one subscription regardless of how many components render. `createSource()` returns the live source when `VITE_BELLHOP_API_URL` is set and the mock otherwise. No component knows which one it has.
-
-Why this shape: the dashboard was built top down before the backend existed. Putting one interface between UI and data meant the whole interface could be designed and demoed on mock data, then the real source dropped in by changing one function. Swapping to SpacetimeDB, or anything else, would also touch only this folder.
+Regenerate the wire types after the contract changes: `npm run gen:api`.
 
 ### Views
 
-Three views share the same data: **Live** (open calls, floor map, robots), **Insights** (KPIs, hourly chart, category mix, cost) and **Residents** (profile, mood and pain trends, AI cost per resident). Routing is a hash (`#/`, `#/insights`, `#/residents`, `#/themes`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
+Three views share the same data: **Live** (the most urgent call, the activity log, robots, numbers), **Insights** (KPIs, hourly chart, category mix, backend metrics, alerts) and **Residents** (search, profile, habits and tendencies from the call history, what Bellhop has learned with the nurse review queue, staff notes, medical history, call history with full conversations). Routing is a hash (`#/`, `#/insights`, `#/residents`, `#/residents/<id>`, `#/residents/<id>/<callId>`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
+
+When the backend cannot be reached the screens say so and keep trying; when the home is empty they say that instead of showing blank panels.
 
 ## Live data: SSE, REST and polling
 
-`data/live.ts` implements the recovery-first pattern from the integration guide.
+`data/store.ts` implements the recovery-first pattern from the integration guide.
 
-1. On `start()`, call `refreshAll()` (REST) to load calls and robots.
+1. On `start()`, load calls, alerts, robots, nurses and metrics, then every resident with their memory, pending facts, medical history and care readings (REST).
 2. Then open exactly one `EventSource` on `/events`.
-3. Each event upserts the **full object** by `id` into the snapshot and notifies subscribers.
-4. On `onerror`, call `refreshAll()` again. `EventSource` reconnects by itself, so no new source is created.
-5. A 5 second poll runs only while the stream is not `OPEN`.
-6. `stop()` closes the stream and clears the timer, so React remounts do not leak connections.
+3. Each event upserts the **full object** by `id` into the snapshot and notifies subscribers. A resolved call also schedules a short refresh of that resident, because learning from the conversation runs in the background after the call resolves.
+4. On every (re)connect of the stream, load everything live again. The stream does not replay missed events.
+5. A 10 second poll runs as a safety net. If a request fails the screens switch to "Cannot reach Bellhop" and retry every 3 seconds.
+6. `stop()` closes the stream and clears the timers, so React remounts do not leak connections.
 
 Why SSE rather than WebSockets or pure polling:
 
@@ -182,52 +169,30 @@ Why SSE rather than WebSockets or pure polling:
 - Polling alone would feel laggy for urgency 4 alerts. SSE alone is not correct: the stream deliberately **does not replay** missed events, so after any reconnect the client must refetch. The combination gives low latency in the normal case and correctness after any outage.
 - WebSockets would add two-way capability we do not use, plus more reconnect logic to write.
 
-Normalisation: the mapper in `live.ts` accepts camelCase or snake_case and merges onto the previous object, because the backend payload shape was not yet checked in. It is the one place to tighten once the contract is final.
+Actions go to the backend and the result comes back through the same stream: "I'm on my way" acknowledges the call's alert (`POST /alerts/{id}/ack`), "Mark done" resolves it as staff, Approve and Reject answer the memory review queue, and a staff note is tidied by `POST /residents/{id}/notes/refine` and saved to memory or the medical history. A failed action shows its reason for a few seconds.
 
-Fields the backend does not provide yet (residents, nurses, hourly buckets) stay on the mock base. The nurse action buttons are applied locally for now since no endpoint exists for them.
+## Theming
 
-## Theming and layouts
+A theme is a block of CSS variables in `theme/themes.css` under `[data-theme='id']`: surfaces, ink levels, accent, four urgency colours, radii, fonts and background. Every component reads only tokens, so adding a palette needs no component changes. The one layout shipped is "Slate & Coral" (`layouts/sumi/`).
 
-Two separate mechanisms:
-
-- **Theme tokens** (`theme/themes.css`): a theme is a block of CSS variables under `[data-theme='id']`: surfaces, ink levels, accent, four urgency colours, radii, fonts and background. Every component reads only tokens, so adding a palette needs no component changes.
-- **Per-theme layouts** (`layouts/<id>/Layout.tsx`): a theme may also ship an entirely different arrangement. `layouts/registry.ts` auto-discovers them with `import.meta.glob`. A theme without a layout falls back to the shared `Screen`.
-
-Current layouts, each with a distinct information model for the same data:
-
-| Theme | Idea |
-| --- | --- |
-| Birch & Moss (default) | Shift board: four swim lanes by urgency |
-| Harbor Fog | Floor map fills the screen with floating glass panels |
-| Espresso Night | Dark radar: rooms on a ring, scan line, built for night shifts |
-| Plum & Stone | Inbox and reading pane for calls |
-| Ink & Rust | One large urgent call at a time, slim list of the rest |
-
-Five more were prototyped and moved to `dashboard/_archived-layouts/`. `#/themes` renders every live layout side by side on a frozen snapshot (`useStaticData`) using a scaled, `aria-hidden` preview. The theme choice is stored in `localStorage` (guarded, since storage can be blocked) and can be forced with `?theme=`.
-
-Design rules, from `CLAUDE.md`, that every theme follows:
+Design rules, from `CLAUDE.md`:
 
 - The audience is nurses and caretakers: large type, strong contrast, calm. Urgency is always words plus colour, never colour alone.
-- Muted earthy palettes only. No amber. Body text and numbers stay highly legible even in themes with a serif accent.
-- The page fills the full width. No narrow centred layouts, because the dashboard runs on a wall or desk monitor.
+- Soft neutral palettes only. No amber. Body text and numbers stay highly legible.
+- The page fills the full width, because the dashboard runs on a wall or desk monitor.
 
-Tradeoff: per-theme layout files duplicate some structure (each is 400 to 500 lines plus CSS). We accepted that because the point was to explore genuinely different ways of presenting urgency, not recolour one layout. Shared logic (labels, status text, KPIs) lives in `lib.ts` and `components/` so the duplication is presentation only.
+## The simulator and the two environments
 
-## The mock simulator
+The example home is a **separate service**, `simulator/`, that talks to the backend through the same public routes the robot and staff use. The dashboard cannot tell it from a real home. See [simulator/README.md](simulator/README.md).
 
-`data/mock.ts` is a self-contained fake of the whole system, used when no backend URL is set and for theme previews:
-
-- Twelve residents with flags, likes, 7 day mood and pain.
-- Nine scripted scenarios (chat, tea, blanket, bathroom, confusion, hip pain, missed medication, chest tightness, fall, breathing) each with a transcript and SBAR.
-- A 1 second tick that spawns calls at random intervals, caps open calls at four, drives robots along corridor waypoints on the floor plan, advances calls through the state machine, and resolves them.
-- Robots go home to the dock to charge when battery drops.
-- `?demo=busy` seeds one emergency, two nurse calls, a task and a chat for layout checks.
-
-It exists so the UI could be built, reviewed and rehearsed without hardware or network. It is also a living spec of the lifecycle above.
+| Environment | What runs | Use it for |
+| --- | --- | --- |
+| `scripts/dev.sh mock` | backend, simulator (twelve residents with facts, medical history and fourteen days of calls, then live bell presses), dashboard | building and rehearsing the UI, demos without hardware |
+| `scripts/dev.sh empty` | backend and dashboard only | integrating the real robot and staff entry; the home stays empty until something posts to it |
 
 ## Metrics and the savings claim
 
-`computeKpis` in `lib.ts` derives everything shown on Insights from the call list: totals, resolved by robot, median first response, share answered within 10 minutes, AI cost per call and average resident feedback.
+`computeKpis` in `lib.ts` derives the numbers shown on Live and Insights from the call list: totals, resolved by robot, median first response and share answered within 10 minutes. The backend's own `/metrics` totals are shown beside them.
 
 **Minutes saved = robot-resolved calls x 4 minutes.** The 4 minutes per call is an assumption taken from the research, and it is labelled as an assumption on screen. We state it openly because no study measures this for our setup, and a hidden constant would be an overclaim. The financial model (about 970 staff hours a year and roughly $24,000 of staff time for about $3,200 of running cost at 40 resolved calls a day) is in the research docs and rests on stated, untested assumptions.
 
@@ -254,28 +219,32 @@ It exists so the UI could be built, reviewed and rehearsed without hardware or n
 | Line tracking plus QR navigation | Reliable and quick to build on a controlled floor | No general autonomy; tape must be laid |
 | Claude as fallback and explainer over a fast classifier | Low latency on easy cases, careful reasoning on hard ones | Two models to keep in agreement |
 | Hash routing, no router lib | Works from any static host or file; three views only | No nested routes or code splitting by route |
-| Per-theme layouts plus shared tokens | Real exploration of how to present urgency while keeping logic shared | Duplicated presentation code across five layouts |
+| Simulator as its own service | The dashboard has no fake data path; mock and real homes go through the same API | One more process to start in a demo |
 | Words as well as colour for urgency | Accessibility and readability under stress | Slightly busier chips |
 | Assumption-labelled savings counter | Honest metric a judge can interrogate | A less dramatic headline number |
 
 ## Running it
 
-Dashboard on mock data:
+Everything at once, on this machine:
 
 ```bash
-cd dashboard && npm install && npm run dev
+scripts/dev.sh mock     # backend + simulator + dashboard, with an example home that keeps ringing
+scripts/dev.sh empty    # backend + dashboard, nothing in the home
+scripts/dev.sh mock --scene busy --rate 3 --speed 2    # options go to the simulator
 ```
 
-Dashboard on the live backend:
+Then open http://localhost:5173. Needs `uv` and `npm`; run `npm install` in `dashboard/` once. Ports: `BACKEND_PORT` (8000) and `DASHBOARD_PORT` (5173).
+
+Dashboard against a backend elsewhere (for example on the team tailnet):
 
 1. Install Tailscale and join the team tailnet (ask Aditya for an invite).
 2. Check the backend is reachable: `curl http://100.81.196.22:8000/health` should return `{"status":"ok"}`.
 3. Copy `dashboard/.env.example` to `dashboard/.env.local` and set `VITE_BELLHOP_API_URL`. Add `VITE_BELLHOP_API_KEY` only if the backend uses a key.
 4. Run `npm run dev`.
 
-Other scripts: `npm run build` (typecheck and bundle), `npm run lint` (oxlint). Useful URL: `/?demo=busy` for a busy mock floor.
+Other scripts in `dashboard/`: `npm run build` (typecheck and bundle), `npm run lint` (oxlint), `npm run test` (vitest), `npm run gen:api` (wire types from the contract).
 
-Pre-demo checklist for live mode: health check passes, initial `/calls` loads, a pressed bell appears without refresh, a robot status change updates its card, toggling Tailscale off and on recovers via refetch, and the polling fallback visibly works with SSE unavailable.
+Pre-demo checklist: health check passes, the first load fills the screens, a pressed bell appears without refresh, a robot status change updates its row, stopping and restarting the backend shows "Cannot reach Bellhop" and then recovers by itself.
 
 ## Code and architecture
 
@@ -304,9 +273,9 @@ Then ask "what happened in room 12?" from ASI:One with the Agents toggle on. Det
 | Path | What it is |
 | --- | --- |
 | `dashboard/` | The nurse dashboard (Vite, React, TypeScript, Motion) |
-| `dashboard/src/data/` | Types, source seam, live and mock sources |
-| `dashboard/src/layouts/` | One folder per live theme layout |
-| `dashboard/_archived-layouts/` | Retired themes kept for reference |
+| `dashboard/src/data/` | View model, wire adapter, live store |
+| `simulator/` | Stand-in care home that feeds the backend over its API (Python, `uv`) |
+| `scripts/` | `dev.sh mock` and `dev.sh empty` start the whole stack |
 | `artifacts/` | Static HTML and CSS plan, research and overview, no build step |
 | `docs/plan/` | Markdown and PDF exports of the project, research and extra ideas |
 | `docs/architecture/` | Backend architecture, module map, decisions, testing, status |
@@ -322,7 +291,7 @@ The original plan, research and extra ideas live in `docs/plan/`, with polished 
 
 ## Current status
 
-- **Done:** nurse dashboard (Ink & Rust layout, activity log), mock simulator, live REST plus SSE source.
-- **Not yet verified:** the live source has not been run against the real backend (the Tailscale address was unreachable from the dev machine when written). The call and robot field mapping in `live.ts` is tolerant on purpose and should be checked against the first real payload.
-- **Not wired:** nurse action buttons are local only; `/alerts` and `/metrics` are not shown; residents, nurses and hourly data still come from the mock base.
+- **Done:** nurse dashboard on the live backend (REST plus SSE, actions, review queue, staff notes, empty and offline states), the simulator, memory learning from finished calls, staff medical history, note tidy route.
+- **Verified:** dashboard and simulator run against the real backend in a browser, in both environments. The unit and integration suites for all three are green.
+- **Not verified:** nothing has run with the real robot on the Pi. The rule-based note tidy and fact extractor are the defaults; the Claude versions need `ANTHROPIC_API_KEY` and have not been measured.
 - **Elsewhere in the project:** the backend, contracts and SpacetimeDB module are in this repo (see below); the robot code and voice loop are owned by other teammates.

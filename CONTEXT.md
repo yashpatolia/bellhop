@@ -32,16 +32,13 @@ Hexagonal: `domain` <- `ports` <- `services` <- `adapters`/`api` <- `container.p
 - Verified live: SpacetimeDB module on a local 2.13.0 server (write-through store). **Never run with real services:** Moss (guessed SDK, falls back to local), Fetch.ai agent (`uagents` not installed), Apify adapter (CLI run only), `HttpRobotGateway` (no Pi yet).
 - Room ids (decision): 12 = Margaret, 14 = Arthur, lobby = robot home. The user was to send this to Jeremy; confirm it was received.
 
-## 4. Frontend (`dashboard/`, work in progress, Yash)
-Vite 8, React 19, TypeScript 6, `motion`; hash views `#/` Live, `#/residents`, `#/insights`. Default is a mock `Simulator` (`src/data/mock.ts`); live mode needs `VITE_BELLHOP_API_URL` (+ optional `VITE_BELLHOP_API_KEY`) in `.env.local`. `node_modules` not installed here, so nothing was build-verified.
-
-Live mode is **not correct yet**: `src/data/live.ts` normalizers were written before the contract existed. Known mismatches:
-- reads `room_number` (API: `room`, string), `score` (API: `urgency`), `battery_pct` (API: `battery` 0..1), `acknowledged` (API: `acked_at`), turn `who` (API: `speaker`), `first_response_sec` (API: `first_response_at`/`assigned_at`), `handled_by` (API: `assigned_to[]`).
-- UI statuses (`robot_with_resident`, `nurse_notified`, `nurse_en_route`) differ from API statuses (`ringing, assigned, robot_en_route, in_visit, resolved, escalated, nurse_acked, closed`); `Category` lacks `social`; `RobotState` lacks `busy`/`fault`.
-- Metrics: the `calls_by_hour/room/category` dicts are dropped; hourly chart stays mock.
-- Residents, nurses, and robot x/y stay mock; action buttons (`nurseOnMyWay`, `resolve`) only patch local state. Not wired: `POST /alerts/{id}/ack`, `POST /calls/{id}/resolve`, `/residents`, `/nurses`, `/flags`, `/residents/{id}/care/summary`.
-- No connection indicator; fetch errors swallowed; `VITE_` key is bundled into the browser build.
-- Next: `npm ci && npm run build`; `npx openapi-typescript ../contracts/openapi.json`; rewrite normalizers and status mapping; wire actions; verify against the seeded backend.
+## 4. Frontend (`dashboard/`, Yash) and the simulator (`simulator/`)
+Vite 8, React 19, TypeScript 6, `motion`, vitest; hash views `#/` Live, `#/insights`, `#/residents`, `#/residents/<id>`, `#/residents/<id>/<callId>`. The dashboard has **no mock data**: it reads the backend only (`VITE_BELLHOP_API_URL`, default `http://127.0.0.1:8000`, optional `VITE_BELLHOP_API_KEY`). `src/api/schema.d.ts` is generated from `contracts/openapi.json` (`npm run gen:api`); `src/data/adapt.ts` maps wire to view model and is tested against `contracts/examples`; `src/data/store.ts` does REST, SSE, polling and the actions (acknowledge alert, resolve, approve or reject pending facts, tidy and save staff notes). It shows "Cannot reach Bellhop" when offline and "This home is empty" for an empty backend.
+- `simulator/` is a separate Python service (`uv run bellhop-sim seed|run|bell`) that plays the care home through the backend's public routes: it seeds staff, robots, twelve residents (facts with provenance, review queue, medical history, mood and pain), fourteen days of imported calls, then rings bells and acts as the robot. Fictional data only, in `simulator/data/*.json`.
+- Run everything: `scripts/dev.sh mock` (backend + simulator + dashboard) or `scripts/dev.sh empty` (backend + dashboard). See `docs/architecture/16-simulator-and-environments.md`.
+- Verified 2026-10-24: both environments in a browser, the live actions against the real backend, `npm run test` (adapter and store), `simulator` pytest against the real backend, backend suite.
+- Backend routes added for this: provenance fields on memory facts, `GET /residents/{id}/memory/all`, `POST /calls/import`, care `at` and `GET .../care/history`, `GET/PUT .../medical`, `POST .../medical/entries`, `POST .../notes/refine`, `Call.resolved_by_robot`.
+- Not done: login for staff, a UI to add residents (use the API), persistence of memory facts, care data and medical history in SpacetimeDB.
 
 ## 5. ML (`origin/ml`, Gordon, unfinished, ours to finish)
 Code under `ml/pi/src/rover/`: `vision/` (Picamera2, YOLO NCNN, YuNet faces, ArUco markers, UDP to :5005/:5006), `speech/` (VAD, Deepgram Flux STT with Moonshine offline fallback, Piper TTS, visit state machine), `agent/` (Claude replies, persona, tools: look, request_staff, stop, go_to_room, follow_patient, face_patient), `triage/` (Claude Haiku + optional "Jev" via TypeSafe, merged by taking the higher urgency, 3 s budget), `backend.py` client, `config.py`. 94 pure-logic tests in `ml/tests` (not run by us yet). Env names: `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY` (optional), `BELLHOP_API`, `BELLHOP_API_KEY`, `ROBOT_ID`, `PI_SERVER_URL`, audio device names.
@@ -64,7 +61,7 @@ Code under `ml/pi/src/rover/`: `vision/` (Picamera2, YOLO NCNN, YuNet faces, ArU
 - **Ranked plan now:** (1) get the code onto the Pi (needs a pushed `ml-work` branch, not yet authorized) and decide Python 3.13 vs Bookworm reflash; (2) plug in USB mic and speaker, run `scripts/doctor.py`, then a lifted-wheel motor test with `python -m rover.drive` (no `--fake`) and the safe-stop checklist in `ml/pi/deploy/SAFE_STOP_CHECKLIST.md`; (3) real marker navigation (replace `SimNavigator`) and camera/ArUco checks at demo distance; (4) live speech run with Deepgram and Piper; (5) human review of triage labels, then decide whether the local scorer ever goes on; (6) systemd units and Tailscale access for us.
 
 ## 6. Open items, ranked
-1. Frontend live-mode contract fix (section 4) and ML-to-backend end-to-end run (section 5). Decide who does each: Yash owns the dashboard, we can fix the normalizers via PR if asked.
+1. ML-to-backend end-to-end run on the Pi (section 5). The dashboard live mode is done (section 4).
 2. Merge `origin/ml` into a working branch (do not push to master unasked), get its tests green.
 3. Jeremy: Pi server (`/go_to`, `/led`, `/stop`, `/snapshot`), room ids, marker map, battery.
 4. Dev tooling quick wins from [12-research-dev-tooling.md](docs/architecture/12-research-dev-tooling.md): import-linter (fixes 4 layering violations), Schemathesis, vulture, pytest-xdist + coverage floor, openapi-typescript/Prism for the frontend.
