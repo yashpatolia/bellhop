@@ -67,3 +67,30 @@ def test_a_played_emergency_reaches_the_nurse_and_resolves_after_the_ack(api):
     assert [a for a in api.get("/alerts") if a["call_id"] == call["id"] and a["level"] == 4]
     home.heartbeat()
     assert {r["status"] for r in api.get("/robots")} <= {"idle", "charging"}
+
+
+def test_a_call_rung_from_the_dashboard_is_played_by_the_robot_that_was_sent(api):
+    home = Home(
+        api, Pace(0), random.Random(5), new_fleet(), VisitOptions(nurse_delay_s=1, poll_s=1)
+    )
+    home.heartbeat()
+    call = api.post("/calls", {"room": "108"})  # what the dashboard's "send a robot" does
+    assert call["robot_id"]
+    assert home.adopt(min_age_s=0) == 1
+    assert home.adopt(min_age_s=0) == 0  # taken once only
+    home.join(timeout=30)
+    done = api.get(f"/calls/{call['id']}")
+    assert done["status"] in ("resolved", "escalated", "nurse_acked")
+    assert done["transcript"]
+
+
+def test_a_call_to_a_place_with_no_resident_is_played_too(api):
+    home = Home(
+        api, Pace(0), random.Random(6), new_fleet(), VisitOptions(nurse_delay_s=1, poll_s=1)
+    )
+    home.heartbeat()
+    call = api.post("/calls", {"room": "lobby"})
+    assert call["robot_id"]
+    assert home.adopt(min_age_s=0) == 1
+    home.join(timeout=30)
+    assert api.get(f"/calls/{call['id']}")["transcript"]

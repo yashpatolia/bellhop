@@ -6,12 +6,13 @@ import logging
 import random
 import threading
 import time
+from datetime import datetime
 
 from bellhop_sim import data
 from bellhop_sim.client import Backend, BackendError
 from bellhop_sim.fleet import Fleet, SimRobot
 from bellhop_sim.seeding import ROBOTS
-from bellhop_sim.visit import DEFAULT_OPTS, Pace, VisitOptions, play_call
+from bellhop_sim.visit import DEFAULT_OPTS, Pace, VisitOptions, attend, play_call
 
 log = logging.getLogger("bellhop_sim")
 
@@ -62,6 +63,7 @@ class Home:
         self.api, self.pace, self.rng, self.opts = api, pace, rng, opts
         self.fleet = fleet or new_fleet()
         self._busy: set[str] = set()  # residents with a call in progress
+        self._played: set[str] = set()  # calls this simulator rang or has taken over
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self.threads: list[threading.Thread] = []
@@ -89,6 +91,10 @@ class Home:
     def _heartbeat_loop(self) -> None:
         while not self._stop.is_set():
             self.heartbeat()
+            try:
+                self.adopt()
+            except BackendError as exc:
+                log.warning("could not look for new calls: %s", exc)
             self._stop.wait(HEARTBEAT_S)
 
     # -- calls ----------------------------------------------------------------------------
@@ -101,7 +107,16 @@ class Home:
 
         def run() -> None:
             try:
-                play_call(self.api, self.fleet, self.pace, self.rng, resident, scenario, self.opts)
+                play_call(
+                    self.api,
+                    self.fleet,
+                    self.pace,
+                    self.rng,
+                    resident,
+                    scenario,
+                    self.opts,
+                    self._remember,
+                )
             except Exception:
                 log.exception("call for %s failed", resident["id"])
             finally:
@@ -112,6 +127,47 @@ class Home:
         t.start()
         self.threads.append(t)
         return True
+
+    def _remember(self, call_id: str) -> None:
+        with self._lock:
+            self._played.add(call_id)
+
+    def adopt(self, min_age_s: float = 3.0) -> int:
+        """Play the visit for calls somebody else rang (the dashboard's "send a robot") when a
+        simulated robot was sent. Returns how many were taken."""
+        ids = {r.id for r in self.fleet.snapshot()}
+        taken = 0
+        now = time.time()
+        for call in self.api.get("/calls", params={"limit": 50}):
+            if (
+                call["status"] not in ("assigned", "robot_en_route")
+                or call.get("robot_id") not in ids
+            ):
+                continue
+            with self._lock:
+                if call["id"] in self._played:
+                    continue
+                age = now - datetime.fromisoformat(call["created_at"]).timestamp()
+                if age < min_age_s:
+                    continue  # still being played by the thread that rang it
+                self._played.add(call["id"])
+            resident = next(
+                (r for r in data.residents() if r["id"] == call.get("resident_id")), None
+            )
+            if resident is None:
+                resident = {"id": "", "room": call["room"], "name": "", "flags": []}
+            scenario = pick_scenario(self.rng, "chat" if self.rng.random() < 0.5 else None)
+            t = threading.Thread(target=self._attend, args=(call, resident, scenario), daemon=True)
+            t.start()
+            self.threads.append(t)
+            taken += 1
+        return taken
+
+    def _attend(self, call: dict, resident: dict, scenario: data.Scenario) -> None:
+        try:
+            attend(self.api, self.fleet, self.pace, self.rng, call, resident, scenario, self.opts)
+        except Exception:
+            log.exception("call %s failed", call["id"])
 
     def resident(self, resident_id: str | None = None) -> dict:
         people = data.residents()

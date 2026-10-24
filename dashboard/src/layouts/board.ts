@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { BellhopData, Call } from '../data/types'
 import { isOpen } from '../lib'
 
@@ -6,6 +6,7 @@ export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_rou
 
 export const NAV = [
   { id: 'live', label: 'Live', href: '#/' },
+  { id: 'dispatch', label: 'Dispatch', href: '#/dispatch' },
   { id: 'insights', label: 'Insights', href: '#/insights' },
   { id: 'residents', label: 'Residents', href: '#/residents' },
 ]
@@ -19,3 +20,28 @@ export function useBoard(data: BellhopData) {
 }
 
 export const residentOf = (data: BellhopData, c: Call) => data.residents.find((r) => r.id === c.residentId)
+
+/** Robots sent from the Dispatch tab during this visit to the dashboard, newest first. */
+export interface Dispatched {
+  callId: string
+  room: string
+  at: number
+}
+
+let dispatched: Dispatched[] = []
+const watchers = new Set<() => void>()
+
+export function recordDispatch(entry: Dispatched) {
+  dispatched = [entry, ...dispatched]
+  for (const fn of watchers) fn()
+}
+
+export function useDispatched(): Dispatched[] {
+  return useSyncExternalStore(
+    (fn) => {
+      watchers.add(fn)
+      return () => watchers.delete(fn)
+    },
+    () => dispatched,
+  )
+}

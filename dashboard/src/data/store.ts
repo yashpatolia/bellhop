@@ -221,6 +221,18 @@ export class LiveStore {
         await this.send('POST', `/alerts/${alert.id}/ack`, { nurse_id: nurse })
         await this.loadLive()
       }),
+    sendRobot: async (room) => {
+      try {
+        const call = await this.send<ApiCall>('POST', '/calls', { room })
+        this.raw.calls.set(call.id, call)
+        this.touch()
+        void this.loadLive().catch(() => {}) // the robot's own status follows the dispatch
+        return call.id
+      } catch (e) {
+        this.showProblem(e instanceof Error ? e.message : 'Could not send a robot.')
+        return null
+      }
+    },
     resolve: (callId) =>
       this.guard(async () => {
         await this.send('POST', `/calls/${callId}/resolve`, { by_robot: false })

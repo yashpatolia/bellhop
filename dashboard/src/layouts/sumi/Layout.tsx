@@ -3,10 +3,11 @@ import { InsightsView } from '../../views/InsightsView'
 import { clock } from '../../lib'
 import { Activity, ConnectionBanner, Detail, Earlier, Nav, Numbers, Robots, Summary } from '../shared'
 import { useBoard } from '../board'
+import { DispatchPage } from './DispatchPage'
 import { ResidentsPage } from './ResidentsPage'
 import './layout.css'
 
-export default function Layout({ data, view, residentId, callId }: LayoutProps) {
+export default function Layout({ data, view, residentId, callId, room }: LayoutProps) {
   const { selected, pick } = useBoard(data)
   return (
     <div className="lx lx-sumi" data-theme="sumi">
@@ -47,7 +48,7 @@ export default function Layout({ data, view, residentId, callId }: LayoutProps) 
             </section>
           </>
         ) : (
-          <div className="sm-plain">{view === 'insights' ? <InsightsView data={data} /> : <ResidentsPage data={data} residentId={residentId} callId={callId} />}</div>
+          <div className="sm-plain">{view === 'insights' ? <InsightsView data={data} /> : view === 'dispatch' ? <DispatchPage data={data} room={room} /> : <ResidentsPage data={data} residentId={residentId} callId={callId} />}</div>
         )}
       </div>
     </div>
