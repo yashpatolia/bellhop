@@ -1,0 +1,20 @@
+[
+  {
+    "id": "nurse_priya",
+    "name": "Priya",
+    "on_shift": true,
+    "open_tasks": 1
+  },
+  {
+    "id": "nurse_sam",
+    "name": "Sam",
+    "on_shift": true,
+    "open_tasks": 1
+  },
+  {
+    "id": "nurse_lena",
+    "name": "Lena",
+    "on_shift": true,
+    "open_tasks": 0
+  }
+]

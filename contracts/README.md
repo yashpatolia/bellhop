@@ -5,7 +5,8 @@ Source of truth for the dashboard (and anything else that talks to the backend).
 | File | What it is |
 | --- | --- |
 | `openapi.json` | OpenAPI 3 spec generated from the live FastAPI app. A backend test fails if it drifts |
-| `examples/*.json` | Real responses from the three demo scenes (plus `robots.json`). Use them as mock data before the backend runs |
+| `examples/*.json` | Real responses from the three demo scenes, the admin routes and `robots.json`. Use them as mock data before the backend runs |
+| `examples/events.json` | One sample of each live event (`GET /events`); OpenAPI cannot describe a stream |
 
 ## Get typed fast
 ```
@@ -23,7 +24,7 @@ Open http://localhost:8000/docs for interactive docs. CORS allows every origin b
 Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses `nurse_priya` and `nurse_sam`, robot `robot_1`.
 
 ## Auth header
-When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on every request except `GET /health`; a missing or wrong key is `401`. When unset (dev) no header is needed. The scheme (`ApiKeyAuth`, header `X-API-Key`) is always in `openapi.json`, so generated clients carry it. Browser origins other than the configured `BELLHOP_CORS_ORIGINS` (default `*`) are blocked by CORS. Limits: bodies over 1 MB are `413`, over-long strings or lists are `422`, `GET /calls` and `GET /alerts` take `?limit=` (default 200, max 1000).
+When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on every request except `GET /health`; a missing or wrong key is `401`. The one exception is `GET /events`, which also accepts `?api_key=<key>` (see [Live updates](#live-updates)). When unset (dev) no header is needed. The scheme (`ApiKeyAuth`, header `X-API-Key`) is always in `openapi.json`, so generated clients carry it. Browser origins other than the configured `BELLHOP_CORS_ORIGINS` (default `*`) are blocked by CORS. Limits: bodies over 1 MB are `413`, over-long strings or lists are `422`, `GET /calls` and `GET /alerts` take `?limit=` (default 200, max 1000).
 
 ## Endpoints
 | Method and path | Use |
@@ -62,6 +63,13 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 | `POST /residents/{id}/family/messages {text}` / `family/replies {text}` | Voice note to the resident / resident reply (201) |
 | `GET /residents/{id}/family/messages` | Messages, oldest first |
 | `GET /residents/{id}/postcard` | `{lines: [...]}` positive, non-medical summary of today. Never mentions pain |
+| `POST /residents {id?, name, room, risk_flags?, birth_year?}` | Create a resident (201). Omit `id` to generate one. Duplicate id or a room another resident occupies is 409; bad body 422 (`name` 1 to 80, `room` 1 to 32, up to 10 flags of 1 to 32 chars, unknown keys). See `examples/resident_created.json` |
+| `GET /residents`, `GET /residents/{id}` | `[Resident]` / one `{id, name, room, risk_flags, birth_year}`; unknown id 404 |
+| `PATCH /residents/{id}` | Change any of `name`, `room`, `risk_flags`, `birth_year` (only the given keys). Unknown id 404, room taken 409, invalid 422 |
+| `POST /nurses {id?, name, on_shift?}` | Create a nurse (201, `on_shift` defaults true); duplicate id 409, invalid 422. See `examples/nurse_created.json` |
+| `GET /nurses` | `[{id, name, on_shift, open_tasks}]` |
+| `PATCH /nurses/{id}` | Change `name` and/or `on_shift` (going off shift keeps `open_tasks`); unknown id 404, invalid 422 |
+| `GET /events` | Live Server-Sent Events stream, see [Live updates](#live-updates) |
 | `GET /health` | `{"status":"ok"}` |
 
 Unknown call, alert, flag, pending fact or resident gives 404.
@@ -76,7 +84,30 @@ Unknown call, alert, flag, pending fact or resident gives 404.
 - Errors: unknown id 404, illegal state change 409, bad body 422.
 
 ## Live updates
-MVP is polling: `GET /calls`, `GET /alerts` and `GET /metrics` once a second is plenty. Streaming (SSE, or SpacetimeDB subscriptions) comes later and will not change these shapes.
+`GET /events` is a Server-Sent Events stream (`Content-Type: text/event-stream`). Polling `GET /calls`, `/alerts` and `/metrics` still works and is a fine fallback. Each message carries the ids plus the full current object, so no second request is needed. Samples: `examples/events.json`.
+
+| `event:` | `data` fields | Full object |
+| --- | --- | --- |
+| `call.raised` | `call_id`, `room` | `call` |
+| `call.assigned` | `call_id`, `robot_id`, `nurse_id` (either may be null) | `call` |
+| `call.scored` | `call_id`, `urgency` (1 to 4), `category` | `call` |
+| `call.resolved` | `call_id`, `by_robot` | `call` |
+| `alert.raised` | `alert_id`, `call_id`, `level` | `alert` |
+| `robot.updated` | `robot_id` | `robot` (after `PUT /robots/{id}`) |
+
+The object is read at send time, so it can be newer than the event that triggered it (it is `null` if the record vanished). Each message also has a monotonic `id:`.
+
+```js
+const es = new EventSource("http://localhost:8000/events"); // add ?api_key=... if a key is set
+for (const name of ["call.raised", "call.assigned", "call.scored", "call.resolved", "alert.raised", "robot.updated"]) {
+  es.addEventListener(name, (e) => render(name, JSON.parse(e.data)));
+}
+es.onerror = () => {}; // the browser reconnects by itself (about 3 s)
+```
+- **Heartbeat:** a comment line `: ping` every 15 s keeps proxies open; EventSource ignores it.
+- **Reconnect:** the server sends `retry: 3000`. Missed events are not replayed (`Last-Event-ID` is ignored), so after every (re)connect refetch `GET /calls` and `GET /alerts`, then apply events. Event ids restart at 1 when the server restarts.
+- **Auth:** with `BELLHOP_API_KEY` set, `/events` accepts `X-API-Key` or `?api_key=<key>` (EventSource cannot send headers); wrong or missing is 401. The query parameter is accepted on no other route. It appears in URLs and access logs, so use a dashboard-only key and HTTPS.
+- **Limits:** at most 20 concurrent streams (503 above). A slow client loses its oldest queued events (100 per client) rather than slowing the server.
 
 ## Changing the contract
 Change the API in `backend/src/bellhop/api/`, run `cd backend && uv run python scripts/export_contract.py`, and commit `contracts/`. Tell Yash.

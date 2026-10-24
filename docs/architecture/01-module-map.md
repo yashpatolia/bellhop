@@ -43,7 +43,8 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 | File | Public interface |
 | --- | --- |
 | `container.py` | `build_container(settings=None, *, stdb_client=None) -> Container` wiring everything; `Settings.from_env()` reads the variables in the table in [backend/README.md](../../backend/README.md#configuration) (`BELLHOP_MEMORY`, `BELLHOP_STORE`, `BELLHOP_SEED_DEMO`, `BELLHOP_STDB_URL/DB/TOKEN`, `MOSS_PROJECT_ID/KEY`, `BELLHOP_GUARDS`, `BELLHOP_ROBOT_URL`, `BELLHOP_CONTENT`, `APIFY_TOKEN`, `BELLHOP_API_KEY`, `BELLHOP_CORS_ORIGINS`, `BELLHOP_ALLOW_NEW_ROBOTS`). `Settings` also has `notifier_timeout`, `gateway_timeout`, `memory_budget_ms` (not env-driven). Robot and SpacetimeDB URLs must be http(s). Unreachable SpacetimeDB at build time logs and falls back to memory |
-| `api/app.py` | `create_app(container) -> FastAPI`. 38 operations, listed once in [HTTP routes](#http-routes) below. Optional `X-API-Key` auth on every route but `/health` (`BELLHOP_API_KEY`), 1 MB body limit, field length limits, `?limit=` on `/calls` and `/alerts` |
+| `api/app.py` | `create_app(container) -> FastAPI`. 46 operations, listed once in [HTTP routes](#http-routes) below. Optional `X-API-Key` auth on every route but `/health` (`BELLHOP_API_KEY`), 1 MB body limit, field length limits, `?limit=` on `/calls` and `/alerts` |
+| `api/events.py` | `EventStream(bus, store, max_clients=20, queue_size=100, heartbeat=15)`: subscribes to `CallRaised/Assigned/Scored/Resolved`, `AlertRaised`; `emit(name, ids)` is thread-safe and non-blocking (bounded deque per client, oldest dropped, `call_soon_threadsafe` wake); `connect()` raises `TooManyClients` (route: 503); `frames(client)` yields SSE text (`retry:`, `id/event/data` with the full object read from the store, `: ping`). `Container.events`, `app.state.events` |
 | `api/deps.py` | Helpers the routes use: `get_call`, `ack_alert`, `require_resident`, `triage_score` (runs `TriageGuard.decide`, then `CallService.score`), `AlertNotFound`, `ResidentNotFound` |
 | `api/main.py` | ASGI entry: `app = create_app(build_container(Settings.from_env()))`; run `uv run uvicorn bellhop.api.main:app` |
 | `scripts/demo_scenes.py` | Plays the three demo scenes against a running server over HTTP (`--base-url`, `--scene`, `--pace`, `--room`) |
@@ -122,7 +123,10 @@ Schemas and examples: [contracts/openapi.json](../../contracts/openapi.json) and
 | | `GET /flags`, `POST /flags/{id}/resolve` | Care flags |
 | Preferences | `GET`, `PUT /residents/{id}/preferences`; `GET .../speech-settings` | Preferences and derived speech settings |
 | Family | `POST`, `GET /residents/{id}/family/messages`; `POST .../family/replies`; `GET .../postcard` | Voice notes, replies, positive-only postcard |
-| Robots | `GET /robots`, `PUT /robots/{id}` | Fleet; Pi status report (idle ignored while a call is open) |
+| Robots | `GET /robots`, `PUT /robots/{id}` | Fleet; Pi status report (idle ignored while a call is open); emits `robot.updated` |
+| Admin | `POST /residents` (201), `GET /residents`, `GET`, `PATCH /residents/{id}` | Create and edit residents (`PUT /residents/{id}` still sets `birth_year`) |
+| | `POST /nurses` (201), `GET /nurses`, `PATCH /nurses/{id}` | Create and edit nurses |
+| Live | `GET /events` | Server-Sent Events: `call.raised/assigned/scored/resolved`, `alert.raised`, `robot.updated`; key via `X-API-Key` or `?api_key=` (this route only) |
 | Metrics | `GET /metrics` | Savings counter and breakdowns |
 
 ## Care, visit notes, family, memory guard, triage guard
@@ -159,8 +163,8 @@ Container wiring: `Container.guarded_notifier` / `guarded_gateway` (None when `S
 - `scenarios.py` (`Scenario`, `load_scenario`, `apply_scenario`, `ScenarioError`) loads a JSON setup (format in `backend/scenarios/README.md`). `seed.py` is a thin wrapper over `scenarios/demo.json`. `BELLHOP_SEED_FILE` (`Settings.seed_file`) applies any scenario at startup and beats `BELLHOP_SEED_DEMO`; a bad file fails startup.
 - `services/admin.py` (`AdminService`, exposed as `Container.admin`): `create_resident`, `update_resident`, `list_residents`, `get_resident`, `create_nurse`, `update_nurse`, `list_nurses`. Errors: `ResidentNotFound` / `NurseNotFound` (`LookupError`, API maps to 404) and `Conflict` (`ValueError`: duplicate id or a room another resident occupies).
 
-### Admin routes (to wire)
-Not yet in `api/app.py`. Resident JSON: `{id, name, room, risk_flags: [str], birth_year: int|null}`. Nurse JSON: `{id, name, on_shift, open_tasks}`.
+### Admin routes
+Wired in `api/app.py` (`Conflict` maps to 409, pydantic errors to 422). Resident JSON: `{id, name, room, risk_flags: [str], birth_year: int|null}`. Nurse JSON: `{id, name, on_shift, open_tasks}`.
 
 | Route | Request body | Success | Errors |
 | --- | --- | --- | --- |
@@ -172,4 +176,4 @@ Not yet in `api/app.py`. Resident JSON: `{id, name, room, risk_flags: [str], bir
 | `GET /nurses` | none | 200, `[nurse]` | none |
 | `PATCH /nurses/{id}` | any of `name`, `on_shift` | 200, nurse | 404 unknown, 422 invalid |
 
-Call `container.admin.<method>(**body.model_dump(exclude_unset=True))`; `create_*` take `id` (None generates one). `update_resident` takes the id positionally. Going off shift never changes `open_tasks`. `PUT /residents/{id}` for an unknown id may keep returning 404.
+Routes call `container.admin.<method>`; `create_*` take `id` (None generates one). Going off shift never changes `open_tasks`. `PUT /residents/{id}` (`birth_year` only, unknown id 404) is kept for backward compatibility. Guide: [08-scenarios-and-admin.md](08-scenarios-and-admin.md).

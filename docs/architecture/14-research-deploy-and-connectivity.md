@@ -1,6 +1,6 @@
 # Research: running Bellhop together (hosting, Pi link, live updates, demo day)
 
-Researched 2026-10-23; nothing here is implemented. Page fetches failed in this session, so most vendor facts rest on search summaries; "unverified" marks the rest.
+Researched 2026-10-23. The vendor and network claims below remain unverified because page fetches failed in this session. Since this research was written, the recommended `GET /events` SSE endpoint has been implemented; its actual wire contract is in [contracts/README.md](../../contracts/README.md#live-updates). Tailscale setup and the Pi watchdog remain deployment work.
 ## Assumptions
 1. Backend is `bellhop.api.main:app` (FastAPI, Python 3.12, `uv`), default `BELLHOP_STORE=memory` (verified in `container.py`). `GET /health` exists.
 2. The React dashboard runs on a teammate's machine and needs to reach the backend over HTTP from a different host (CORS default `*`, verified).
@@ -106,7 +106,7 @@ If Tailscale is blocked or fails at the venue: switch to the outbound command ch
 
 Library: FastAPI 0.135.0 and later ships native SSE (`from fastapi.sse import EventSourceResponse`, yield `ServerSentEvent` for `event`/`id`/`retry`) per the FastAPI tutorial (seen in search results; the version claim comes from search, not our lockfile). `sse-starlette` is the older package that gives `EventSourceResponse` with configurable `ping=`. Check our `uv.lock` FastAPI version; if below 0.135, `uv add sse-starlette` (needs team approval, dependency rule). A bare `StreamingResponse(media_type="text/event-stream")` also works with no dependency but you hand-write `event:`/`data:` framing and keep-alives.
 
-### Minimal endpoint design
+### Original endpoint design (superseded by the implemented contract)
 
 `GET /events` (SSE). Subscribes to the existing `EventBus` (`ports.EventBus.subscribe`) per connection, pushes into an `asyncio.Queue`, unsubscribes on disconnect. Because services are synchronous, bridge with `loop.call_soon_threadsafe(queue.put_nowait, item)` inside the handler.
 

@@ -28,6 +28,7 @@ from bellhop.adapters.robot_gateway import RecordingRobotGateway
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
 from bellhop.adapters.wikipedia_content import WikipediaContentFeed
+from bellhop.api.events import EventStream
 from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
 from bellhop.ports.content import ContentFeed
 from bellhop.scenarios import apply_scenario, load_scenario
@@ -67,6 +68,7 @@ class Settings:
     notifier_timeout: float = 2.0
     gateway_timeout: float = 2.0
     memory_budget_ms: float = 50
+    max_event_clients: int = 20  # GET /events subscribers; more get 503
     robot_url: str | None = None
     content: str = "local"  # local | wikipedia | apify
     apify_token: str | None = field(default=None, repr=False)
@@ -123,6 +125,7 @@ class Container:
     triage_guard: TriageGuard
     reminiscence: ReminiscenceService
     admin: AdminService
+    events: EventStream
     # Guarded wrappers actually injected into services (None when guards are off).
     guarded_notifier: GuardedNotifier | None = None
     guarded_gateway: GuardedRobotGateway | None = None
@@ -207,6 +210,8 @@ def build_container(
         guarded_gateway = GuardedRobotGateway(gateway, settings.gateway_timeout)
         out_notifier, out_gateway = guarded_notifier, guarded_gateway
         dispatcher_bus = SerializedSubscriptions(bus)
+    # Subscribed before every service so call.raised reaches the stream before call.assigned.
+    events = EventStream(bus, store, max_clients=settings.max_event_clients)
     index, local_index = _memory_index(settings)
     memory = MemoryService(index, clock, ids)
     care_store = InMemoryCareStore()
@@ -244,6 +249,7 @@ def build_container(
         triage_guard=TriageGuard(),
         reminiscence=ReminiscenceService(_content_feed(settings), memory, store.residents),
         admin=AdminService(store.residents, store.nurses, store.robots, store.calls, clock, ids),
+        events=events,
         guarded_notifier=guarded_notifier,
         guarded_gateway=guarded_gateway,
         settings=settings,

@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, 
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, ValidationError
+from starlette.background import BackgroundTask
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from bellhop.api.deps import (
@@ -20,12 +21,14 @@ from bellhop.api.deps import (
     require_resident,
     triage_score,
 )
+from bellhop.api.events import TooManyClients
 from bellhop.container import Container
 from bellhop.domain import (
     Alert,
     Call,
     InvalidTransition,
     MemoryFact,
+    Nurse,
     Resident,
     Robot,
     RobotStatus,
@@ -39,6 +42,7 @@ from bellhop.domain.care import (
     Preferences,
 )
 from bellhop.ports.content import ContentItem
+from bellhop.services.admin import Conflict
 from bellhop.services.memory_guard import Accepted, PendingFact
 
 MAX_BODY_BYTES = 1024 * 1024
@@ -108,6 +112,43 @@ class ResidentIn(BaseModel):
     birth_year: int = Field(ge=1880, le=2015)
 
 
+_Flag = Annotated[str, StringConstraints(min_length=1, max_length=32)]
+_BirthYear = Annotated[int, Field(ge=1880, le=2015)]
+
+
+class ResidentCreate(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: str | None = Field(default=None, min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=80)
+    room: str = Field(min_length=1, max_length=32)
+    risk_flags: list[_Flag] = Field(default_factory=list, max_length=10)
+    birth_year: _BirthYear | None = None
+
+
+class ResidentPatch(BaseModel):
+    """Only the given keys change. Defaults are never used (exclude_unset), so an explicit
+    null is rejected for every field except birth_year."""
+
+    model_config = {"extra": "forbid"}
+    name: str = Field(default=None, min_length=1, max_length=80)  # type: ignore[assignment]
+    room: str = Field(default=None, min_length=1, max_length=32)  # type: ignore[assignment]
+    risk_flags: list[_Flag] = Field(default=None, max_length=10)  # type: ignore[assignment]
+    birth_year: _BirthYear | None = None
+
+
+class NurseCreate(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: str | None = Field(default=None, min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=80)
+    on_shift: bool = True
+
+
+class NursePatch(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str = Field(default=None, min_length=1, max_length=80)  # type: ignore[assignment]
+    on_shift: bool = Field(default=None)  # type: ignore[assignment]
+
+
 class TextIn(BaseModel):
     text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
@@ -163,6 +204,13 @@ async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResp
     return JSONResponse(status_code=422, content=jsonable_encoder({"detail": detail}))
 
 
+async def _pydantic_error(_: Request, exc: ValidationError) -> JSONResponse:
+    detail = [
+        {"loc": e.get("loc"), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content=jsonable_encoder({"detail": detail}))
+
+
 def create_app(container: Container) -> FastAPI:
     app = FastAPI(title="Bellhop")
     settings = container.settings
@@ -176,6 +224,9 @@ def create_app(container: Container) -> FastAPI:
     app.add_exception_handler(LookupError, _error(404))  # unknown call/alert/resident/flag/...
     app.add_exception_handler(RequestValidationError, _validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(InvalidTransition, _error(409))
+    app.add_exception_handler(Conflict, _error(409))  # duplicate id, room already occupied
+    app.add_exception_handler(ValidationError, _pydantic_error)  # type: ignore[arg-type]
+    app.state.events = container.events
     calls = container.call_service
     key_header = APIKeyHeader(name="X-API-Key", scheme_name="ApiKeyAuth", auto_error=False)
 
@@ -190,6 +241,39 @@ def create_app(container: Container) -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    def require_event_key(
+        key: str | None = Security(key_header),
+        api_key: str | None = Query(
+            None, max_length=256, description="EventSource cannot send headers: use this instead"
+        ),
+    ) -> None:
+        expected = settings.api_key
+        if expected is None:
+            return
+        given = key if key is not None else api_key
+        if given is None or not hmac.compare_digest(given.encode(), expected.encode()):
+            raise HTTPException(status_code=401, detail="missing or invalid API key")
+
+    events = APIRouter(dependencies=[Depends(require_event_key)])
+
+    @events.get(
+        "/events",
+        response_class=StreamingResponse,
+        responses={200: {"content": {"text/event-stream": {}}}, 503: {"description": "too many"}},
+    )
+    async def stream_events() -> StreamingResponse:
+        """Server-Sent Events: call.*, alert.raised, robot.updated. See contracts/README.md."""
+        try:
+            client = container.events.connect()
+        except TooManyClients as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from None
+        return StreamingResponse(
+            container.events.frames(client),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            background=BackgroundTask(container.events.disconnect, client),
+        )
 
     api = APIRouter(dependencies=[Depends(require_key)])
 
@@ -369,6 +453,34 @@ def create_app(container: Container) -> FastAPI:
         container.store.residents.save(resident)
         return resident
 
+    @api.post("/residents", status_code=201)
+    def create_resident(body: ResidentCreate) -> Resident:
+        return container.admin.create_resident(**body.model_dump())
+
+    @api.get("/residents")
+    def list_residents() -> list[Resident]:
+        return container.admin.list_residents()
+
+    @api.get("/residents/{resident_id}")
+    def read_resident(resident_id: str) -> Resident:
+        return container.admin.get_resident(resident_id)
+
+    @api.patch("/residents/{resident_id}")
+    def patch_resident(resident_id: str, body: ResidentPatch) -> Resident:
+        return container.admin.update_resident(resident_id, **body.model_dump(exclude_unset=True))
+
+    @api.post("/nurses", status_code=201)
+    def create_nurse(body: NurseCreate) -> Nurse:
+        return container.admin.create_nurse(**body.model_dump())
+
+    @api.get("/nurses")
+    def list_nurses() -> list[Nurse]:
+        return container.admin.list_nurses()
+
+    @api.patch("/nurses/{nurse_id}")
+    def patch_nurse(nurse_id: str, body: NursePatch) -> Nurse:
+        return container.admin.update_nurse(nurse_id, **body.model_dump(exclude_unset=True))
+
     @api.get("/residents/{resident_id}/reminiscence")
     def reminiscence(resident_id: str, k: int = Query(3, ge=1, le=20)) -> list[ContentItem]:
         require_resident(container, resident_id)
@@ -431,6 +543,7 @@ def create_app(container: Container) -> FastAPI:
             robot.status = body.status
         robot.battery, robot.room = body.battery, body.room
         robots.save(robot)
+        container.events.emit("robot.updated", {"robot_id": robot_id})
         return robot
 
     @api.get("/metrics")
@@ -445,5 +558,6 @@ def create_app(container: Container) -> FastAPI:
             "calls_by_category": a.calls_by("category"),
         }
 
+    app.include_router(events)
     app.include_router(api)
     return app

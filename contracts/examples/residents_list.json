@@ -1,0 +1,27 @@
+[
+  {
+    "id": "res_margaret",
+    "name": "Margaret",
+    "room": "12",
+    "risk_flags": [
+      "falls"
+    ],
+    "birth_year": 1938
+  },
+  {
+    "id": "res_arthur",
+    "name": "Arthur",
+    "room": "14",
+    "risk_flags": [],
+    "birth_year": null
+  },
+  {
+    "id": "res_ines",
+    "name": "Ines",
+    "room": "301",
+    "risk_flags": [
+      "falls"
+    ],
+    "birth_year": null
+  }
+]
