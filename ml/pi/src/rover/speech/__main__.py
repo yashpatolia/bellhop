@@ -25,12 +25,13 @@ from rover.agent.brain import WAIT, Brain
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
 from rover.agent.tools import ToolContext, post_pi
 from rover.backend import Backend
+from rover.eyes import Eyes
 from rover.speech import ledguard
 from rover.speech.flux import FluxStream
 from rover.speech.gates import FaceGate, Gates, VisionListener
 from rover.speech.mic import Mic
 from rover.speech.offline import OfflineSTT
-from rover.speech.tts import Voice
+from rover.speech.tts import Voice, effective_tone
 from rover.speech.visit import (
     TurnLog,
     backfill,
@@ -96,6 +97,7 @@ class Visit:
         face: FaceGate,
         gates: Gates | None = None,
         triage_fn: TriageFn | None = None,
+        eyes: Eyes | None = None,
     ) -> None:
         self.call = call
         self.call_id: str = call["id"]
@@ -105,6 +107,7 @@ class Visit:
         self.tool_ctx = ToolContext(backend, self.call_id)
         self.gates = gates if gates is not None else Gates()
         self.triage_fn = triage_fn  # None = the real triage_and_post (looked up when used)
+        self.eyes = eyes if eyes is not None else Eyes()  # Eyes() alone draws nothing
         self.mic = Mic()
         self.flux: FluxStream | None = None
         self.flux_ok = False
@@ -162,6 +165,7 @@ class Visit:
         if not accepted:
             print("visit: in-visit was not accepted; talking anyway")
         self.load_context()
+        self.eyes.base = "listening"
 
     def run(self) -> None:
         self.begin()
@@ -187,6 +191,7 @@ class Visit:
                 self.check_timers(time.monotonic())
         finally:  # also on SIGTERM (SystemExit) or a crash: the mic must not stay open
             self.phase = "over"
+            self.eyes.base = "idle"
             self.cancel_draft()
             if self.flux is not None:
                 self.flux.close()
@@ -375,7 +380,12 @@ class Visit:
             self.last_activity = time.monotonic()
             return
         self.first_text_at = self.first_sound_at = None
-        self.record_robot(self.reply_to(text, draft))
+        self.eyes.base = "thinking"  # until the first sentence brings the reply's tone
+        try:
+            full = self.reply_to(text, draft)
+        finally:
+            self.eyes.base = "listening"
+        self.record_robot(full)
 
         def since(at: float | None) -> float | None:
             return None if at is None else at - speech_end
@@ -424,11 +434,14 @@ class Visit:
     def speak(self, tone: str, sentence: str) -> None:
         if self.first_text_at is None:
             self.first_text_at = time.monotonic()
+        mood = effective_tone(tone, getattr(self.voice, "settings", None))
+        self.eyes.feel(mood)
         self.mic.set_speaking(True)
         try:
             self.voice.say(sentence, tone)
         finally:
             self.mic.set_speaking(False)
+            self.eyes.feel(mood)  # held for EYES_MOOD_HOLD_S after the sentence ends
         if self.first_sound_at is None:
             # Voice.say blocks through synthesis and playback: this is the first sentence heard
             self.first_sound_at = time.monotonic()
@@ -674,9 +687,10 @@ def main() -> None:
         listener = VisionListener()
         listener.start()
         face = FaceGate(listener, disabled=args.no_face)
+        eyes = Eyes().start()  # one face for the whole process: idle between calls
 
         def make_visit(call: dict, room: str) -> Visit:
-            return Visit(call, room, backend, brain, voice, stt, listener, face)
+            return Visit(call, room, backend, brain, voice, stt, listener, face, eyes=eyes)
 
     threading.Thread(target=read_enter, daemon=True).start()
     # SIGTERM/SIGINT/SIGHUP: LED idle and wheels stopped, then exit 0 (finally blocks still run)

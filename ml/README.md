@@ -183,6 +183,8 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only Jev answers (bumps urgency one level) |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
+| `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
+| `EYES_MOOD_HOLD_S` | 3.0 | The reply's tone tag stays on the eyes this long after its last sentence |
 
 ## Local triage scorer (optional, offline, raise only)
 
