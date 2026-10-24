@@ -102,6 +102,16 @@ DRIVE_PORT = 8080  # backend BELLHOP_ROBOT_URL and PI_SERVER_URL point here
 DRIVE_LOOP_HZ = 20
 STOP_DISTANCE_CM = 25.0  # ultrasonic: nothing moves forward closer than this
 VISION_WATCHDOG_S = 0.5  # no fresh vision message this long -> stop
+# Optional manual backup control. Linux exposes most USB/Bluetooth PS2 adapters as /dev/input/js*;
+# it is off unless rover.drive is launched with --controller.
+MANUAL_DEVICE = os.environ.get("BELLHOP_MANUAL_DEVICE", "/dev/input/js0")
+MANUAL_DEADMAN_BUTTON = int(os.environ.get("BELLHOP_MANUAL_DEADMAN_BUTTON", "4"))
+MANUAL_FORWARD_AXIS = int(os.environ.get("BELLHOP_MANUAL_FORWARD_AXIS", "1"))
+MANUAL_TURN_AXIS = int(os.environ.get("BELLHOP_MANUAL_TURN_AXIS", "0"))
+MANUAL_DEADZONE = float(os.environ.get("BELLHOP_MANUAL_DEADZONE", "0.12"))
+MANUAL_MAX_DUTY = int(os.environ.get("BELLHOP_MANUAL_MAX_DUTY", "1000"))
+MANUAL_TIMEOUT_S = float(os.environ.get("BELLHOP_MANUAL_TIMEOUT_S", "0.35"))
+MANUAL_REFRESH_S = 0.1
 PAN_CENTER = 90
 TILT_DRIVE = 90  # level: door markers are mounted low
 SEARCH_TURN_DUTY = 1200  # spin in place to look for a marker

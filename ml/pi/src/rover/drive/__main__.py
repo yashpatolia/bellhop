@@ -12,6 +12,7 @@ from rover import config, obslog, safety
 from rover.drive import DRIVE_TIMEOUT_S, WATCHDOG_S
 from rover.drive.car import open_car
 from rover.drive.control import Controller, run_loop
+from rover.drive.manual import ManualJoystick
 from rover.drive.navigator import MarkerNavigator, SimNavigator
 from rover.drive.server import make_server
 from rover.drive.vision import VisionReceiver
@@ -59,6 +60,11 @@ def main() -> None:
     )
     parser.add_argument("--watchdog-s", type=float, default=WATCHDOG_S)
     parser.add_argument("--drive-timeout-s", type=float, default=DRIVE_TIMEOUT_S)
+    parser.add_argument(
+        "--controller",
+        action="store_true",
+        help="enable the optional deadman-gated /dev/input/js* manual backup controller",
+    )
     args = parser.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # logs piped to a file survive a kill
     obslog.configure("drive")
@@ -66,6 +72,7 @@ def main() -> None:
     car = open_car(args.fake)
     vision = VisionReceiver()
     vision.start()
+    manual: ManualJoystick | None = None
     try:
         navigator = SimNavigator(travel_s=args.travel_s) if args.fake else MarkerNavigator(vision)
         ctl = Controller(
@@ -74,6 +81,9 @@ def main() -> None:
             watchdog_s=args.watchdog_s,
             drive_timeout_s=args.drive_timeout_s,
         )
+        if args.controller:
+            manual = ManualJoystick(ctl)
+            manual.start()
         httpd = make_server(ctl, args.host, args.port)
         kind = "simulated" if args.fake else "marker-guided"
         print(
@@ -82,6 +92,8 @@ def main() -> None:
         )
         serve(ctl, car, httpd)
     finally:
+        if manual is not None:
+            manual.close()
         vision.close()
 
 
