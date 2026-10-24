@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import functools
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from datetime import datetime
 from typing import Any
 
 from bellhop.domain import Call, CallStatus, Urgency
@@ -104,12 +105,54 @@ class CallService:
     def resolve(self, call_id: str, by_robot: bool = True) -> None:
         call = self._transition(call_id, CallStatus.RESOLVED)
         # a call that needed a nurse is never credited to the robot alone
-        self._bus.publish(
-            CallResolved(
-                call_id=call_id,
-                by_robot=by_robot and call.robot_id is not None and not call.needs_nurse,
-            )
+        credited = by_robot and call.robot_id is not None and not call.needs_nurse
+        call.resolved_by_robot = credited
+        self._calls.save(call)
+        self._bus.publish(CallResolved(call_id=call_id, by_robot=credited))
+
+    @_locked
+    def backfill(
+        self,
+        room: str,
+        urgency: Urgency,
+        category: str,
+        created_at: datetime,
+        resolved_at: datetime,
+        *,
+        resident_id: str | None = None,
+        robot_id: str | None = None,
+        summary: str | None = None,
+        first_response_at: datetime | None = None,
+        by_robot: bool = True,
+        turns: Sequence[tuple[str, str, datetime]] = (),
+    ) -> Call:
+        """Store a finished call from the past (history import). Publishes no events, so it
+        raises no alerts and triggers no learning."""
+        if resolved_at < created_at:
+            raise ValueError("resolved_at is before created_at")
+        resident = (
+            self._residents.get(resident_id) if resident_id else self._residents.by_room(room)
         )
+        call = Call(
+            id=self._ids.new_id("call"),
+            room=room,
+            resident_id=resident.id if resident else None,
+            urgency=urgency,
+            category=category,
+            status=CallStatus.RESOLVED,
+            summary=summary,
+            robot_id=robot_id,
+            assigned_to=[robot_id] if robot_id else [],
+            created_at=created_at,
+            assigned_at=created_at,
+            first_response_at=first_response_at,
+            resolved_at=resolved_at,
+        )
+        call.resolved_by_robot = by_robot and robot_id is not None and not call.needs_nurse
+        for speaker, text, at in turns:
+            call.add_turn(speaker, text, at)
+        self._calls.save(call)
+        return call
 
     @_locked
     def ack_by_nurse(self, call_id: str, nurse_id: str) -> None:

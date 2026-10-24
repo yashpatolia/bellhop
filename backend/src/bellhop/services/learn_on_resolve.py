@@ -58,6 +58,7 @@ class LearnOnResolve:
                 call.transcript,
                 resident_name=resident.name if resident else None,
                 known_facts=[f.text for f in known],
+                call_id=call_id,
             )
         except Exception:
             logger.exception("learning from call %s failed", call_id)

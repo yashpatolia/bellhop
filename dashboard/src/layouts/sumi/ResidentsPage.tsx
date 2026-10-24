@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Sparkline } from '../../components/Charts'
-import type { BellhopData, Call, EntryCategory, FactKind, FactSource, LearnedFact, RefinedEntry, Resident } from '../../data/types'
+import type { BellhopData, Call, EntryCategory, FactKind, FactSource, LearnedFact, RefinedEntry, Resident, ReviewDecision } from '../../data/types'
 import { ENTRY_LABEL } from '../../data/staffEntries'
 import { CATEGORY_LABEL, clock, initials, isOpen, statusText } from '../../lib'
 import { findTendencies } from '../../tendencies'
@@ -42,8 +42,8 @@ function dayLabel(ms: number, now: number): string {
 
 function watchNotes(r: Resident): string[] {
   const notes: string[] = []
-  if (r.mood[r.mood.length - 1] < r.mood[0] - 1) notes.push('Quieter than usual')
-  if (r.pain[r.pain.length - 1] > r.pain[0] + 2) notes.push('Pain rising')
+  if (r.mood.length >= 2 && r.mood[r.mood.length - 1] < r.mood[0] - 1) notes.push('Quieter than usual')
+  if (r.pain.length >= 2 && r.pain[r.pain.length - 1] > r.pain[0] + 1) notes.push('Pain rising')
   return notes
 }
 
@@ -100,7 +100,7 @@ function ResidentList({ data, selectedId }: { data: BellhopData; selectedId: str
   )
 }
 
-function FactRow({ fact, now }: { fact: LearnedFact; now: number }) {
+function FactRow({ fact, now, onReview }: { fact: LearnedFact; now: number; onReview?: (decision: ReviewDecision) => void }) {
   return (
     <li className={fact.status === 'pending' ? 'pending' : ''}>
       <span className="sm-fact">{fact.text}</span>
@@ -109,11 +109,21 @@ function FactRow({ fact, now }: { fact: LearnedFact; now: number }) {
         {fact.timesSeen === 1 ? 'time' : 'times'}, last confirmed {ago(fact.lastConfirmed, now)}
       </span>
       {fact.quote && <q className="sm-quote">{fact.quote}</q>}
+      {onReview && (
+        <span className="sm-actions">
+          <button className="sb-btn primary" onClick={() => onReview('approve')}>
+            Approve
+          </button>
+          <button className="sb-btn" onClick={() => onReview('reject')}>
+            Reject
+          </button>
+        </span>
+      )}
     </li>
   )
 }
 
-function Learned({ resident, now }: { resident: Resident; now: number }) {
+function Learned({ data, resident, now }: { data: BellhopData; resident: Resident; now: number }) {
   const active = resident.learned.filter((f) => f.status === 'active')
   const pending = resident.learned.filter((f) => f.status === 'pending')
   return (
@@ -137,10 +147,10 @@ function Learned({ resident, now }: { resident: Resident; now: number }) {
       {pending.length > 0 && (
         <div className="sm-kind sm-pending">
           <h3>Waiting for a nurse to review ({pending.length})</h3>
-          <p className="sm-empty">Bellhop is not using these yet.</p>
+          <p className="sm-empty">Bellhop is not using these yet. Approve a fact to start using it, or reject it to forget it.</p>
           <ul>
             {pending.map((f) => (
-              <FactRow key={f.id} fact={f} now={now} />
+              <FactRow key={f.id} fact={f} now={now} onReview={(d) => data.actions.reviewFact(resident.id, f.id, d)} />
             ))}
           </ul>
         </div>
@@ -170,7 +180,7 @@ function AddNote({ data, resident }: { data: BellhopData; resident: Resident }) 
     setError('')
     setAdded('')
     try {
-      const out = await data.actions.refineEntry({ category, text })
+      const out = await data.actions.refineEntry(resident.id, { category, text })
       setRefined(out)
       setEdited(out.text)
     } catch (e) {
@@ -307,12 +317,12 @@ function Habits({ resident, calls, now }: { resident: Resident; calls: Call[]; n
         <dt>Mood, 7 days</dt>
         <dd className="sm-trend">
           <Sparkline values={resident.mood} min={1} max={5} color="var(--ink-2)" w={120} h={28} />
-          {watch.includes('Quieter than usual') ? 'Quieter than usual' : 'Steady'}
+          {resident.mood.length >= 2 && (watch.includes('Quieter than usual') ? 'Quieter than usual' : 'Steady')}
         </dd>
         <dt>Pain, 7 days</dt>
         <dd className="sm-trend">
-          <Sparkline values={resident.pain} min={0} max={10} color="var(--u3)" w={120} h={28} />
-          {watch.includes('Pain rising') ? 'Rising' : 'Steady'}
+          <Sparkline values={resident.pain} min={1} max={5} color="var(--u3)" w={120} h={28} />
+          {resident.pain.length >= 2 && (watch.includes('Pain rising') ? 'Rising' : 'Steady')}
         </dd>
       </dl>
     </section>
@@ -360,16 +370,15 @@ const FIRST_SHOWN = 8
 function CallHistory({ resident, calls, now }: { resident: Resident; calls: Call[]; now: number }) {
   const [all, setAll] = useState(false)
   const shown = all ? calls : calls.slice(0, FIRST_SHOWN)
-  let lastDay = ''
+  const days = shown.map((c) => dayLabel(c.createdAt, now))
   return (
     <section>
       <h2>Call history ({calls.length})</h2>
       {calls.length === 0 && <p className="sm-empty">No calls yet.</p>}
       <ul className="sm-recentcalls">
-        {shown.map((c) => {
-          const day = dayLabel(c.createdAt, now)
-          const heading = day !== lastDay
-          lastDay = day
+        {shown.map((c, i) => {
+          const day = days[i]
+          const heading = i === 0 || day !== days[i - 1]
           return (
             <li key={c.id} className={heading ? 'newday' : ''}>
               {heading && <span className="sm-day">{day}</span>}
@@ -411,7 +420,7 @@ export function ResidentsPage({ data, residentId, callId }: { data: BellhopData;
           <div>
             <h1>{resident.name}</h1>
             <p>
-              Room {resident.room}, age {resident.age}, speaks {resident.language}
+              Room {resident.room}{resident.age ? `, age ${resident.age}` : ''}
             </p>
             {resident.flags.length > 0 && (
               <p className="sm-flags">
@@ -432,7 +441,7 @@ export function ResidentsPage({ data, residentId, callId }: { data: BellhopData;
         ) : (
           <>
             <Habits resident={resident} calls={calls} now={data.now} />
-            <Learned resident={resident} now={data.now} />
+            <Learned data={data} resident={resident} now={data.now} />
             <AddNote data={data} resident={resident} />
             <Medical resident={resident} now={data.now} />
             <CallHistory resident={resident} calls={calls} now={data.now} />

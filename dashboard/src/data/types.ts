@@ -1,5 +1,5 @@
-// Shapes match the "interfaces to agree early" on the overview page.
-// When the real SpacetimeDB store exists, only src/data/source.ts changes.
+// The view model the screens read. src/data/adapt.ts builds it from the backend's responses
+// (see contracts/openapi.json); nothing else knows about the wire format.
 
 export type Urgency = 1 | 2 | 3 | 4
 
@@ -15,13 +15,14 @@ export type Category =
   | 'other'
 
 export type CallStatus =
+  | 'waiting'
   | 'robot_en_route'
   | 'robot_with_resident'
   | 'nurse_notified'
   | 'nurse_en_route'
   | 'resolved'
 
-export type HandledBy = 'robot' | 'aide' | 'kitchen' | 'nurse'
+export type HandledBy = 'robot' | 'staff' | 'nurse'
 
 export interface TranscriptLine {
   who: 'resident' | 'robot' | 'nurse'
@@ -30,8 +31,8 @@ export interface TranscriptLine {
 
 export interface Call {
   id: string
-  residentId: string
-  room: number
+  residentId: string | null
+  room: string
   urgency: Urgency
   category: Category
   status: CallStatus
@@ -42,11 +43,7 @@ export interface Call {
   resolvedAt: number | null
   resolvedByRobot: boolean
   summary: string
-  sbar: { s: string; b: string; a: string; r: string }
   transcript: TranscriptLine[]
-  confidence: number // triage confidence, 0 to 1
-  costUsd: number
-  feedback: 1 | 2 | 3 | 4 | 5 | null
 }
 
 export type FactKind = 'like' | 'dislike' | 'person' | 'routine' | 'health' | 'style' | 'event'
@@ -96,48 +93,35 @@ export interface RefinedEntry {
 export interface Resident {
   id: string
   name: string
-  room: number
-  age: number
+  room: string
+  age: number | null
   flags: string[]
-  likes: string[]
-  language: string
-  mood: number[] // last 7 days, 1 to 5
-  pain: number[] // last 7 days, 0 to 10
-  aiCostToday: number
-  callsToday: number
+  mood: number[] // daily average, oldest first, 1 to 5; days without a reading are skipped
+  pain: number[] // daily average, oldest first, 1 (none) to 5 (severe)
   learned: LearnedFact[]
   medical: MedicalHistory
 }
 
-export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging'
+export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging' | 'fault'
 
 export interface Robot {
   id: string
   name: string
   state: RobotState
   battery: number // percent
-  x: number
-  y: number
-  targetRoom: number | null
+  room: string | null // where it reports being
+  targetRoom: string | null // the room it is working on, when it has a call
   callId: string | null
-}
-
-export interface Room {
-  number: number
-  x: number
-  y: number
-  w: number
-  h: number
-  door: { x: number; y: number }
 }
 
 export interface Alert {
   id: string
   callId: string | null
-  room: number | null
+  room: string | null
   urgency: Urgency
   message: string
   createdAt: number // epoch ms
+  nurseId: string | null // null: sent to every nurse on shift
   acknowledged: boolean
   clearedAt?: number | null // epoch ms, when it stopped needing a person
 }
@@ -150,20 +134,36 @@ export interface Snapshot {
   calls: Call[]
   residents: Resident[]
   robots: Robot[]
-  nurses: { id: string; name: string; status: 'free' | 'busy' | 'with_resident' }[]
+  nurses: { id: string; name: string; onShift: boolean; openTasks: number }[]
   hourly: number[] // 24 buckets of calls today
   alerts: Alert[]
   metrics: Metrics | null
   pastCalls: Call[] // calls from before today, for history and tendencies
+  connection: Connection
 }
 
+/** Whether the screens are showing live data, and what to tell staff when they are not. */
+export interface Connection {
+  state: 'connecting' | 'live' | 'offline'
+  /** Set while the backend cannot be reached, or after an action failed. */
+  problem: string | null
+  /** True once the backend answered and it holds no residents: show the empty-home guidance. */
+  empty: boolean
+}
+
+export type ReviewDecision = 'approve' | 'reject'
+
 export interface Actions {
-  nurseOnMyWay: (callId: string) => void
-  resolve: (callId: string) => void
+  /** Acknowledge the call's alert, so the nurse shows as on the way. */
+  nurseOnMyWay: (callId: string) => Promise<void>
+  /** Mark a call done by staff. */
+  resolve: (callId: string) => Promise<void>
   /** Tidy staff-written text into a clean entry for review. Nothing is saved yet. */
-  refineEntry: (draft: EntryDraft) => Promise<RefinedEntry>
+  refineEntry: (residentId: string, draft: EntryDraft) => Promise<RefinedEntry>
   /** Save a reviewed entry to the resident's profile. */
-  addEntry: (residentId: string, entry: RefinedEntry) => void
+  addEntry: (residentId: string, entry: RefinedEntry) => Promise<void>
+  /** A nurse approves (Bellhop starts using the fact) or rejects (it is forgotten) a pending fact. */
+  reviewFact: (residentId: string, factId: string, decision: ReviewDecision) => Promise<void>
 }
 
 export interface BellhopData extends Snapshot {

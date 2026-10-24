@@ -6,6 +6,7 @@ import re
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from itertools import count
 from typing import Protocol
 
@@ -50,6 +51,8 @@ class PendingFact:
     tags: tuple[str, ...] = field(default_factory=tuple)
     source: str = "conversation"
     confidence: float = 0.0
+    quote: str | None = None
+    call_id: str | None = None
 
 
 class _Index(Protocol):
@@ -85,18 +88,35 @@ class MemoryGuard:
         tags: Sequence[str] = (),
         source: str = "conversation",
         confidence: float = 1.0,
+        quote: str | None = None,
+        call_id: str | None = None,
+        at: datetime | None = None,
     ) -> Result:
+        """`at` dates a history import: when the fact was learned, or heard again."""
         text = text.strip()
         with self._lock:
             if (rejected := self._check(resident_id, text)) is not None:
+                if rejected.reason == "duplicate":
+                    self._reconfirm(resident_id, text, at)
                 return rejected
             if source != "staff" and confidence < MIN_CONFIDENCE:
                 pid = f"pending-{next(self._seq)}"
                 self._pending[pid] = PendingFact(
-                    pid, resident_id, text, tuple(tags), source, confidence
+                    pid, resident_id, text, tuple(tags), source, confidence, quote, call_id
                 )
                 return Rejected("pending_review")
-            return Accepted(self._memory.remember(resident_id, text, tags))
+            return Accepted(
+                self._memory.remember(
+                    resident_id,
+                    text,
+                    tags,
+                    source=source,
+                    confidence=confidence,
+                    quote=quote,
+                    call_id=call_id,
+                    at=at,
+                )
+            )
 
     def _check(self, resident_id: str, text: str) -> Rejected | None:
         """Safety and duplicate rules shared by propose and approve."""
@@ -129,11 +149,35 @@ class MemoryGuard:
             del self._pending[pending_id]
             if (rejected := self._check(item.resident_id, item.text)) is not None:
                 return rejected
-            return Accepted(self._memory.remember(item.resident_id, item.text, item.tags))
+            return Accepted(
+                self._memory.remember(
+                    item.resident_id,
+                    item.text,
+                    item.tags,
+                    source=item.source,
+                    confidence=item.confidence,
+                    quote=item.quote,
+                    call_id=item.call_id,
+                )
+            )
 
     def reject(self, pending_id: str, resident_id: str | None = None) -> None:
         self._owned(pending_id, resident_id)
         del self._pending[pending_id]
+
+    def facts(self, resident_id: str) -> list[MemoryFact]:
+        """Every stored fact for the resident, oldest first."""
+        return self._index.facts(resident_id)
+
+    def _reconfirm(self, resident_id: str, text: str, at: datetime | None = None) -> None:
+        """Hearing a known fact again raises its times_seen and refreshes last_confirmed."""
+        for fact in self._index.facts(resident_id):
+            if _similar(text, fact.text):
+                fact.times_seen += 1
+                fact.last_confirmed = max(
+                    filter(None, [fact.last_confirmed, at or self._memory.now()])
+                )
+                return
 
     def forget(self, resident_id: str, fact_id: str) -> bool:
         if not any(f.id == fact_id for f in self._index.facts(resident_id)):

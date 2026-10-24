@@ -1,0 +1,1188 @@
+[
+  {
+    "id": "r101",
+    "name": "Margaret Alvarez",
+    "room": "101",
+    "age": 84,
+    "flags": [
+      "Fall risk"
+    ],
+    "language": "English, Spanish",
+    "mood": [
+      4,
+      4,
+      5,
+      4,
+      3,
+      4,
+      4
+    ],
+    "pain": [
+      2,
+      3,
+      2,
+      4,
+      5,
+      4,
+      4
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Takes tea with two sugars",
+        "source": "resident",
+        "confidence": 0.95,
+        "quote": "I take two sugars, always have",
+        "learned_days_ago": 20,
+        "confirmed_days_ago": 1,
+        "times_seen": 6,
+        "status": "active"
+      },
+      {
+        "kind": "person",
+        "text": "Grandson Mateo visits on Sundays",
+        "source": "family",
+        "confidence": 0.92,
+        "quote": null,
+        "learned_days_ago": 30,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Enjoys old Spanish ballads",
+        "source": "resident",
+        "confidence": 0.88,
+        "quote": "Put on those old Spanish songs",
+        "learned_days_ago": 14,
+        "confirmed_days_ago": 5,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Prefers to be called Margaret",
+        "source": "staff",
+        "confidence": 0.9,
+        "quote": null,
+        "learned_days_ago": 40,
+        "confirmed_days_ago": 10,
+        "times_seen": 2,
+        "status": "active"
+      },
+      {
+        "kind": "routine",
+        "text": "Likes the radio on in the evening",
+        "source": "inferred",
+        "confidence": 0.62,
+        "quote": null,
+        "learned_days_ago": 4,
+        "confirmed_days_ago": 1,
+        "times_seen": 2,
+        "status": "active"
+      },
+      {
+        "kind": "dislike",
+        "text": "Dislikes loud television",
+        "source": "resident",
+        "confidence": 0.55,
+        "quote": "That television is far too loud",
+        "learned_days_ago": 2,
+        "confirmed_days_ago": 2,
+        "times_seen": 1,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Hip replacement",
+          "since": "2022",
+          "note": "Right hip, healed"
+        },
+        {
+          "name": "High blood pressure",
+          "since": "2015"
+        }
+      ],
+      "allergies": [
+        "Penicillin"
+      ],
+      "medicines": [
+        "Amlodipine"
+      ],
+      "mobility": "Walks with a frame, supervised on stairs",
+      "diet": "Regular, tea with two sugars",
+      "reviewed_days_ago": 12,
+      "reviewed_by": "Nurse Okoro"
+    }
+  },
+  {
+    "id": "r102",
+    "name": "Harold Chen",
+    "room": "102",
+    "age": 79,
+    "flags": [
+      "Hard of hearing"
+    ],
+    "language": "English, Cantonese",
+    "mood": [
+      3,
+      3,
+      4,
+      4,
+      4,
+      5,
+      4
+    ],
+    "pain": [
+      1,
+      1,
+      2,
+      1,
+      1,
+      2,
+      1
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Plays chess, prefers white",
+        "source": "resident",
+        "confidence": 0.93,
+        "quote": "I always play white",
+        "learned_days_ago": 25,
+        "confirmed_days_ago": 2,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Follows baseball, a Giants fan",
+        "source": "resident",
+        "confidence": 0.9,
+        "quote": "Is the game on? I follow the Giants",
+        "learned_days_ago": 18,
+        "confirmed_days_ago": 4,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks green tea",
+        "source": "resident",
+        "confidence": 0.85,
+        "quote": null,
+        "learned_days_ago": 12,
+        "confirmed_days_ago": 3,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Hard of hearing: speak slowly and face him",
+        "source": "staff",
+        "confidence": 0.97,
+        "quote": null,
+        "learned_days_ago": 60,
+        "confirmed_days_ago": 1,
+        "times_seen": 8,
+        "status": "active"
+      },
+      {
+        "kind": "routine",
+        "text": "Reads the sports page after breakfast",
+        "source": "resident",
+        "confidence": 0.55,
+        "quote": "I read the sports page first thing",
+        "learned_days_ago": 3,
+        "confirmed_days_ago": 3,
+        "times_seen": 1,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Hearing loss",
+          "since": "2019",
+          "note": "Hearing aids, left often off"
+        }
+      ],
+      "allergies": [],
+      "medicines": [
+        "Vitamin D"
+      ],
+      "mobility": "Walks independently",
+      "diet": "Regular",
+      "reviewed_days_ago": 20,
+      "reviewed_by": "Nurse Patel"
+    }
+  },
+  {
+    "id": "r103",
+    "name": "Dorothy Okafor",
+    "room": "103",
+    "age": 88,
+    "flags": [
+      "Dementia",
+      "Fall risk"
+    ],
+    "language": "English, Igbo",
+    "mood": [
+      4,
+      3,
+      3,
+      2,
+      3,
+      3,
+      2
+    ],
+    "pain": [
+      3,
+      3,
+      3,
+      4,
+      3,
+      3,
+      3
+    ],
+    "facts": [
+      {
+        "kind": "person",
+        "text": "Late husband Emeka, sang gospel with him",
+        "source": "family",
+        "confidence": 0.9,
+        "quote": null,
+        "learned_days_ago": 45,
+        "confirmed_days_ago": 6,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Loves gospel music",
+        "source": "resident",
+        "confidence": 0.82,
+        "quote": "Play me some gospel",
+        "learned_days_ago": 20,
+        "confirmed_days_ago": 2,
+        "times_seen": 7,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Does crosswords",
+        "source": "resident",
+        "confidence": 0.7,
+        "quote": "I do my crossword",
+        "learned_days_ago": 9,
+        "confirmed_days_ago": 4,
+        "times_seen": 2,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Calmer when spoken to gently; do not correct her about dates",
+        "source": "staff",
+        "confidence": 0.95,
+        "quote": null,
+        "learned_days_ago": 50,
+        "confirmed_days_ago": 2,
+        "times_seen": 6,
+        "status": "active"
+      },
+      {
+        "kind": "routine",
+        "text": "Asks about Emeka most evenings",
+        "source": "inferred",
+        "confidence": 0.58,
+        "quote": null,
+        "learned_days_ago": 6,
+        "confirmed_days_ago": 1,
+        "times_seen": 3,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Dementia",
+          "since": "2021",
+          "note": "Moderate, worse in the evening"
+        },
+        {
+          "name": "Falls",
+          "since": "2023",
+          "note": "Two falls last year"
+        }
+      ],
+      "allergies": [
+        "None known"
+      ],
+      "medicines": [
+        "Donepezil"
+      ],
+      "mobility": "Walks with a frame and an aide",
+      "diet": "Soft foods, needs reminding to drink",
+      "reviewed_days_ago": 6,
+      "reviewed_by": "Nurse Lindqvist"
+    }
+  },
+  {
+    "id": "r104",
+    "name": "Walter Brennan",
+    "room": "104",
+    "age": 91,
+    "flags": [
+      "Fall risk",
+      "Oxygen"
+    ],
+    "language": "English",
+    "mood": [
+      3,
+      3,
+      3,
+      3,
+      2,
+      3,
+      3
+    ],
+    "pain": [
+      4,
+      4,
+      5,
+      5,
+      6,
+      5,
+      5
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Enjoys westerns and fishing stories",
+        "source": "resident",
+        "confidence": 0.9,
+        "quote": "Tell me a fishing story",
+        "learned_days_ago": 22,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Takes coffee black",
+        "source": "resident",
+        "confidence": 0.94,
+        "quote": "Black, no sugar",
+        "learned_days_ago": 17,
+        "confirmed_days_ago": 2,
+        "times_seen": 6,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Short answers are fine; likes it when the robot lets him tell the story",
+        "source": "inferred",
+        "confidence": 0.64,
+        "quote": null,
+        "learned_days_ago": 8,
+        "confirmed_days_ago": 2,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "health",
+        "text": "Gets breathless when walking to the bathroom",
+        "source": "resident",
+        "confidence": 0.5,
+        "quote": "It takes my breath going to the bathroom",
+        "learned_days_ago": 3,
+        "confirmed_days_ago": 3,
+        "times_seen": 2,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "COPD",
+          "since": "2018",
+          "note": "On oxygen at night and as needed"
+        },
+        {
+          "name": "Falls risk",
+          "since": "2024"
+        }
+      ],
+      "allergies": [
+        "Latex"
+      ],
+      "medicines": [
+        "Inhalers (two)"
+      ],
+      "mobility": "Walks short distances, rests often",
+      "diet": "Low salt",
+      "reviewed_days_ago": 9,
+      "reviewed_by": "Nurse Okoro"
+    }
+  },
+  {
+    "id": "r105",
+    "name": "Evelyn Park",
+    "room": "105",
+    "age": 76,
+    "flags": [],
+    "language": "English, Korean",
+    "mood": [
+      5,
+      5,
+      4,
+      5,
+      5,
+      5,
+      5
+    ],
+    "pain": [
+      1,
+      1,
+      1,
+      2,
+      1,
+      1,
+      1
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Loves gardening, grows jasmine",
+        "source": "resident",
+        "confidence": 0.93,
+        "quote": "My jasmine is blooming",
+        "learned_days_ago": 28,
+        "confirmed_days_ago": 5,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Plays bingo on Thursdays",
+        "source": "resident",
+        "confidence": 0.86,
+        "quote": "Bingo day is Thursday",
+        "learned_days_ago": 21,
+        "confirmed_days_ago": 6,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks jasmine tea",
+        "source": "resident",
+        "confidence": 0.88,
+        "quote": null,
+        "learned_days_ago": 16,
+        "confirmed_days_ago": 4,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "person",
+        "text": "Talks about her sister in Seoul",
+        "source": "resident",
+        "confidence": 0.72,
+        "quote": "My sister in Seoul rings at Christmas",
+        "learned_days_ago": 10,
+        "confirmed_days_ago": 10,
+        "times_seen": 2,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Mild arthritis",
+          "since": "2017",
+          "note": "Hands and knees"
+        }
+      ],
+      "allergies": [],
+      "medicines": [
+        "Paracetamol as needed"
+      ],
+      "mobility": "Walks independently",
+      "diet": "Regular",
+      "reviewed_days_ago": 31,
+      "reviewed_by": "Nurse Patel"
+    }
+  },
+  {
+    "id": "r106",
+    "name": "George Haddad",
+    "room": "106",
+    "age": 82,
+    "flags": [
+      "Diabetic"
+    ],
+    "language": "English, Arabic",
+    "mood": [
+      4,
+      4,
+      4,
+      3,
+      4,
+      4,
+      4
+    ],
+    "pain": [
+      2,
+      2,
+      2,
+      2,
+      3,
+      2,
+      2
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Plays backgammon, wins most games",
+        "source": "resident",
+        "confidence": 0.92,
+        "quote": "I never lose at backgammon",
+        "learned_days_ago": 24,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Enjoys Arabic poetry read aloud",
+        "source": "resident",
+        "confidence": 0.84,
+        "quote": "Read me some Darwish",
+        "learned_days_ago": 15,
+        "confirmed_days_ago": 5,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks mint tea without sugar",
+        "source": "resident",
+        "confidence": 0.9,
+        "quote": "Mint tea, no sugar, I am diabetic",
+        "learned_days_ago": 13,
+        "confirmed_days_ago": 2,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "dislike",
+        "text": "Dislikes being offered sweets",
+        "source": "staff",
+        "confidence": 0.9,
+        "quote": null,
+        "learned_days_ago": 35,
+        "confirmed_days_ago": 8,
+        "times_seen": 3,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Type 2 diabetes",
+          "since": "2009",
+          "note": "Checks sugar before meals"
+        }
+      ],
+      "allergies": [
+        "None known"
+      ],
+      "medicines": [
+        "Metformin"
+      ],
+      "mobility": "Walks with a stick",
+      "diet": "Diabetic diet, no added sugar",
+      "reviewed_days_ago": 7,
+      "reviewed_by": "Nurse Lindqvist"
+    }
+  },
+  {
+    "id": "r107",
+    "name": "Ruth Nakamura",
+    "room": "107",
+    "age": 86,
+    "flags": [
+      "Hard of hearing"
+    ],
+    "language": "English, Japanese",
+    "mood": [
+      4,
+      4,
+      4,
+      5,
+      4,
+      4,
+      5
+    ],
+    "pain": [
+      2,
+      2,
+      1,
+      2,
+      2,
+      2,
+      1
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Folds origami and gives pieces away",
+        "source": "resident",
+        "confidence": 0.94,
+        "quote": "I made another crane for you",
+        "learned_days_ago": 26,
+        "confirmed_days_ago": 2,
+        "times_seen": 6,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Likes old films, especially musicals",
+        "source": "resident",
+        "confidence": 0.83,
+        "quote": "Put on an old musical",
+        "learned_days_ago": 19,
+        "confirmed_days_ago": 4,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks barley tea",
+        "source": "resident",
+        "confidence": 0.86,
+        "quote": null,
+        "learned_days_ago": 14,
+        "confirmed_days_ago": 3,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Hard of hearing: use short sentences, face her",
+        "source": "staff",
+        "confidence": 0.97,
+        "quote": null,
+        "learned_days_ago": 70,
+        "confirmed_days_ago": 1,
+        "times_seen": 9,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Hearing loss",
+          "since": "2016"
+        },
+        {
+          "name": "Osteoporosis",
+          "since": "2020"
+        }
+      ],
+      "allergies": [
+        "Shellfish"
+      ],
+      "medicines": [
+        "Calcium",
+        "Vitamin D"
+      ],
+      "mobility": "Walks with a stick",
+      "diet": "Regular, no shellfish",
+      "reviewed_days_ago": 18,
+      "reviewed_by": "Nurse Okoro"
+    }
+  },
+  {
+    "id": "r108",
+    "name": "Arthur Singh",
+    "room": "108",
+    "age": 80,
+    "flags": [
+      "Fall risk"
+    ],
+    "language": "English, Punjabi",
+    "mood": [
+      3,
+      4,
+      4,
+      3,
+      3,
+      2,
+      3
+    ],
+    "pain": [
+      3,
+      3,
+      4,
+      4,
+      4,
+      5,
+      5
+    ],
+    "facts": [
+      {
+        "kind": "person",
+        "text": "Daughter Priya rings on Fridays",
+        "source": "family",
+        "confidence": 0.93,
+        "quote": null,
+        "learned_days_ago": 33,
+        "confirmed_days_ago": 4,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Follows cricket, watches test matches",
+        "source": "resident",
+        "confidence": 0.9,
+        "quote": "Is the cricket on?",
+        "learned_days_ago": 21,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks chai with milk",
+        "source": "resident",
+        "confidence": 0.88,
+        "quote": "Chai please, with milk",
+        "learned_days_ago": 17,
+        "confirmed_days_ago": 2,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "dislike",
+        "text": "Dislikes being rushed to the dining room",
+        "source": "resident",
+        "confidence": 0.66,
+        "quote": "Do not hurry me along",
+        "learned_days_ago": 5,
+        "confirmed_days_ago": 5,
+        "times_seen": 2,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Knee replacement",
+          "since": "2023",
+          "note": "Left knee, recovering"
+        },
+        {
+          "name": "Falls risk",
+          "since": "2023"
+        }
+      ],
+      "allergies": [],
+      "medicines": [
+        "Ibuprofen as needed"
+      ],
+      "mobility": "Walks with a frame",
+      "diet": "Regular, vegetarian",
+      "reviewed_days_ago": 10,
+      "reviewed_by": "Nurse Patel"
+    }
+  },
+  {
+    "id": "r109",
+    "name": "Beatrice Moreau",
+    "room": "109",
+    "age": 93,
+    "flags": [
+      "Dementia"
+    ],
+    "language": "English, French",
+    "mood": [
+      3,
+      3,
+      2,
+      3,
+      3,
+      2,
+      2
+    ],
+    "pain": [
+      2,
+      2,
+      2,
+      2,
+      3,
+      2,
+      2
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Calms down listening to piano music",
+        "source": "staff",
+        "confidence": 0.92,
+        "quote": null,
+        "learned_days_ago": 40,
+        "confirmed_days_ago": 2,
+        "times_seen": 7,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Enjoys stories about Paris",
+        "source": "resident",
+        "confidence": 0.78,
+        "quote": "I lived in Paris after the war",
+        "learned_days_ago": 18,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks warm milk before bed",
+        "source": "resident",
+        "confidence": 0.8,
+        "quote": null,
+        "learned_days_ago": 15,
+        "confirmed_days_ago": 1,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Speaks French when anxious; a few French words help",
+        "source": "inferred",
+        "confidence": 0.7,
+        "quote": null,
+        "learned_days_ago": 12,
+        "confirmed_days_ago": 2,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "person",
+        "text": "Says her husband is coming to collect her",
+        "source": "inferred",
+        "confidence": 0.4,
+        "quote": null,
+        "learned_days_ago": 3,
+        "confirmed_days_ago": 1,
+        "times_seen": 3,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Dementia",
+          "since": "2020",
+          "note": "Advanced, mostly calm"
+        }
+      ],
+      "allergies": [
+        "Sulfa drugs"
+      ],
+      "medicines": [
+        "Memantine"
+      ],
+      "mobility": "Wheelchair, transfers with two staff",
+      "diet": "Soft diet, assisted feeding",
+      "reviewed_days_ago": 4,
+      "reviewed_by": "Nurse Lindqvist"
+    }
+  },
+  {
+    "id": "r110",
+    "name": "Leonard Ivanov",
+    "room": "110",
+    "age": 77,
+    "flags": [],
+    "language": "English, Russian",
+    "mood": [
+      4,
+      4,
+      5,
+      4,
+      4,
+      4,
+      5
+    ],
+    "pain": [
+      1,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Plays chess and wants a rematch",
+        "source": "resident",
+        "confidence": 0.91,
+        "quote": "Next time I will beat you",
+        "learned_days_ago": 20,
+        "confirmed_days_ago": 3,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Loves model trains",
+        "source": "resident",
+        "confidence": 0.88,
+        "quote": "I collect trains",
+        "learned_days_ago": 16,
+        "confirmed_days_ago": 4,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks black tea",
+        "source": "resident",
+        "confidence": 0.86,
+        "quote": null,
+        "learned_days_ago": 12,
+        "confirmed_days_ago": 2,
+        "times_seen": 3,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "High cholesterol",
+          "since": "2018"
+        }
+      ],
+      "allergies": [],
+      "medicines": [
+        "Atorvastatin"
+      ],
+      "mobility": "Walks independently",
+      "diet": "Regular",
+      "reviewed_days_ago": 40,
+      "reviewed_by": "Nurse Okoro"
+    }
+  },
+  {
+    "id": "r111",
+    "name": "Mabel Johnson",
+    "room": "111",
+    "age": 89,
+    "flags": [
+      "Fall risk",
+      "Hard of hearing"
+    ],
+    "language": "English",
+    "mood": [
+      4,
+      3,
+      4,
+      4,
+      3,
+      3,
+      4
+    ],
+    "pain": [
+      3,
+      4,
+      3,
+      3,
+      4,
+      4,
+      3
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Quilts, sorts patches into colours",
+        "source": "resident",
+        "confidence": 0.92,
+        "quote": "I am sorting my patches",
+        "learned_days_ago": 27,
+        "confirmed_days_ago": 3,
+        "times_seen": 5,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Watches soap operas in the afternoon",
+        "source": "resident",
+        "confidence": 0.86,
+        "quote": "My shows are on at two",
+        "learned_days_ago": 18,
+        "confirmed_days_ago": 4,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Keeps peppermints in her pocket",
+        "source": "resident",
+        "confidence": 0.84,
+        "quote": null,
+        "learned_days_ago": 11,
+        "confirmed_days_ago": 2,
+        "times_seen": 3,
+        "status": "active"
+      },
+      {
+        "kind": "style",
+        "text": "Hard of hearing: face her and speak clearly",
+        "source": "staff",
+        "confidence": 0.97,
+        "quote": null,
+        "learned_days_ago": 55,
+        "confirmed_days_ago": 1,
+        "times_seen": 8,
+        "status": "active"
+      },
+      {
+        "kind": "health",
+        "text": "Unsteady when getting out of the chair",
+        "source": "resident",
+        "confidence": 0.55,
+        "quote": "My legs wobble when I stand up",
+        "learned_days_ago": 2,
+        "confirmed_days_ago": 2,
+        "times_seen": 2,
+        "status": "pending"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Hearing loss",
+          "since": "2014"
+        },
+        {
+          "name": "Falls risk",
+          "since": "2022",
+          "note": "Dizzy on standing"
+        }
+      ],
+      "allergies": [
+        "Aspirin"
+      ],
+      "medicines": [
+        "Blood pressure tablet"
+      ],
+      "mobility": "Walks with a frame, stand slowly",
+      "diet": "Regular",
+      "reviewed_days_ago": 8,
+      "reviewed_by": "Nurse Patel"
+    }
+  },
+  {
+    "id": "r112",
+    "name": "Frank Delgado",
+    "room": "112",
+    "age": 74,
+    "flags": [
+      "Diabetic"
+    ],
+    "language": "English, Spanish",
+    "mood": [
+      5,
+      4,
+      4,
+      5,
+      4,
+      5,
+      4
+    ],
+    "pain": [
+      1,
+      1,
+      1,
+      1,
+      2,
+      1,
+      1
+    ],
+    "facts": [
+      {
+        "kind": "like",
+        "text": "Loves salsa music",
+        "source": "resident",
+        "confidence": 0.93,
+        "quote": "Put on some salsa",
+        "learned_days_ago": 22,
+        "confirmed_days_ago": 2,
+        "times_seen": 6,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Follows boxing, talks about old fights",
+        "source": "resident",
+        "confidence": 0.85,
+        "quote": "Did you see the fight last night?",
+        "learned_days_ago": 15,
+        "confirmed_days_ago": 4,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "like",
+        "text": "Drinks cafe con leche, no sugar",
+        "source": "resident",
+        "confidence": 0.9,
+        "quote": "Cafe con leche, no sugar for me",
+        "learned_days_ago": 13,
+        "confirmed_days_ago": 3,
+        "times_seen": 4,
+        "status": "active"
+      },
+      {
+        "kind": "person",
+        "text": "Brother Luis visits monthly",
+        "source": "family",
+        "confidence": 0.88,
+        "quote": null,
+        "learned_days_ago": 36,
+        "confirmed_days_ago": 9,
+        "times_seen": 3,
+        "status": "active"
+      }
+    ],
+    "medical": {
+      "conditions": [
+        {
+          "name": "Type 2 diabetes",
+          "since": "2014"
+        }
+      ],
+      "allergies": [
+        "None known"
+      ],
+      "medicines": [
+        "Metformin",
+        "Insulin at night"
+      ],
+      "mobility": "Walks independently",
+      "diet": "Diabetic diet",
+      "reviewed_days_ago": 14,
+      "reviewed_by": "Nurse Lindqvist"
+    }
+  }
+]

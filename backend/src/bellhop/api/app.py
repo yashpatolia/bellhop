@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Security
@@ -36,10 +37,14 @@ from bellhop.domain import (
 )
 from bellhop.domain.care import (
     CareEntry,
+    Condition,
     EntryKind,
     FamilyMessage,
     Flag,
+    MedicalRecord,
+    NoteCategory,
     Preferences,
+    RefinedNote,
 )
 from bellhop.ports.content import ContentItem
 from bellhop.services.admin import Conflict
@@ -91,6 +96,9 @@ class MemoryIn(BaseModel):
     )
     source: str = Field(default="conversation", max_length=32)
     confidence: float = Field(default=1.0, ge=0, le=1, allow_inf_nan=False)
+    quote: str | None = Field(default=None, max_length=500)
+    call_id: str | None = Field(default=None, max_length=64)
+    at: datetime | None = None  # history import: when it was learned or heard again
 
 
 class CareIn(BaseModel):
@@ -98,6 +106,7 @@ class CareIn(BaseModel):
     value: float | None = Field(default=None, ge=1, le=5, allow_inf_nan=False)
     note: str = Field(default="", max_length=500)
     call_id: str | None = Field(default=None, max_length=64)
+    at: datetime | None = None  # history import: when it happened (default now)
 
 
 class PreferencesIn(BaseModel):
@@ -147,6 +156,58 @@ class NursePatch(BaseModel):
     model_config = {"extra": "forbid"}
     name: str = Field(default=None, min_length=1, max_length=80)  # type: ignore[assignment]
     on_shift: bool = Field(default=None)  # type: ignore[assignment]
+
+
+class TurnImport(BaseModel):
+    speaker: str = Field(max_length=32)
+    text: str = Field(max_length=2000)
+    at: datetime
+
+
+class CallImport(BaseModel):
+    """A finished call from the past (history import for demos and migrations)."""
+
+    model_config = {"extra": "forbid"}
+    room: str = Field(min_length=1, max_length=32)
+    resident_id: str | None = Field(default=None, max_length=64)
+    urgency: int = Field(ge=1, le=4)
+    category: str = Field(max_length=64)
+    summary: str | None = Field(default=None, max_length=500)
+    robot_id: str | None = Field(default=None, max_length=64)
+    by_robot: bool = True
+    created_at: datetime
+    first_response_at: datetime | None = None
+    resolved_at: datetime
+    transcript: list[TurnImport] = Field(default_factory=list, max_length=60)
+
+
+class MedicalIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    conditions: list[Condition] = Field(default_factory=list, max_length=50)
+    allergies: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
+        default_factory=list, max_length=50
+    )
+    medicines: list[Annotated[str, StringConstraints(max_length=100)]] = Field(
+        default_factory=list, max_length=100
+    )
+    mobility: str = Field(default="", max_length=200)
+    diet: str = Field(default="", max_length=200)
+    last_review: datetime | None = None
+    reviewed_by: str = Field(default="", max_length=80)
+
+
+class NoteIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    category: NoteCategory
+    text: str = Field(max_length=500)
+
+
+class MedicalEntryIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    category: NoteCategory
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    since: str | None = Field(default=None, max_length=32)
+    reviewed_by: str = Field(default="Staff", max_length=80)
 
 
 class TextIn(BaseModel):
@@ -339,6 +400,32 @@ def create_app(container: Container) -> FastAPI:
             raise InvalidTransition("call has no visit yet: resolve it before overriding") from None
         return get_call(container, call_id)
 
+    @api.post("/calls/import", status_code=201)
+    def import_call(body: CallImport) -> Call:
+        """Store a finished call from the past. Raises no alerts and triggers no learning."""
+        if body.resident_id is not None:
+            require_resident(container, body.resident_id)
+        try:
+            call = container.call_service.backfill(
+                body.room,
+                Urgency(body.urgency),
+                body.category,
+                body.created_at,
+                body.resolved_at,
+                resident_id=body.resident_id,
+                robot_id=body.robot_id,
+                summary=body.summary,
+                first_response_at=body.first_response_at,
+                by_robot=body.by_robot,
+                turns=[(t.speaker, t.text, t.at) for t in body.transcript],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        container.feedback.record_resolution(
+            call.id, call.robot_id, resolved_by_robot=bool(call.resolved_by_robot)
+        )
+        return call
+
     @api.get("/labelled-examples")
     def labelled_examples() -> list[dict[str, Any]]:
         return container.analytics.labelled_examples()
@@ -365,7 +452,14 @@ def create_app(container: Container) -> FastAPI:
     def remember(resident_id: str, body: MemoryIn) -> Response:
         require_resident(container, resident_id)
         result = container.memory_guard.propose(
-            resident_id, body.text, body.tags, body.source, body.confidence
+            resident_id,
+            body.text,
+            body.tags,
+            body.source,
+            body.confidence,
+            quote=body.quote,
+            call_id=body.call_id,
+            at=body.at,
         )
         if isinstance(result, Accepted):
             return JSONResponse(status_code=201, content=jsonable_encoder(result.fact))
@@ -375,6 +469,12 @@ def create_app(container: Container) -> FastAPI:
                 content={"status": "pending_review", "detail": "queued for nurse review"},
             )
         return JSONResponse(status_code=422, content={"detail": result.reason})
+
+    @api.get("/residents/{resident_id}/memory/all")
+    def all_memory(resident_id: str) -> list[MemoryFact]:
+        """Every stored fact with its provenance, oldest first."""
+        require_resident(container, resident_id)
+        return container.memory_guard.facts(resident_id)
 
     @api.get("/residents/{resident_id}/memory/pending")
     def pending_memory(resident_id: str) -> list[PendingFact]:
@@ -418,12 +518,23 @@ def create_app(container: Container) -> FastAPI:
                 [{"loc": ("body", "value"), "msg": "value required", "type": "value_error"}]
             )
         if body.kind == EntryKind.MOOD:
-            return cs.record_mood(resident_id, body.value, body.call_id, body.note)  # type: ignore[arg-type]
+            return cs.record_mood(resident_id, body.value, body.call_id, body.note, body.at)  # type: ignore[arg-type]
         if body.kind == EntryKind.PAIN:
-            return cs.record_pain(resident_id, body.value, body.call_id, body.note)  # type: ignore[arg-type]
+            return cs.record_pain(resident_id, body.value, body.call_id, body.note, body.at)  # type: ignore[arg-type]
         if body.kind == EntryKind.DRINK:
             return cs.record_drink(resident_id, body.call_id, body.note)
         return cs.record_repeat_question(resident_id, body.call_id)
+
+    @api.get("/residents/{resident_id}/care/history")
+    def care_history(
+        resident_id: str,
+        days: int = Query(14, ge=1, le=90),
+        kind: EntryKind | None = None,
+    ) -> list[CareEntry]:
+        """Recorded mood, pain and drink entries from the last `days` days, oldest first."""
+        require_resident(container, resident_id)
+        since = container.clock.now() - timedelta(days=days)
+        return container.care_store.entries.entries(resident_id, kind, since)
 
     @api.get("/residents/{resident_id}/care/summary")
     def care_summary(resident_id: str) -> dict[str, Any]:
@@ -435,6 +546,36 @@ def create_app(container: Container) -> FastAPI:
             "drinks_today": cs.hydration_today(resident_id, now).drinks,
             "repeat_questions_today": cs.repeat_question_count(resident_id, now).count,
         }
+
+    @api.get("/residents/{resident_id}/medical")
+    def read_medical(resident_id: str) -> MedicalRecord:
+        require_resident(container, resident_id)
+        return container.medical.get(resident_id)
+
+    @api.put("/residents/{resident_id}/medical")
+    def replace_medical(resident_id: str, body: MedicalIn) -> MedicalRecord:
+        require_resident(container, resident_id)
+        record = MedicalRecord(resident_id=resident_id, **body.model_dump())
+        return container.medical.replace(record)
+
+    @api.post("/residents/{resident_id}/medical/entries", status_code=201)
+    def add_medical_entry(resident_id: str, body: MedicalEntryIn) -> MedicalRecord:
+        require_resident(container, resident_id)
+        if body.category.is_fact:
+            raise HTTPException(
+                status_code=422, detail="likes, dislikes, people and routines go to /memory"
+            )
+        note = RefinedNote(category=body.category, text=body.text, since=body.since)
+        return container.medical.add_entry(resident_id, note, body.reviewed_by)
+
+    @api.post("/residents/{resident_id}/notes/refine")
+    def refine_note(resident_id: str, body: NoteIn) -> RefinedNote:
+        """Tidy a staff note. Nothing is saved: staff review the result, then save it."""
+        require_resident(container, resident_id)
+        try:
+            return container.note_refiner.refine(body.category, body.text)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @api.get("/flags")
     def list_flags(resident_id: str | None = None, open_only: bool = True) -> list[Flag]:

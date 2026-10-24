@@ -26,11 +26,13 @@ from bellhop.adapters.moss_memory import MossMemoryIndex
 from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.adapters.robot_gateway import RecordingRobotGateway
 from bellhop.adapters.rule_extractor import RuleFactExtractor
+from bellhop.adapters.rule_note_refiner import RuleNoteRefiner
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
 from bellhop.adapters.wikipedia_content import WikipediaContentFeed
 from bellhop.api.events import EventStream
 from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
+from bellhop.ports.care import NoteRefiner
 from bellhop.ports.content import ContentFeed
 from bellhop.ports.learning import FactExtractor
 from bellhop.scenarios import apply_scenario, load_scenario
@@ -44,6 +46,7 @@ from bellhop.services.family import FamilyService
 from bellhop.services.feedback import FeedbackService
 from bellhop.services.learn_on_resolve import LearnOnResolve
 from bellhop.services.liaison import Liaison
+from bellhop.services.medical import MedicalService
 from bellhop.services.memory_guard import MemoryGuard
 from bellhop.services.memory_learner import MemoryLearner
 from bellhop.services.memory_service import MemoryService
@@ -76,6 +79,7 @@ class Settings:
     robot_url: str | None = None
     content: str = "local"  # local | wikipedia | apify
     learning: str = "rule"  # rule (offline baseline) | claude (needs ANTHROPIC_API_KEY)
+    refiner: str = "rule"  # staff note tidy: rule | claude (needs ANTHROPIC_API_KEY)
     apify_token: str | None = field(default=None, repr=False)
     api_key: str | None = field(default=None, repr=False)  # unset = API is open
     cors_origins: tuple[str, ...] = ("*",)
@@ -98,6 +102,7 @@ class Settings:
             robot_url=env.get("BELLHOP_ROBOT_URL") or None,
             content=env.get("BELLHOP_CONTENT", "local"),
             learning=env.get("BELLHOP_LEARNING", "rule"),
+            refiner=env.get("BELLHOP_REFINER", "rule"),
             apify_token=env.get("APIFY_TOKEN") or None,
             api_key=env.get("BELLHOP_API_KEY") or None,
             cors_origins=tuple(
@@ -129,6 +134,8 @@ class Container:
     preferences: PreferencesService
     memory_guard: MemoryGuard
     memory_learner: MemoryLearner
+    medical: MedicalService
+    note_refiner: NoteRefiner
     triage_guard: TriageGuard
     reminiscence: ReminiscenceService
     admin: AdminService
@@ -176,6 +183,17 @@ def _fact_extractor(settings: Settings) -> FactExtractor:
 
         return ClaudeFactExtractor()
     raise ValueError(f"unsupported learning setting: {settings.learning}")
+
+
+def _note_refiner(settings: Settings, clock: Clock) -> NoteRefiner:
+    rules = RuleNoteRefiner(clock)
+    if settings.refiner == "rule":
+        return rules
+    if settings.refiner == "claude":
+        from bellhop.adapters.claude_note_refiner import ClaudeNoteRefiner
+
+        return ClaudeNoteRefiner(fallback=rules)
+    raise ValueError(f"unsupported refiner setting: {settings.refiner}")
 
 
 def _build_store(
@@ -266,6 +284,8 @@ def build_container(
         preferences=PreferencesService(care_store.preferences, clock),
         memory_guard=memory_guard,
         memory_learner=memory_learner,
+        medical=MedicalService(care_store.medical, clock),
+        note_refiner=_note_refiner(settings, clock),
         triage_guard=TriageGuard(),
         reminiscence=ReminiscenceService(_content_feed(settings), memory, store.residents),
         admin=AdminService(store.residents, store.nurses, store.robots, store.calls, clock, ids),
