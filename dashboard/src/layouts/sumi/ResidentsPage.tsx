@@ -5,6 +5,7 @@ import { ENTRY_LABEL } from '../../data/staffEntries'
 import { CATEGORY_LABEL, clock, initials, isOpen, statusText } from '../../lib'
 import { findTendencies } from '../../tendencies'
 import { Chip, Detail } from '../shared'
+import { ResidentForm } from './ResidentForm'
 
 const KIND_ORDER: FactKind[] = ['like', 'dislike', 'person', 'routine', 'style', 'health', 'event']
 const KIND_LABEL: Record<FactKind, string> = {
@@ -52,13 +53,16 @@ function searchText(r: Resident): string {
   return [r.name, `room ${r.room}`, ...r.flags, ...r.learned.map((f) => f.text), ...r.medical.conditions.map((c) => c.name)].join(' ').toLowerCase()
 }
 
-function ResidentList({ data, selectedId }: { data: BellhopData; selectedId: string }) {
+function ResidentList({ data, selectedId }: { data: BellhopData; selectedId?: string }) {
   const [query, setQuery] = useState('')
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
   const shown = data.residents.filter((r) => terms.every((t) => searchText(r).includes(t)))
   return (
     <nav className="sm-reslist" aria-label="Residents">
       <h2>Residents</h2>
+      <a className="sb-btn sm-add" href="#/residents/new" aria-current={selectedId === undefined ? 'page' : undefined}>
+        Add a resident
+      </a>
       <input
         className="sm-search"
         type="search"
@@ -404,11 +408,23 @@ function CallHistory({ resident, calls, now }: { resident: Resident; calls: Call
 }
 
 export function ResidentsPage({ data, residentId, callId }: { data: BellhopData; residentId?: string; callId?: string }) {
+  const adding = residentId === 'new'
   const first = data.residents.find((r) => data.calls.some((c) => c.residentId === r.id && isOpen(c))) ?? data.residents[0]
-  const resident = data.residents.find((r) => r.id === residentId) ?? first
-  if (!resident) return <p className="sm-empty">No residents yet.</p>
+  const resident = adding ? undefined : (data.residents.find((r) => r.id === residentId) ?? first)
+  if (adding || !resident) {
+    return (
+      <div className="sm-people">
+        <ResidentList data={data} selectedId={undefined} />
+        <article className="sm-profile" aria-label="Add a resident">
+          {!adding && <p className="sm-empty">No residents yet. Add the first one to give them a room.</p>}
+          <ResidentForm data={data} />
+        </article>
+      </div>
+    )
+  }
+  const editing = callId === 'edit'
   const calls = [...data.pastCalls, ...data.calls].filter((c) => c.residentId === resident.id).sort((a, b) => b.createdAt - a.createdAt)
-  const viewing = callId ? calls.find((c) => c.id === callId) : undefined
+  const viewing = callId && !editing ? calls.find((c) => c.id === callId) : undefined
   return (
     <div className="sm-people">
       <ResidentList data={data} selectedId={resident.id} />
@@ -421,6 +437,14 @@ export function ResidentsPage({ data, residentId, callId }: { data: BellhopData;
             <h1>{resident.name}</h1>
             <p>
               Room {resident.room}{resident.age ? `, age ${resident.age}` : ''}
+              {!editing && (
+                <>
+                  {' '}
+                  <a className="sm-editlink" href={`#/residents/${resident.id}/edit`}>
+                    Change room or details
+                  </a>
+                </>
+              )}
             </p>
             {resident.flags.length > 0 && (
               <p className="sm-flags">
@@ -431,7 +455,9 @@ export function ResidentsPage({ data, residentId, callId }: { data: BellhopData;
             )}
           </div>
         </header>
-        {viewing ? (
+        {editing ? (
+          <ResidentForm key={resident.id} data={data} resident={resident} />
+        ) : viewing ? (
           <section className="sm-callview">
             <a className="sm-back" href={`#/residents/${resident.id}`}>
               Back to {resident.name.split(' ')[0]}'s profile

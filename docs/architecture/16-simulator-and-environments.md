@@ -28,9 +28,10 @@ The dashboard's Dispatch tab drives a chosen robot to a room with `POST /robots/
 
 ## Adding a home by hand (empty environment)
 
+Residents: use the **Residents** tab, **Add a resident** (name, room, optional year of birth, things staff should know). The same screen changes a resident's room later (**Change room or details**). The backend refuses a room that already has a resident, and the form says who has it. Nurses and robots still go in through the API:
+
 ```bash
 curl -X POST localhost:8000/nurses     -H 'Content-Type: application/json' -d '{"id":"nurse_ines","name":"Ines"}'
-curl -X POST localhost:8000/residents  -H 'Content-Type: application/json' -d '{"id":"res_ada","name":"Ada Reyes","room":"21","birth_year":1941,"risk_flags":["falls"]}'
 curl -X PUT  localhost:8000/robots/robot_1 -H 'Content-Type: application/json' -d '{"status":"idle","battery":0.9,"room":"dock"}'
 ```
 

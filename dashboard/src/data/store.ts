@@ -148,6 +148,13 @@ export class LiveStore {
     this.touch()
   }
 
+  /** After adding or changing a resident: take the new list, then everything known about them. */
+  private async reloadResident(id: string) {
+    this.raw.residents = await this.get<ApiResident[]>('/residents')
+    this.raw.parts.set(id, await this.fetchParts(id))
+    this.touch()
+  }
+
   async refreshResident(id: string) {
     if (!this.raw.residents.some((r) => r.id === id)) return
     this.raw.parts.set(id, await this.fetchParts(id))
@@ -228,6 +235,27 @@ export class LiveStore {
         await this.send('POST', `/calls/${callId}/resolve`, { by_robot: false })
         await this.loadLive()
       }),
+    addResident: async (input) => {
+      const created = await this.send<ApiResident>('POST', '/residents', {
+        name: input.name,
+        room: input.room,
+        risk_flags: input.riskFlags,
+        ...(input.birthYear ? { birth_year: input.birthYear } : {}),
+      })
+      if (input.hardOfHearing) await this.send('PUT', `/residents/${created.id}/preferences`, { hard_of_hearing: true })
+      await this.reloadResident(created.id)
+      return created.id
+    },
+    updateResident: async (residentId, input) => {
+      await this.send('PATCH', `/residents/${residentId}`, {
+        name: input.name,
+        room: input.room,
+        risk_flags: input.riskFlags,
+        birth_year: input.birthYear,
+      })
+      await this.send('PUT', `/residents/${residentId}/preferences`, { hard_of_hearing: input.hardOfHearing })
+      await this.reloadResident(residentId)
+    },
     refineEntry: async (residentId, draft) => {
       const out = await this.send<ApiRefined>('POST', `/residents/${residentId}/notes/refine`, draft)
       return { category: out.category as EntryCategory, text: out.text, since: out.since ?? undefined, notes: out.notes ?? [] }
