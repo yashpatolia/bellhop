@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import re
 import threading
+import time
 from collections.abc import Callable
 
 import anthropic
+import httpx
 
-from rover import config
+from rover import config, obslog
 from rover.agent.tools import TOOLS, ToolContext, run_tool
 
 FALLBACK_LINE = "Sorry, give me a moment."
@@ -20,12 +23,33 @@ SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+|\n+")
 SERVER_FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 
+_shared: tuple[tuple, anthropic.Anthropic] | None = None
+_shared_lock = threading.Lock()
+
+
 def claude_client() -> anthropic.Anthropic | None:
-    """A client when any Anthropic credential resolves (env key, token or an `ant auth` profile)."""
-    client = anthropic.Anthropic()
-    if client.api_key or client.auth_token or client.credentials:
+    """A client when any Anthropic credential resolves (env key, token or an `ant auth` profile).
+
+    One client (one connection pool) is shared by replies and triage, so the warm TLS connection
+    made at start-up is reused instead of a fresh handshake per call on a weak link.
+    """
+    global _shared
+    env = (os.environ.get("ANTHROPIC_API_KEY"), os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+    with _shared_lock:
+        if _shared is not None and _shared[0] == env:
+            return _shared[1]
+        http_client = anthropic.DefaultHttpxClient(
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=5,
+                keepalive_expiry=config.CLAUDE_KEEPALIVE_S,
+            )
+        )
+        client = anthropic.Anthropic(http_client=http_client)
+        if not (client.api_key or client.auth_token or client.credentials):
+            return None
+        _shared = (env, client)
         return client
-    return None
 
 
 def split_tone(text: str) -> tuple[str, str]:
@@ -57,8 +81,14 @@ class SentenceSplitter:
 class _Turn:
     """One reply: what has been said, in which tone, and whether any text has arrived."""
 
-    def __init__(self, on_sentence: Callable[[str, str], None], cancel: threading.Event | None):
+    def __init__(
+        self,
+        on_sentence: Callable[[str, str], None],
+        cancel: threading.Event | None,
+        allow_fallback: bool = True,
+    ):
         self._on_sentence = on_sentence
+        self._allow_fallback = allow_fallback
         self._cancel = cancel
         self._lock = threading.Lock()  # the first-text timer speaks from its own thread
         self._splitter = SentenceSplitter()
@@ -66,6 +96,11 @@ class _Turn:
         self.tone: str | None = None
         self.spoken: list[str] = []
         self.saw_wait = False
+        self.timed_out = False  # the first-text budget ran out before any text came
+        self.fell_back = False  # the fallback line was actually spoken
+        self.error: str | None = None
+        self.started = time.monotonic()
+        self.first_text_at: float | None = None
 
     def cancelled(self) -> bool:
         return self._cancel is not None and self._cancel.is_set()
@@ -78,6 +113,8 @@ class _Turn:
             self._on_sentence(tone, line)
 
     def add_text(self, chunk: str) -> None:
+        if self.first_text_at is None:
+            self.first_text_at = time.monotonic()
         self.got_text.set()
         for sentence in self._splitter.feed(chunk):
             self._speak(sentence)
@@ -97,13 +134,23 @@ class _Turn:
 
     def first_text_timeout(self) -> None:
         if not self.got_text.is_set() and not self.cancelled():
+            self.timed_out = True
             print(f"fallback: no reply in {config.FIRST_TEXT_TIMEOUT_S:g}s")
-            self.say(FALLBACK_TONE, FALLBACK_LINE)
+            self._fallback()
 
     def fail(self, reason: str) -> None:
         print(f"fallback: {reason}")
+        self.error = reason
         if not self.spoken:
-            self.say(FALLBACK_TONE, FALLBACK_LINE)
+            self._fallback()
+
+    def _fallback(self) -> None:
+        """Speak the stall line, unless it was the last thing said (never twice in a row)."""
+        if not self._allow_fallback:
+            print("fallback: line skipped, it was spoken last turn")
+            return
+        self.fell_back = True
+        self.say(FALLBACK_TONE, FALLBACK_LINE)
 
 
 class Brain:
@@ -111,6 +158,19 @@ class Brain:
         self.client = client if client is not None else claude_client()
         if self.client is None:
             print("fallback: no ANTHROPIC_API_KEY; every reply will be the fallback line")
+        self._fell_back = False  # the previous reply ended with the fallback line
+
+    def warm(self) -> None:
+        """One cheap request so DNS and TLS to Claude are done before the first visit."""
+        started = time.monotonic()
+        error = None
+        try:
+            self.client.models.list(limit=1)
+        except Exception as exc:  # warming is best effort
+            error = type(exc).__name__
+        obslog.event(
+            "brain.warm", latency_ms=round((time.monotonic() - started) * 1000, 1), error=error
+        )
 
     def reply(
         self,
@@ -130,7 +190,7 @@ class Brain:
             print("fallback: no ANTHROPIC_API_KEY")
             on_sentence(FALLBACK_TONE, FALLBACK_LINE)
             return FALLBACK_LINE, False
-        turn = _Turn(on_sentence, cancel)
+        turn = _Turn(on_sentence, cancel, allow_fallback=not self._fell_back)
         timer = threading.Timer(config.FIRST_TEXT_TIMEOUT_S, turn.first_text_timeout)
         timer.daemon = True
         timer.start()
@@ -145,9 +205,27 @@ class Brain:
             turn.fail(f"Claude stream failed: {exc!r}")
         finally:
             timer.cancel()
+        self._record(turn, allow_tools)
         if turn.saw_wait and not turn.spoken:
             return WAIT, False
         return " ".join(turn.spoken), wanted_tool
+
+    def _record(self, turn: _Turn, allow_tools: bool) -> None:
+        if turn.fell_back:
+            self._fell_back = True
+        elif turn.first_text_at is not None and not turn.timed_out:
+            self._fell_back = False
+        now = time.monotonic()
+        first = turn.first_text_at
+        obslog.event(
+            "brain.reply",
+            latency_ms=round((now - turn.started) * 1000, 1),
+            first_text_ms=round((first - turn.started) * 1000, 1) if first is not None else None,
+            fallback=turn.fell_back,
+            timed_out=turn.timed_out,
+            error=turn.error,
+            draft=not allow_tools,
+        )
 
     def _run(
         self,

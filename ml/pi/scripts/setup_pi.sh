@@ -121,7 +121,16 @@ echo "success: .venv/pyvenv.cfg says include-system-site-packages = true"
 step "6/7 uv sync --frozen (exact versions from uv.lock, CPU-only torch; torch takes a while)"
 # --python keeps uv on the system Python (no download of another one) and on this venv.
 # On Python 3.13 numpy 2.x is installed into .venv; it shadows apt's numpy (venv wins on sys.path).
-uv sync --frozen --python .venv/bin/python
+# A weak venue Wi-Fi times out when uv pulls many big wheels at once (it did: numpy after 30 s).
+# Fewer parallel downloads and a long timeout; downloads are cached, so a re-run resumes.
+export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-600}"
+export UV_CONCURRENT_DOWNLOADS="${UV_CONCURRENT_DOWNLOADS:-2}"
+for attempt in 1 2 3 4; do
+  uv sync --frozen --python .venv/bin/python && break
+  [[ $attempt -lt 4 ]] || { echo "FAIL: uv sync failed 4 times; check the Wi-Fi and re-run this script"; exit 1; }
+  echo "uv sync failed (attempt $attempt of 4), retrying in 10 s; finished downloads are cached"
+  sleep 10
+done
 echo "success: no errors above; nothing is downloaded on a re-run"
 
 step "7/7 Models, then the smoke test"

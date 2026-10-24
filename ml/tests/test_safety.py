@@ -2,7 +2,9 @@ import signal
 import subprocess
 import sys
 import textwrap
+import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -129,3 +131,46 @@ def test_real_sigterm_unwinds_finally_blocks(tmp_path):
         if p.poll() is None:
             p.kill()
     assert marker.read_text() == "camera closed"
+
+
+def test_stuck_worker_cannot_keep_the_process_alive_after_sigterm(tmp_path):
+    script = tmp_path / "stuck.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import os, signal, time
+            from concurrent.futures import ThreadPoolExecutor
+            from rover import safety
+
+            stopped = []
+            safety.install_motors_off(
+                lambda: print("motors off", flush=True), hard_exit_after_s=0.3
+            )
+            pool = ThreadPoolExecutor(max_workers=1)
+            pool.submit(time.sleep, 60)  # a worker stuck in a slow download
+            time.sleep(0.2)
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+            """
+        )
+    )
+    started = time.monotonic()
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        env={"PYTHONPATH": str(Path(safety.__file__).parent.parent), "PATH": "/usr/bin"},
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0 and "motors off" in result.stdout
+    assert time.monotonic() - started < 8
+
+
+def test_hard_exit_is_off_by_default():
+    handlers = {}
+    safety.install_motors_off(lambda: None, (15,), registrar=lambda s, h: handlers.update({s: h}))
+    try:
+        handlers[15](15, None)
+    except SystemExit:
+        pass
+    assert not [t for t in threading.enumerate() if t.name == "hard-exit"]

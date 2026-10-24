@@ -334,3 +334,101 @@ def test_brain_survives_a_stream_error_mid_reply(capsys):
     )
     assert said == ["Hello there."] and (text, wanted_tool) == ("Hello there.", False)
     assert "fallback: Claude stream failed" in capsys.readouterr().out
+
+
+def capture_events(monkeypatch):
+    events = []
+    monkeypatch.setattr(brain.obslog, "event", lambda name, **kw: events.append((name, kw)))
+    return events
+
+
+def test_first_text_budget_fits_a_slow_pi_link():
+    assert config.FIRST_TEXT_TIMEOUT_S >= 6.0
+
+
+def test_brain_logs_latency_per_reply(monkeypatch):
+    events = capture_events(monkeypatch)
+    Brain(FakeClient(FakeStream(["Hello there. Bye."], done(), delay=0.05))).reply(
+        "sys", [], lambda tone, s: None, None
+    )
+    ((name, fields),) = [e for e in events if e[0] == "brain.reply"]
+    assert fields["fallback"] is False and fields["error"] is None
+    assert fields["latency_ms"] >= fields["first_text_ms"] >= 40
+    assert fields["draft"] is False
+
+
+def test_brain_logs_the_fallback_and_draft_flag(monkeypatch):
+    monkeypatch.setattr(config, "FIRST_TEXT_TIMEOUT_S", 0.05)
+    events = capture_events(monkeypatch)
+    client = FakeClient(FakeStream(["Hi."], done(), delay=0.3))
+    Brain(client).reply("sys", [], lambda tone, s: None, None, allow_tools=False)
+    fields = next(kw for name, kw in events if name == "brain.reply")
+    assert fields["fallback"] is True and fields["draft"] is True
+
+
+def test_fallback_line_is_not_spoken_twice_in_a_row(monkeypatch):
+    monkeypatch.setattr(config, "FIRST_TEXT_TIMEOUT_S", 0.05)
+    robot = Brain(
+        FakeClient(
+            FakeStream(["One."], done(), delay=0.3),
+            FakeStream(["Two."], done(), delay=0.3),
+            FakeStream(["Three."], done(), delay=0.3),
+        )
+    )
+    said = []
+    for _ in range(3):
+        robot.reply("sys", [], lambda tone, s: said.append(s), None)
+    assert said == [brain.FALLBACK_LINE, "One.", "Two.", "Three."]
+
+
+def test_a_good_reply_re_arms_the_fallback(monkeypatch):
+    robot = Brain(FakeClient(FakeStream(["Fine."], done())))
+    robot._fell_back = True
+    said = []
+    robot.reply("sys", [], lambda tone, s: said.append(s), None)
+    assert said == ["Fine."] and robot._fell_back is False
+
+
+def test_failed_stream_does_not_repeat_the_fallback():
+    class Boom(FakeStream):
+        def __iter__(self):
+            raise RuntimeError("down")
+            yield
+
+    robot = Brain(FakeClient(Boom([], done()), Boom([], done())))
+    said = []
+    for _ in range(2):
+        robot.reply("sys", [], lambda tone, s: said.append(s), None)
+    assert said == [brain.FALLBACK_LINE]
+
+
+def test_warm_makes_one_cheap_request_and_never_raises():
+    calls = []
+    client = SimpleNamespace(models=SimpleNamespace(list=lambda **kw: calls.append(kw)))
+    Brain(client).warm()
+    assert len(calls) == 1
+
+    def broken(**kw):
+        raise httpx.ConnectError("offline")
+
+    Brain(SimpleNamespace(models=SimpleNamespace(list=broken))).warm()
+    Brain(object()).warm()
+
+
+def test_claude_client_keeps_connections_alive_for_the_whole_visit(monkeypatch):
+    seen = {}
+
+    class Spy:
+        api_key = "k"
+        auth_token = None
+        credentials = None
+
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(brain, "_shared", None)
+    monkeypatch.setattr(brain.anthropic, "Anthropic", Spy)
+    first = brain.claude_client()
+    assert first is not None and brain.claude_client() is first  # one shared pool
+    pool = seen["http_client"]._transport._pool
+    assert pool._keepalive_expiry == config.CLAUDE_KEEPALIVE_S >= 20
