@@ -123,28 +123,34 @@ HEAD_TILT_MIN = 80
 HEAD_TILT_MAX = 180
 
 
-def _head_scan_pans() -> tuple[int, ...]:
-    """Parse safe, venue-tunable camera pan positions from the deployment environment."""
-    raw = os.environ.get("BELLHOP_HEAD_SCAN_PANS", "30,90,150")
+def _head_scan_angles(name: str, raw: str, minimum: int, maximum: int) -> tuple[int, ...]:
+    """Parse safe, venue-tunable camera-head angles from the deployment environment."""
     try:
         pans = tuple(int(part.strip()) for part in raw.split(",") if part.strip())
     except ValueError as exc:
-        raise ValueError("BELLHOP_HEAD_SCAN_PANS must be comma-separated servo angles") from exc
-    if not pans or any(not HEAD_PAN_MIN <= pan <= HEAD_PAN_MAX for pan in pans):
+        raise ValueError(f"{name} must be comma-separated servo angles") from exc
+    if not pans or any(not minimum <= pan <= maximum for pan in pans):
         raise ValueError(
-            "BELLHOP_HEAD_SCAN_PANS must contain safe angles from "
-            f"{HEAD_PAN_MIN} through {HEAD_PAN_MAX}"
+            f"{name} must contain safe angles from {minimum} through {maximum}"
         )
     return pans
 
 
-HEAD_SCAN_PANS = _head_scan_pans()
-HEAD_SCAN_TILT = int(os.environ.get("BELLHOP_HEAD_SCAN_TILT", str(TILT_DRIVE)))
+HEAD_SCAN_PANS = _head_scan_angles(
+    "BELLHOP_HEAD_SCAN_PANS",
+    os.environ.get("BELLHOP_HEAD_SCAN_PANS", "30,90,150"),
+    HEAD_PAN_MIN,
+    HEAD_PAN_MAX,
+)
+HEAD_SCAN_TILTS = _head_scan_angles(
+    "BELLHOP_HEAD_SCAN_TILTS",
+    os.environ.get("BELLHOP_HEAD_SCAN_TILTS", "80,90,110"),
+    HEAD_TILT_MIN,
+    HEAD_TILT_MAX,
+)
 HEAD_SCAN_DWELL_S = float(os.environ.get("BELLHOP_HEAD_SCAN_DWELL_S", "0.6"))
-if not HEAD_TILT_MIN <= HEAD_SCAN_TILT <= HEAD_TILT_MAX or HEAD_SCAN_DWELL_S <= 0:
-    raise ValueError(
-        f"head scan tilt must be {HEAD_TILT_MIN}..{HEAD_TILT_MAX} and dwell must be positive"
-    )
+if HEAD_SCAN_DWELL_S <= 0:
+    raise ValueError("head scan dwell must be positive")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)
