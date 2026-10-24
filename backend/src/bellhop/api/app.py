@@ -85,6 +85,13 @@ class RobotReport(BaseModel):
     room: str | None = Field(default=None, max_length=32)
 
 
+class NavigateIn(BaseModel):
+    """An opaque navigation label. The Pi resolves it to its local map/marker configuration."""
+
+    model_config = {"extra": "forbid"}
+    target: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)]
+
+
 class AckIn(BaseModel):
     nurse_id: str = Field(max_length=64)
 
@@ -272,6 +279,10 @@ async def _pydantic_error(_: Request, exc: ValidationError) -> JSONResponse:
     return JSONResponse(status_code=422, content=jsonable_encoder({"detail": detail}))
 
 
+class RobotCommandFailed(RuntimeError):
+    """A robot command did not reach the Pi; do not claim a state change."""
+
+
 def create_app(container: Container) -> FastAPI:
     app = FastAPI(title="Bellhop")
     settings = container.settings
@@ -286,6 +297,7 @@ def create_app(container: Container) -> FastAPI:
     app.add_exception_handler(RequestValidationError, _validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(InvalidTransition, _error(409))
     app.add_exception_handler(Conflict, _error(409))  # duplicate id, room already occupied
+    app.add_exception_handler(RobotCommandFailed, _error(503))
     app.add_exception_handler(ValidationError, _pydantic_error)  # type: ignore[arg-type]
     app.state.events = container.events
     calls = container.call_service
@@ -668,6 +680,61 @@ def create_app(container: Container) -> FastAPI:
     @api.get("/robots")
     def list_robots() -> list[Robot]:
         return container.store.robots.list_all()
+
+    def robot_for_command(robot_id: str) -> Robot:
+        robot = container.store.robots.get(robot_id)
+        if robot is None:
+            raise LookupError(robot_id)
+        return robot
+
+    def command_gateway():
+        # The guarded gateway is the production path: timeouts fail closed instead of leaving a
+        # dashboard request waiting on the Pi. The recording gateway keeps local UI development
+        # usable when no Pi is connected.
+        return container.guarded_gateway or container.gateway
+
+    @api.post(
+        "/robots/{robot_id}/navigate",
+        responses={
+            404: {"description": "unknown robot"},
+            409: {"description": "robot is not idle"},
+            503: {"description": "robot command failed"},
+        },
+    )
+    def navigate_robot(robot_id: str, body: NavigateIn) -> Robot:
+        robot = robot_for_command(robot_id)
+        if robot.status is not RobotStatus.IDLE:
+            raise InvalidTransition(f"robot {robot_id} is not idle")
+        try:
+            command_gateway().go_to(robot_id, body.target)
+        except Exception as exc:
+            raise RobotCommandFailed("robot navigation command failed") from exc
+        # The backend deliberately does not set room from target: only the Pi can establish its
+        # physical position after resolving its own marker/map configuration.
+        robot.status = RobotStatus.BUSY
+        container.store.robots.save(robot)
+        container.events.emit("robot.updated", {"robot_id": robot_id})
+        return robot
+
+    @api.post(
+        "/robots/{robot_id}/stop",
+        responses={
+            404: {"description": "unknown robot"},
+            503: {"description": "robot command failed"},
+        },
+    )
+    def stop_robot(robot_id: str) -> Robot:
+        robot = robot_for_command(robot_id)
+        try:
+            command_gateway().stop(robot_id)
+        except Exception as exc:
+            raise RobotCommandFailed("robot stop command failed") from exc
+        # An active care call owns the busy status until its normal resolution path finishes.
+        if not any(call.robot_id == robot_id for call in container.store.calls.list_open()):
+            robot.status = RobotStatus.IDLE
+            container.store.robots.save(robot)
+        container.events.emit("robot.updated", {"robot_id": robot_id})
+        return robot
 
     @api.put("/robots/{robot_id}")
     def report_robot(robot_id: str, body: RobotReport) -> Robot:

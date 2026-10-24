@@ -7,6 +7,8 @@ model never blocks the visit beyond the configured triage budget.
 from __future__ import annotations
 
 import json
+import math
+import os
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -17,6 +19,7 @@ import anthropic
 
 from rover import config
 from rover.agent.brain import claude_client
+from rover.agent.jev import decide as ask_jev_decision
 from rover.backend import Backend
 from rover.triage import local
 
@@ -50,6 +53,13 @@ CLAUDE_SCHEMA = {
     "additionalProperties": False,
 }
 SUMMARY_QUOTE = 'Resident said: "{}"'
+URGENCY_LEVELS = [
+    "Urgency 1: chat or company; no staff needed.",
+    "Urgency 2: routine request such as water, a blanket, or an errand.",
+    "Urgency 3: nurse soon for pain, dizziness, nausea, medication, distress, or a near fall.",
+    "Urgency 4: emergency now for a fall, chest pain, breathing trouble, unresponsiveness, "
+    "stroke signs, or severe bleeding.",
+]
 
 
 @dataclass
@@ -114,6 +124,67 @@ def _real_ask_local(transcript: Transcript) -> tuple[int, float] | None:
     return local.score_transcript(local.get_scorer(), transcript)
 
 
+def _float(value: object) -> float | None:
+    """A malformed remote answer is simply unusable, never an exception in a care visit."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _jev_urgency(value: object) -> int | None:
+    """Map Jev's zero-based expected urgency to the rover's one-based 1..4 scale."""
+    score = _float(value)
+    if score is None:
+        return None
+    return max(1, min(4, math.floor(score + 0.5) + 1))
+
+
+def ask_jev(transcript: Transcript, risk_flags: list[str]) -> TriageResult | None:
+    """Optional Jev assessment.  It is advisory and must never throw or block Claude.
+
+    The transport returns ``None`` immediately with no ``TYPESAFE_API_KEY``.  Its own timeout is
+    bounded; :func:`triage` also never waits for it before Claude or the local scorer proceed.
+    """
+    if not os.environ.get("TYPESAFE_API_KEY", "").strip():
+        return None
+    answers = ask_jev_decision(
+        format_visit(transcript, risk_flags),
+        {
+            "urgency": {
+                "type": "score",
+                "instructions": (
+                    "How urgently does a nurse need to see this care-home resident? "
+                    "Lean toward the higher level when unsure."
+                ),
+                "criteria": URGENCY_LEVELS,
+            },
+            "category": {
+                "type": "choice",
+                "instructions": "What is the most urgent thing in this visit about?",
+                "criteria": CATEGORIES,
+            },
+        },
+    )
+    urgency_answer = answers.get("urgency") if answers else None
+    category_answer = answers.get("category") if answers else None
+    if not isinstance(urgency_answer, dict):
+        return None
+    urgency = _jev_urgency(urgency_answer.get("score", urgency_answer.get("value")))
+    confidence = _float(urgency_answer.get("confidence"))
+    if urgency is None or confidence is None:
+        return None
+    category = category_answer.get("choice") if isinstance(category_answer, dict) else None
+    return TriageResult(
+        urgency=urgency,
+        category=category if category in CATEGORIES else "ambiguous",
+        summary="",
+        confidence=max(0.0, min(1.0, confidence)),
+        source="jev",
+    )
+
+
 def _last_resident_line(transcript: Transcript) -> str:
     said = [text.strip() for speaker, text in transcript if speaker == "resident" and text.strip()]
     room = config.SUMMARY_MAX_CHARS - len(SUMMARY_QUOTE.format(""))
@@ -137,6 +208,33 @@ def raise_urgency(
 
 
 AskFn = Callable[[Transcript, list[str]], TriageResult | None]
+
+
+def _number_env(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, default))
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
+
+def merge_jev(
+    jev: TriageResult | None, claude: TriageResult | None, transcript: Transcript
+) -> TriageResult | None:
+    """Jev can add an escalation, never replace Claude's narrative or lower its urgency."""
+    if claude is not None:
+        if jev is None or jev.urgency <= claude.urgency:
+            return claude
+        return replace(claude, urgency=jev.urgency, category=jev.category, source="claude+jev")
+    if jev is None:
+        return None
+    return replace(
+        jev,
+        summary=SUMMARY_QUOTE.format(_last_resident_line(transcript)),
+        # A Jev-only score is intentionally conservative so the backend's normal safeguards
+        # retain their authority.  It still provides a nurse-visible assessment if Claude is down.
+        confidence=min(jev.confidence, _number_env("JEV_ONLY_CONFIDENCE", 0.5)),
+    )
 
 
 def with_retry(ask: AskFn, deadline: float, clock: Callable[[], float], retries: int = 1) -> AskFn:
@@ -180,25 +278,32 @@ def triage(
     clock: Callable[[], float] = time.monotonic,
     claude_retries: int = 1,
     ask_local: Callable[[Transcript], tuple[int, float] | None] | None = None,
+    ask_jev: AskFn | None = None,
 ) -> TriageResult | None:
-    """Use Claude for triage within the fixed budget; optional offline scoring can only escalate."""
+    """Claude remains primary; optional Jev and local scoring can only raise urgency."""
     started = clock()
     budget_end = time.monotonic() + config.TRIAGE_TIMEOUT_S
-    pool = ThreadPoolExecutor(max_workers=2)
+    pool = ThreadPoolExecutor(max_workers=3)
     claude_ask = with_retry(
         ask_claude or ask_claude_real, started + config.TRIAGE_TIMEOUT_S, clock, claude_retries
     )
     claude_future = pool.submit(claude_ask, transcript, risk_flags)
     local_future = pool.submit(ask_local or _real_ask_local, transcript)
+    # Jev starts alongside, rather than ahead of, Claude. A slow paid provider can never consume
+    # the reply/triage budget or delay the offline scorer.
+    jev_future = pool.submit(ask_jev or _real_ask_jev, transcript, risk_flags)
     wait([claude_future], timeout=config.TRIAGE_TIMEOUT_S)
     result = _answer_in_time(claude_future, "claude")
+    jev = _answer_in_time(jev_future, "jev")
     wait([local_future], timeout=max(0.0, budget_end - time.monotonic()))
     local_score = _answer_in_time(local_future, "local")
     pool.shutdown(wait=False, cancel_futures=True)
-    return raise_urgency(result, local_score, SUMMARY_QUOTE.format(_last_resident_line(transcript)))
+    merged = merge_jev(jev, result, transcript)
+    return raise_urgency(merged, local_score, SUMMARY_QUOTE.format(_last_resident_line(transcript)))
 
 
 ask_claude_real = ask_claude
+_real_ask_jev = ask_jev
 
 
 def triage_and_post(

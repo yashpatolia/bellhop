@@ -39,6 +39,8 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
 | `GET /robots` | Robots with `status`, `battery`, `room` |
+| `POST /robots/{id}/navigate {target}` | Dashboard manual-navigation request. `target` is a nonempty string up to 32 chars and is sent unchanged to the Pi; the Pi resolves it against its own marker/map configuration. Only an `idle` known robot accepts it (409 otherwise); success marks it `busy` but does **not** claim that its `room` changed. Pi failure is 503. |
+| `POST /robots/{id}/stop` | Immediately ask the Pi to stop. It returns the robot and marks it idle unless the robot still owns an open care call. Pi failure is 503. |
 | `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created unless the server sets `BELLHOP_ALLOW_NEW_ROBOTS=0` (then 404). An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
 | `PUT /residents/{id} {birth_year}` | Set the resident's birth year (1880 to 2015, else 422; unknown id 404). Needed for reminiscence |
 | `GET /residents/{id}/reminiscence?k=3` | Era-appropriate `ContentItem`s `{id, kind song|film|news|event, year, title, blurb}` from the resident's youth (ages 15-25); empty list without a birth year. Source chosen by `BELLHOP_CONTENT` (`local` default, `wikipedia`, `apify`). See `examples/reminiscence.json` |
@@ -100,7 +102,7 @@ Unknown call, alert, flag, pending fact or resident gives 404.
 | `call.scored` | `call_id`, `urgency` (1 to 4), `category` | `call` |
 | `call.resolved` | `call_id`, `by_robot` | `call` |
 | `alert.raised` | `alert_id`, `call_id`, `level` | `alert` |
-| `robot.updated` | `robot_id` | `robot` (after `PUT /robots/{id}`) |
+| `robot.updated` | `robot_id` | `robot` (after a Pi status report, dashboard navigation request or dashboard stop) |
 
 The object is read at send time, so it can be newer than the event that triggered it (it is `null` if the record vanished). Each message also has a monotonic `id:`.
 
