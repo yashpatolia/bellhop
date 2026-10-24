@@ -294,6 +294,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -317,6 +318,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2" },
     { name = "uagents", marker = "extra == 'fetch'", specifier = ">=0.26.1" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 provides-extras = ["fetch"]
 
