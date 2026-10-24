@@ -1,3 +1,4 @@
+from rover import config
 from rover.drive.car import FakeCar
 from rover.drive.navigator import HeadScanner, MarkerNavigator
 from rover.drive.vision import VisionReceiver
@@ -77,3 +78,32 @@ def test_malformed_vision_never_causes_motion():
 
     assert not nav.step(car)
     assert car._last["drive"] == (0, 0)
+
+
+def test_missing_target_searches_with_stationary_scan_then_turns_and_advances():
+    clock = Clock()
+    stream = receiver(clock, [{"id": 208, "distance_m": 2.0, "x": 0.0}])
+    nav = MarkerNavigator(
+        stream,
+        scanner=HeadScanner(clock, pans=(90,), tilts=(90,), dwell_s=0.1),
+        clock=clock,
+        search_turn_duty=500,
+        search_turn_s=0.2,
+        search_turns_per_lap=1,
+        search_advance_s=0.2,
+    )
+    car = FakeCar()
+    nav.start("210")
+
+    assert not nav.step(car)  # full stationary scan -> start turn on the following tick
+    assert car._last["drive"] == (0, 0)
+    clock.now = 0.05
+    assert not nav.step(car)
+    assert car._last["drive"] == (-500, 500)
+    clock.now = 0.3
+    assert not nav.step(car)  # turn ends; scan begins again
+    clock.now = 0.4
+    assert not nav.step(car)  # scan completes -> start frontier step next tick
+    clock.now = 0.45
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
