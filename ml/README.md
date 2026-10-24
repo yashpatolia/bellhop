@@ -222,6 +222,8 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 
 **Rooms.** Printed markers use `DICT_4X4_250` (15 cm). Configure the venue mapping in the Pi's uncommitted `.env`, for example `BELLHOP_MARKER_ROOMS={"210":"12"}` when physical marker 210 is the backend's room 12. Numeric targets such as `210` address that marker directly; no room-to-marker mapping is embedded in code. Keep the backend resident room, bell button and this deployment mapping aligned.
 
+**Head scan.** While a requested marker is missing, the rover keeps its wheels stopped and sweeps the camera head through `BELLHOP_HEAD_SCAN_PANS`. The Freenove servo client maps selectors 0/1 to PCA9685 channels 8/9 (pan/tilt) and applies a +10-degree calibration offset, so autonomous scans are restricted to the stock-safe pan range 30–150 degrees; tilt is restricted to 80–180 degrees to clear the chassis. The default sweep is 30/90/150 at a 90-degree tilt. Tune the dwell in `.env`, then first run `python -m rover.drive --head-test` with the wheels clear of the floor. A missing marker never makes the rover drive blindly.
+
 **Visit flow** (`rover.speech`):
 1. Find the call: `--call <id>`, or the newest call for `ROBOT_ID` in `assigned` / `robot_en_route`.
 2. Start the visit when the room's marker is 1.0 m away, a facing face is seen for 1 s, or 60 s pass: `POST /calls/{id}/in-visit` (409 "already in visit" counts as success).
