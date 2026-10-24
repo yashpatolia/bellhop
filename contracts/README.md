@@ -49,13 +49,19 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 | `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
 | `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |
 | `GET /residents/{id}/memory?q=&k=` | Memory recall for the voice loop |
-| `POST /residents/{id}/memory {text, tags?, source?, confidence?}` | Add a fact through the memory guard: 201 + fact; 202 `{status:"pending_review"}` when low confidence from a non-staff source; 422 `{detail: reason}` (`too_short`, `too_long`, `clinical_claim`, `duplicate`) |
+| `POST /residents/{id}/memory {text, tags?, source?, confidence?, quote?, call_id?, at?}` | Add a fact through the memory guard: 201 + fact; 202 `{status:"pending_review"}` when low confidence from a non-staff source; 422 `{detail: reason}` (`too_short`, `too_long`, `clinical_claim`, `duplicate`). A duplicate also counts the existing fact as heard again (`times_seen`, `last_confirmed`). `at` dates a history import. The first tag is the fact's kind (`like`, `dislike`, `person`, `routine`, `health`, `style`, `event`) |
+| `GET /residents/{id}/memory/all` | Every stored fact with its provenance: `source`, `confidence`, `quote`, `call_id`, `times_seen`, `last_confirmed`, `created_at` |
 | `GET /residents/{id}/memory/pending` | Facts waiting for nurse review |
 | `POST /residents/{id}/memory/pending/{pid}/approve` / `reject` | Approve (returns the fact) or drop a pending fact; unknown id 404 |
 | `DELETE /residents/{id}/memory/{fact_id}` | Forget one fact (204, unknown 404) |
 | `DELETE /residents/{id}/memory` | Forget everything for the resident: `{removed: n}` |
 | `POST /residents/{id}/care {kind, value?, note?, call_id?}` | Record `mood`/`pain` (value 1 to 5 required), `drink`, `repeat_question`. Three days of pain in a row opens a PAIN flag |
+| `GET /residents/{id}/care/history?days=14&kind=` | Recorded mood, pain and drink entries, oldest first. `POST .../care` also takes an optional `at` to date a reading |
 | `GET /residents/{id}/care/summary` | `{pain_streak_days, mood_lower_than_usual, drinks_today, repeat_questions_today}` |
+| `GET /residents/{id}/medical`, `PUT /residents/{id}/medical` | Staff-entered medical history `{conditions:[{name,since,note}], allergies, medicines, mobility, diet, last_review, reviewed_by}`. PUT replaces it |
+| `POST /residents/{id}/medical/entries {category, text, since?, reviewed_by?}` | Add one reviewed entry (`condition`, `allergy`, `medicine`, `mobility`, `diet`); duplicates are ignored, mobility and diet are replaced. Likes, dislikes, people and routines go to `/memory` (422 here) |
+| `POST /residents/{id}/notes/refine {category, text}` | Tidy a note staff typed. Returns `{category, text, since, notes[]}` and saves nothing. Rule based by default, Claude with `BELLHOP_REFINER=claude` |
+| `POST /calls/import {...}` | Store a finished call from the past (history import for demos): own times, transcript, `by_robot`. Raises no alerts and triggers no learning |
 | `GET /flags?resident_id=&open_only=true` | Flags with a `reason` |
 | `POST /flags/{id}/resolve` | Resolve a flag |
 | `GET` / `PUT /residents/{id}/preferences` | `{hard_of_hearing, quiet_mode, night_mode, favourite_drink}`; PUT merges the given fields |
@@ -75,6 +81,7 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 Unknown call, alert, flag, pending fact or resident gives 404.
 
 ## Meaning of the values
+- **`Call.resolved_by_robot`** is set when the call is resolved: `true` only if the robot handled it and no nurse was needed.
 - **`urgency`** is an integer: 1 chat, 2 routine, 3 nurse soon, 4 emergency. It never goes down on a call.
 - **`status`** moves `ringing, assigned, (robot_en_route), in_visit, resolved, closed`. A call scored 3 or 4 becomes `escalated`, then `nurse_acked` after the nurse acknowledges.
 - **`Alert.nurse_id`** is `null` for a broadcast: urgency 4 goes to every nurse on shift. Urgency 3 names one nurse.

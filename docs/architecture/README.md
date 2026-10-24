@@ -17,6 +17,7 @@
 | [12-research-dev-tooling.md](12-research-dev-tooling.md) | You want the dev tooling research (research note; may still be in progress) |
 | [13-research-policy-and-triage.md](13-research-policy-and-triage.md) | You want research on a data-driven policy layer, clinical alignment and paraphrase recall |
 | [14-research-deploy-and-connectivity.md](14-research-deploy-and-connectivity.md) | You want research on deployment and connectivity (Pi to backend, dashboard hosting) |
+| [16-simulator-and-environments.md](16-simulator-and-environments.md) | You are running the stack, adding example data, or connecting the dashboard to a backend |
 | [15-memory-learning.md](15-memory-learning.md) | You are working on how Bellhop learns facts about residents from conversations, and how accuracy is measured |
 
 Scope: the `backend/` package `bellhop`. Robot firmware (Jeremy), triage model (Gordon) and React dashboard (Yash) integrate through the interfaces in the module map.
