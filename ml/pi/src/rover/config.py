@@ -153,18 +153,10 @@ BRAIN_MAX_TOOL_ROUNDS = 3
 BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before giving up
 
 # Triage
-TRIAGE_TIMEOUT_S = 6.0  # overall budget for both models, retry included
+TRIAGE_TIMEOUT_S = 6.0  # overall budget for Claude and its retry
 TRIAGE_ATTEMPT_S = 3.0  # one Claude call; a failure inside the budget gets one retry
 TRIAGE_RETRY_MIN_S = 1.0  # no retry unless at least this much budget is left
-JEV_TIMEOUT_S = 1.5  # Jev answers in ~0.1-0.5 s; the rest of TRIAGE_TIMEOUT_S is Claude's
-# Jev first, for triage and for each reply's tone tag: at or above this it decides alone, below it
-# (or slow, failing, no key) Claude decides. Keep it above the backend's 0.6 low-confidence bump.
-JEV_MIN_CONFIDENCE = 0.7
-JEV_TONE_WAIT_S = (
-    0.2  # the first sentence waits at most this long for Jev's tone, then Claude's tag
-)
-JEV_MODEL = "jev-latest"
-JEV_ONLY_CONFIDENCE = 0.5  # below the backend's 0.6, so it bumps urgency one level
+LOCAL_ONLY_CONFIDENCE = 0.5  # below the backend's 0.6, so it bumps urgency one level
 # Local scorer (ONNX embedding + linear head, raise-only). Needs rover/triage/local_head.npz and
 # the embedding model in MODELS_DIR/embed (python -m rover.triage.local); without them: no-op.
 LOCAL_TRIAGE = os.environ.get("LOCAL_TRIAGE", "0") == "1"  # off by default: see README

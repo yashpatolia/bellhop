@@ -609,18 +609,3 @@ def test_the_reply_tone_shows_on_the_eyes_and_always_calm_wins(tmp_path, monkeyp
     assert visit.eyes.expression(time.monotonic()) == "calm"
     visit.handle_turn("hello", "flux", block(1), 0.5, time.monotonic(), None, True)
     assert visit.eyes.base == "listening"  # thinking only while the reply is being written
-
-
-def test_a_sure_jev_tone_beats_claudes_tag_on_the_voice_and_the_eyes(tmp_path, monkeypatch):
-    backend = FakeBackend()
-    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())  # FakeBrain says [calm]
-    tones = []
-    visit.voice.say = lambda sentence, tone: tones.append(tone)
-    visit.eyes.feel = tones.append
-    visit.ask_tone = lambda transcript: ("excited", 0.9)
-    visit.handle_turn("I won at bingo", "flux", block(1), 0.5, time.monotonic(), None, True)
-    assert set(tones) == {"excited"}
-    tones.clear()
-    visit.ask_tone = lambda transcript: ("excited", 0.3)  # unsure: Claude's tag
-    visit.handle_turn("I won at bingo", "flux", block(1), 0.5, time.monotonic(), None, True)
-    assert set(tones) == {"calm"}

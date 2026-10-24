@@ -58,7 +58,6 @@ def test_keys_are_reported_by_presence_only():
     by_name = {r.name: r for r in results}
     assert by_name["key ANTHROPIC_API_KEY"].status == doctor.OK
     assert by_name["key DEEPGRAM_API_KEY"].status == doctor.FAIL
-    assert by_name["key TYPESAFE_API_KEY"].status == doctor.SKIPPED  # optional
     assert secret not in repr(results)
 
 

@@ -28,7 +28,6 @@ flowchart LR
   voice -->|"/calls/{id}/in-visit, /turns, /score, /resolve"| backend
   voice <-->|audio, text| flux["Deepgram Flux (cloud)"]
   voice <-->|replies, triage| claude["Claude (cloud)"]
-  voice <-->|triage| jev["Jev / TypeSafe (cloud)"]
 ```
 
 ## Quick start on the Mac
@@ -114,11 +113,52 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 | `BELLHOP_API` | `http://127.0.0.1:8000` | `http://<laptop-tailscale-ip>:8000` |
 | `PI_SERVER_URL` | unused | `http://127.0.0.1:<robot server port>` |
 | `ROBOT_ID` | `robot_1` | `robot_1` |
-| `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY` | same keys | same keys |
+| `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY` | same keys | same keys |
 | `MIC_NAME`, `SPEAKER_NAME` | empty (default device) | part of the USB device names (required: the default is HDMI) |
 | `BELLHOP_API_KEY` | only if the backend sets one | same |
 
 On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:<robot server port>`.
+
+### Safe stationary conversation test
+
+Use this before any drive test. It exercises the complete voice path—bell call, Moonshine
+transcription, Claude reply, Piper playback and backend triage—while deliberately preventing all
+drive commands. The backend must be started with `BELLHOP_ROBOT_URL` **unset** for this test.
+
+On the Pi, first confirm that the configured backend answers. `API` is read from `.env`, so no
+machine address is baked into code or the command:
+
+```bash
+cd ~/ml
+API=$(sed -n 's/^BELLHOP_API=//p' .env | tail -n 1)
+curl --max-time 5 -sS "$API/health"
+```
+
+Stop an existing speech listener before starting a manual one. This prevents two processes from
+competing for the microphone:
+
+```bash
+sudo systemctl stop bellhop-speech 2>/dev/null || true
+pkill -f '[r]over\.speech' 2>/dev/null || true
+```
+
+Then create one demo call and start the voice process. `--call` forces an immediate greeting for
+that call, `--no-face` avoids requiring the camera during the audio test, and `--no-status` avoids
+status polling. The temporary `PI_SERVER_URL` points to an unused local port only for this command;
+it prevents the normal end-of-visit `/go_to` home command from reaching `rover.drive`.
+
+```bash
+CALL_ID=$(curl -fsS -X POST "$API/calls" \
+  -H 'Content-Type: application/json' \
+  -d '{"room":"12"}' | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+echo "Call: $CALL_ID"
+PI_SERVER_URL=http://127.0.0.1:9 .venv/bin/python -m rover.speech \
+  --call "$CALL_ID" --room 12 --no-face --no-status
+```
+
+Wait for the greeting before speaking. Press `Ctrl-C` to stop the voice process. Restore the usual
+`PI_SERVER_URL` from `.env` only when the drive safety checklist has passed and a physical drive
+test is intended.
 
 ## Integration
 
@@ -180,8 +220,7 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
 | `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
-| `JEV_MIN_CONFIDENCE`, `JEV_TIMEOUT_S` | 0.7, 1.5 | Jev goes first for triage and for each reply's tone tag (so the voice and OLED eyes). At or above 0.7 it decides alone; below it, slow (1.5 s), failing or with no `TYPESAFE_API_KEY`, Claude decides (triage: higher urgency wins) |
-| `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only an unsure Jev answers (Claude failed): bumps urgency one level |
+| `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
 | `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
@@ -279,4 +318,4 @@ Work from the bottom layer up.
 | Silero VAD via `pysilero-vad` | MIT |
 | Freenove 4WD car drivers (if used) | CC BY-NC-SA 3.0 |
 
-Cloud services: Deepgram Flux, Claude (Anthropic), Jev (TypeSafe). Prototype only: no diagnosis, no real patient data.
+Cloud services: Deepgram Flux and Claude (Anthropic). Prototype only: no diagnosis, no real patient data.
