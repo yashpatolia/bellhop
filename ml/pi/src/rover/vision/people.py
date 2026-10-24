@@ -44,19 +44,23 @@ def choose_target(tracks: dict[int, Box], target: Target | None, now: float) -> 
 
 class PersonTracker:
     def __init__(self) -> None:
-        from ultralytics import YOLO
-
         model_path = config.YOLO_MODEL
         if not model_path.exists():
-            model_path = config.MODELS_DIR / "yolo26n.pt"
-            print(
-                f"fallback: {config.YOLO_MODEL} missing (run scripts/download_models.py), "
-                f"using {model_path}"
-            )
+            # Passing a missing path to Ultralytics starts an implicit network download. A
+            # canceled download can also leave a partial .pt file, so only accept the prepared
+            # NCNN export from the explicit setup step.
+            print("vision: no local NCNN person model; person and face detection disabled")
+            self.model = None
+            self.target = None
+            return
+        from ultralytics import YOLO
+
         self.model = YOLO(str(model_path), task="detect")
         self.target: Target | None = None
 
     def update(self, frame: np.ndarray, now: float) -> dict | None:
+        if self.model is None:
+            return None
         results = self.model.track(
             frame,
             persist=True,

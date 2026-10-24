@@ -224,6 +224,8 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 
 **Head scan.** While a requested marker is missing, the rover keeps its wheels stopped and sweeps the camera head through the Cartesian product of `BELLHOP_HEAD_SCAN_PANS` and `BELLHOP_HEAD_SCAN_TILTS`. The Freenove servo client maps selectors 0/1 to PCA9685 channels 8/9 (pan/tilt) and applies a +10-degree calibration offset, so autonomous scans are restricted to the stock-safe pan range 30–150 degrees; tilt is restricted to 80–180 degrees to clear the chassis. The default sweep is pan 30/90/150 at tilt 80/90/110. Tune the dwell in `.env`, then first run `python -m rover.drive --head-test` with the wheels clear of the floor. A missing marker never makes the rover drive blindly.
 
+**Offline marker mode.** ArUco room detection does not need YOLO or YuNet. If either local person/face model is absent, `rover.vision` logs that those optional detections are disabled and continues with camera, markers, UDP and snapshots; it never starts an implicit model download.
+
 **Visit flow** (`rover.speech`):
 1. Find the call: `--call <id>`, or the newest call for `ROBOT_ID` in `assigned` / `robot_en_route`.
 2. Start the visit when the room's marker is 1.0 m away, a facing face is seen for 1 s, or 60 s pass: `POST /calls/{id}/in-visit` (409 "already in visit" counts as success).
