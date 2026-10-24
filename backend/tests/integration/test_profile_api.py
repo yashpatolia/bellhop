@@ -165,3 +165,17 @@ def test_refine_tidies_without_saving(client):
 def test_refine_rejects_an_empty_note(client):
     r = client.post(f"/residents/{R}/notes/refine", json={"category": "like", "text": "   "})
     assert r.status_code == 422
+
+
+def test_a_dated_fact_keeps_its_dates_and_repeats_move_last_confirmed(client):
+    body = {
+        "text": "Plays chess, prefers white",
+        "source": "resident",
+        "at": "2026-10-01T10:00:00Z",
+    }
+    assert client.post(f"/residents/{R}/memory", json=body).status_code == 201
+    client.post(f"/residents/{R}/memory", json={**body, "at": "2026-10-20T10:00:00Z"})
+    [fact] = [f for f in client.get(f"/residents/{R}/memory/all").json() if "chess" in f["text"]]
+    assert fact["created_at"].startswith("2026-10-01")
+    assert fact["last_confirmed"].startswith("2026-10-20")
+    assert fact["times_seen"] == 2

@@ -3522,6 +3522,18 @@
               }
             ],
             "title": "Call Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           }
         },
         "type": "object",

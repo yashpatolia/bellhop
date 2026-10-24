@@ -98,6 +98,7 @@ class MemoryIn(BaseModel):
     confidence: float = Field(default=1.0, ge=0, le=1, allow_inf_nan=False)
     quote: str | None = Field(default=None, max_length=500)
     call_id: str | None = Field(default=None, max_length=64)
+    at: datetime | None = None  # history import: when it was learned or heard again
 
 
 class CareIn(BaseModel):
@@ -458,6 +459,7 @@ def create_app(container: Container) -> FastAPI:
             body.confidence,
             quote=body.quote,
             call_id=body.call_id,
+            at=body.at,
         )
         if isinstance(result, Accepted):
             return JSONResponse(status_code=201, content=jsonable_encoder(result.fact))

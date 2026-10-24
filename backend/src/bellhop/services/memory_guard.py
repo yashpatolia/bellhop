@@ -6,6 +6,7 @@ import re
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from itertools import count
 from typing import Protocol
 
@@ -89,12 +90,14 @@ class MemoryGuard:
         confidence: float = 1.0,
         quote: str | None = None,
         call_id: str | None = None,
+        at: datetime | None = None,
     ) -> Result:
+        """`at` dates a history import: when the fact was learned, or heard again."""
         text = text.strip()
         with self._lock:
             if (rejected := self._check(resident_id, text)) is not None:
                 if rejected.reason == "duplicate":
-                    self._reconfirm(resident_id, text)
+                    self._reconfirm(resident_id, text, at)
                 return rejected
             if source != "staff" and confidence < MIN_CONFIDENCE:
                 pid = f"pending-{next(self._seq)}"
@@ -111,6 +114,7 @@ class MemoryGuard:
                     confidence=confidence,
                     quote=quote,
                     call_id=call_id,
+                    at=at,
                 )
             )
 
@@ -165,12 +169,14 @@ class MemoryGuard:
         """Every stored fact for the resident, oldest first."""
         return self._index.facts(resident_id)
 
-    def _reconfirm(self, resident_id: str, text: str) -> None:
+    def _reconfirm(self, resident_id: str, text: str, at: datetime | None = None) -> None:
         """Hearing a known fact again raises its times_seen and refreshes last_confirmed."""
         for fact in self._index.facts(resident_id):
             if _similar(text, fact.text):
                 fact.times_seen += 1
-                fact.last_confirmed = self._memory.now()
+                fact.last_confirmed = max(
+                    filter(None, [fact.last_confirmed, at or self._memory.now()])
+                )
                 return
 
     def forget(self, resident_id: str, fact_id: str) -> bool:

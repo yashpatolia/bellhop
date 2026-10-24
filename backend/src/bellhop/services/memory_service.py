@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 
 from bellhop.domain import MemoryFact
 from bellhop.ports import Clock, IdGenerator, MemoryIndex
@@ -24,8 +25,9 @@ class MemoryService:
         confidence: float = 1.0,
         quote: str | None = None,
         call_id: str | None = None,
+        at: datetime | None = None,
     ) -> MemoryFact:
-        now = self._clock.now()
+        now = at or self._clock.now()
         fact = MemoryFact(
             id=self._ids.new_id("fact"),
             resident_id=resident_id,
