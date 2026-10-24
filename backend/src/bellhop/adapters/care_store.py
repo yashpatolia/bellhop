@@ -93,6 +93,19 @@ class _Medical:
         self._items[record.resident_id] = record.model_copy(deep=True)
 
 
+class _Deliveries:
+    """When each resident last had their family voice notes read out."""
+
+    def __init__(self) -> None:
+        self._items: dict[str, datetime] = {}
+
+    def get(self, resident_id: str) -> datetime | None:
+        return self._items.get(resident_id)
+
+    def set(self, resident_id: str, at: datetime) -> None:
+        self._items[resident_id] = at
+
+
 class InMemoryCareStore:
     def __init__(self) -> None:
         self.entries = _Entries()
@@ -100,3 +113,4 @@ class InMemoryCareStore:
         self.preferences = _Preferences()
         self.messages = _Messages()
         self.medical = _Medical()
+        self.deliveries = _Deliveries()

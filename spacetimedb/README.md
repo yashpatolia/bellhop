@@ -1,10 +1,22 @@
 # Bellhop SpacetimeDB module
 
-TypeScript module (SpacetimeDB 2.x) holding Bellhop's state. Tables: `call`, `call_turn`,
-`resident`, `nurse`, `robot`, `alert`, `visit`, `memory_fact` (all public). Reducers are
-full-row upserts: `save_call`, `append_turn`, `save_resident`, `save_nurse`, `save_robot`,
-`save_alert`, `save_visit`, `save_memory_fact`. Column order equals reducer argument order and
-must match `backend/src/bellhop/adapters/spacetimedb_store.py` (`COLUMNS`).
+TypeScript module (SpacetimeDB 2.x) holding Bellhop's state (all tables public).
+
+| Tables | Held by |
+| --- | --- |
+| `call`, `call_turn`, `resident`, `nurse`, `robot`, `alert`, `visit` | `spacetimedb_store.py` (`COLUMNS`) |
+| `memory_fact`, `pending_fact`, `care_entry`, `flag`, `preferences`, `family_message`, `family_delivery`, `medical_record` | `spacetimedb_data.py` (`DATA_COLUMNS`) |
+
+Reducers are full-row upserts (`save_<table>`, and `append_turn` for transcript lines) plus
+`delete_memory_fact`, `delete_resident_memory` and `delete_pending_fact`. Column order equals
+reducer argument order and must match the Python lists; `backend/tests/unit/test_stdb_module_sync.py`
+reads this file and fails if they drift.
+
+**After changing this module, publish it again.** A backend older or newer than the published
+module keeps working: if the memory and care tables are missing it logs a warning and holds that data
+in memory only, until the module is published. The change that added `resolved_by_robot` to `call`
+and the memory and care tables needs `--delete-data` on the first publish onto an existing
+database (it wipes the rows).
 
 Status: see "Verification status" at the bottom.
 

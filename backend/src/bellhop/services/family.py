@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, time
+from typing import Any
 
 from bellhop.domain.care import CareEntry, EntryKind, FamilyMessage, MessageDirection
 from bellhop.ports import CallRepository, Clock, IdGenerator, ResidentRepository
@@ -31,6 +32,17 @@ def _drink_name(note: str) -> str | None:
     return None
 
 
+class _Deliveries:
+    def __init__(self) -> None:
+        self._items: dict[str, datetime] = {}
+
+    def get(self, resident_id: str) -> datetime | None:
+        return self._items.get(resident_id)
+
+    def set(self, resident_id: str, at: datetime) -> None:
+        self._items[resident_id] = at
+
+
 class FamilyService:
     def __init__(
         self,
@@ -40,6 +52,7 @@ class FamilyService:
         care: CareRepository,
         clock: Clock,
         ids: IdGenerator,
+        deliveries: Any = None,
     ) -> None:
         self._messages = messages
         self._residents = residents
@@ -47,7 +60,8 @@ class FamilyService:
         self._care = care
         self._clock = clock
         self._ids = ids
-        self._delivered: dict[str, datetime] = {}
+        # Delivery times live in a repository with get(resident_id) and set(resident_id, at).
+        self._deliveries = deliveries if deliveries is not None else _Deliveries()
 
     def _add(self, resident_id: str, text: str, direction: MessageDirection) -> FamilyMessage:
         msg = FamilyMessage(
@@ -67,7 +81,7 @@ class FamilyService:
         return self._add(resident_id, text, MessageDirection.FROM_RESIDENT)
 
     def pending_for_resident(self, resident_id: str) -> list[FamilyMessage]:
-        last = self._delivered.get(resident_id)
+        last = self._deliveries.get(resident_id)
         return [
             m
             for m in self._messages.list(resident_id)
@@ -75,7 +89,7 @@ class FamilyService:
         ]
 
     def mark_delivered(self, resident_id: str) -> None:
-        self._delivered[resident_id] = self._clock.now()
+        self._deliveries.set(resident_id, self._clock.now())
 
     def daily_postcard(self, resident_id: str, now: datetime) -> list[str]:
         start = datetime.combine(now.date(), time.min, tzinfo=now.tzinfo)
