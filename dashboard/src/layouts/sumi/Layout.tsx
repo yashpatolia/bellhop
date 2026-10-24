@@ -1,14 +1,15 @@
 import type { LayoutProps } from '../registry'
 import { InsightsView } from '../../views/InsightsView'
 import { clock } from '../../lib'
-import { Activity, Detail, Earlier, Nav, Numbers, Robots, Summary, useBoard } from '../shared'
+import { Activity, ConnectionBanner, Detail, Earlier, Nav, Numbers, Robots, Summary } from '../shared'
+import { useBoard } from '../board'
 import { ResidentsPage } from './ResidentsPage'
 import './layout.css'
 
-export default function Layout({ data, view, preview, residentId, callId }: LayoutProps) {
+export default function Layout({ data, view, residentId, callId }: LayoutProps) {
   const { selected, pick } = useBoard(data)
   return (
-    <div className={'lx lx-sumi' + (preview ? ' screen' : '')} data-theme="sumi">
+    <div className="lx lx-sumi" data-theme="sumi">
       <div className="sm-shell">
         <header className="sm-top">
           <a className="sm-brand" href="#/">
@@ -17,6 +18,7 @@ export default function Layout({ data, view, preview, residentId, callId }: Layo
           <Nav view={view} />
           <span className="sm-clock">{clock(data.now)}</span>
         </header>
+        <ConnectionBanner data={data} />
         {view === 'live' ? (
           <>
             <section className="sm-first">

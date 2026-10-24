@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createSource, useLiveData } from './data/source'
-import { Screen } from './components/Screen'
-import type { View } from './components/Header'
+import Layout from './layouts/sumi/Layout'
+import type { View } from './layouts/registry'
 
 const THEME = 'sumi'
 
@@ -26,5 +26,5 @@ export default function App() {
 
   const [page, residentId, callId] = route.split('/')
   const view: View = page === 'insights' ? 'insights' : page === 'residents' ? 'residents' : 'live'
-  return <Screen data={data} view={view} theme={THEME} residentId={residentId || undefined} callId={callId || undefined} />
+  return <Layout data={data} view={view} residentId={residentId || undefined} callId={callId || undefined} />
 }

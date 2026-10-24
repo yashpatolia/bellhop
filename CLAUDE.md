@@ -5,7 +5,7 @@ Bellhop is a small AI robot that answers the call bell in care homes. Plan and r
 ## Working rules
 
 - Build top down: get a working MVP first, then refine.
-- Use mock data until the real source exists. All dashboard data goes through `dashboard/src/data/source.ts`, so swapping in SpacetimeDB later only changes that file.
+- The dashboard has no mock data of its own. It reads the backend only (`dashboard/src/data/store.ts`, wire format mapped in `adapt.ts`). Example data lives in `simulator/`, which feeds the backend over its API; run `scripts/dev.sh mock` or `scripts/dev.sh empty`.
 - NEVER use em dashes (or en dashes) in code, copy, comments or docs.
 - Fill the whole page width. No narrow centred max-width layouts.
 
