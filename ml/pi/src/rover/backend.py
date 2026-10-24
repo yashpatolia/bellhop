@@ -7,16 +7,18 @@ so a backend outage never crashes the visit loop.
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 import httpx
 
-from rover import config
+from rover import config, obslog
 
 ACTIVE_STATUSES = {"assigned", "robot_en_route"}
 TURN_MAX_CHARS = 2000  # TurnIn.text limit in the backend
 CATEGORY_MAX_CHARS = 64  # ScoreIn.category limit in the backend
 MEMORY_QUERY_MAX_CHARS = 500  # GET /memory q limit in the backend
+CALL_PATH = re.compile(r"^/calls/([^/]+)")
 
 
 def _clamp(value: float, low: float, high: float, if_not_finite: float) -> float:
@@ -41,11 +43,26 @@ class Backend:
         )
 
     def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response | None:
-        try:
-            return self._http.request(method, path, **kwargs)
-        except httpx.HTTPError as exc:
-            print(f"backend: {method} {path} failed: {type(exc).__name__}: {exc}")
-            return None
+        match = CALL_PATH.match(path)
+        call_id = match.group(1) if match else None
+        response: httpx.Response | None = None
+        error: str | None = None
+        with obslog.Timer() as timer:
+            try:
+                response = self._http.request(method, path, **kwargs)
+            except httpx.HTTPError as exc:
+                error = type(exc).__name__
+                print(f"backend: {method} {path} failed: {error}: {exc}")
+        obslog.event(
+            "backend.request",
+            method=method,
+            path=path,
+            call_id=call_id,
+            latency_ms=timer.ms,
+            status=response.status_code if response is not None else None,
+            error=error,
+        )
+        return response
 
     def _json(self, method: str, path: str, **kwargs: Any) -> Any:
         response = self._send(method, path, **kwargs)
@@ -121,6 +138,13 @@ class Backend:
             "summary": summary[: config.SUMMARY_MAX_CHARS],
             "confidence": _clamp(confidence, 0.0, 1.0, if_not_finite=0.0),
         }
+        obslog.event(
+            "backend.score",
+            call_id=call_id,
+            urgency=body["urgency"],
+            category=body["category"],
+            confidence=body["confidence"],
+        )
         return self._dict("POST", f"/calls/{call_id}/score", json=body)
 
     def triage_failed(self, call_id: str) -> dict | None:

@@ -14,7 +14,7 @@ import time
 import cv2
 import numpy as np
 
-from rover import config
+from rover import config, safety
 from rover.vision.camera import open_camera
 from rover.vision.faces import FaceFinder
 from rover.vision.markers import MarkerFinder
@@ -68,17 +68,19 @@ def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)  # logs piped to a file survive a kill
     print(f"vision: OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS')}")
 
+    safety.exit_cleanly_on_signals()  # SIGTERM must unwind to the finally that closes the camera
     camera = open_camera(parse_source(args.source))
-    print(f"vision: camera backend {camera.backend}")
-    tracker = PersonTracker()
-    faces = FaceFinder()
-    markers = MarkerFinder()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    failed_ports: set[int] = set()
-
-    frames, window_start, fps = 0, time.monotonic(), 0.0
-    last_jpg = 0.0
+    sock = None
     try:
+        print(f"vision: camera backend {camera.backend}")
+        tracker = PersonTracker()
+        faces = FaceFinder()
+        markers = MarkerFinder()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        failed_ports: set[int] = set()
+
+        frames, window_start, fps = 0, time.monotonic(), 0.0
+        last_jpg = 0.0
         while True:
             frame = camera.read()
             if frame is None:
@@ -123,7 +125,8 @@ def main() -> None:
         print("vision: stopped by Ctrl+C")
     finally:
         camera.close()
-        sock.close()
+        if sock is not None:
+            sock.close()
         if args.show:
             cv2.destroyAllWindows()
 

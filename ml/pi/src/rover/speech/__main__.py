@@ -13,17 +13,19 @@ import sys
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 
-from rover import config
+from rover import config, obslog, safety
 from rover.agent.brain import WAIT, Brain
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
 from rover.agent.tools import ToolContext, post_pi
 from rover.backend import Backend
+from rover.speech import ledguard
 from rover.speech.flux import FluxStream
 from rover.speech.gates import FaceGate, Gates, VisionListener
 from rover.speech.mic import Mic
@@ -32,6 +34,7 @@ from rover.speech.tts import Voice
 from rover.speech.visit import (
     TurnLog,
     backfill,
+    drive_arrived,
     drop_reason,
     is_goodbye,
     messages_with,
@@ -43,9 +46,13 @@ from rover.speech.visit import (
     stt_fallback_due,
     urgency_rank,
 )
+from rover.status import StatusReporter, fetch_snapshot
 from rover.triage.triage import triage_and_post
 
 FRAME_S = 1 / config.CAMERA_FPS  # check the start conditions once per vision frame
+RESOLVE_TRIES = 4  # a resolve the backend did not accept is tried this many times
+RESOLVE_RETRY_S = 0.5  # first wait between tries; doubles each time
+DRIVE_CHECK_S = 1.0  # how often the drive server is asked whether the robot has arrived
 DRAFT_POLL_S = 0.05  # how often a confirmed draft is checked for its next sentence
 ZEROS = np.zeros(config.BLOCK_SAMPLES, dtype=np.int16)
 QUIET_GOODBYE = "I'll let you rest now. Press your bell any time you need me."
@@ -53,6 +60,7 @@ NURSE_COMING = "A nurse is on the way, I'll stay with you."
 NO_MIC = "Sorry, I can't hear right now, so I've asked a nurse to come."
 FINISHED = {"resolved", "closed"}
 ENTER = threading.Event()  # Enter on stdin: the nurse has arrived
+TriageFn = Callable[[Backend, str, list[tuple[str, str]], list[str]], "dict | None"]
 
 
 def read_enter() -> None:
@@ -86,6 +94,8 @@ class Visit:
         stt: OfflineSTT,
         listener: VisionListener,
         face: FaceGate,
+        gates: Gates | None = None,
+        triage_fn: TriageFn | None = None,
     ) -> None:
         self.call = call
         self.call_id: str = call["id"]
@@ -93,7 +103,8 @@ class Visit:
         self.backend, self.brain, self.voice, self.stt = backend, brain, voice, stt
         self.listener, self.face = listener, face
         self.tool_ctx = ToolContext(backend, self.call_id)
-        self.gates = Gates()
+        self.gates = gates if gates is not None else Gates()
+        self.triage_fn = triage_fn  # None = the real triage_and_post (looked up when used)
         self.mic = Mic()
         self.flux: FluxStream | None = None
         self.flux_ok = False
@@ -144,10 +155,16 @@ class Visit:
         self.voice.settings = self.backend.speech_settings(resident_id)
         self.risk_flags = list((self.resident or {}).get("risk_flags") or [])
 
-    def run(self) -> None:
-        if not self.backend.in_visit(self.call_id):
+    def begin(self) -> None:
+        """Tell the backend the robot is with the resident (starts its response-time clock)."""
+        accepted = self.backend.in_visit(self.call_id)
+        obslog.event("visit.in_visit", call_id=self.call_id, room=self.room, accepted=accepted)
+        if not accepted:
             print("visit: in-visit was not accepted; talking anyway")
         self.load_context()
+
+    def run(self) -> None:
+        self.begin()
         try:
             self.mic.start()
         except Exception:
@@ -155,23 +172,24 @@ class Visit:
             self.say_line(NO_MIC)
             self.backend.triage_failed(self.call_id)
             raise SystemExit(1) from None
-        name = (self.resident or {}).get("name", "")
-        self.flux = FluxStream([config.ROBOT_NAME, name], self.on_flux)
-        self.flux_ok = self.flux.start()
-        if not self.flux_ok:
-            print("fallback: no Flux this visit; every turn goes to Moonshine")
-        self.submit(self.greet)
         try:
+            name = (self.resident or {}).get("name", "")
+            self.flux = FluxStream([config.ROBOT_NAME, name], self.on_flux)
+            self.flux_ok = self.flux.start()
+            if not self.flux_ok:
+                print("fallback: no Flux this visit; every turn goes to Moonshine")
+            self.submit(self.greet)
             while not (self.done and self.idle()):
                 block = self.mic.read()
                 if block is not None:
                     self.hear(block, time.monotonic())
                 self.handle_events()
                 self.check_timers(time.monotonic())
-        finally:
+        finally:  # also on SIGTERM (SystemExit) or a crash: the mic must not stay open
             self.phase = "over"
             self.cancel_draft()
-            self.flux.close()
+            if self.flux is not None:
+                self.flux.close()
             self.mic.stop()
             self.pool.shutdown(wait=False, cancel_futures=True)
         print(f"visit: call {self.call_id} done")
@@ -343,6 +361,9 @@ class Visit:
             print(f"visit: dropped turn {text!r}: the call is already resolved")
             return
         print(f"resident: {text}  ({source})")
+        obslog.event(
+            "visit.turn", call_id=self.call_id, room=self.room, source=source, chars=len(text)
+        )
         self.history.add("resident", text)
         self.backend.add_turn(self.call_id, "resident", text)  # before triage reads the transcript
         self.start_triage()
@@ -434,9 +455,17 @@ class Visit:
         self.triage_threads.append(thread)
 
     def triage(self, transcript: list[tuple[str, str]]) -> None:
-        call = triage_and_post(self.backend, self.call_id, transcript, self.risk_flags)
+        triage_fn = self.triage_fn or triage_and_post
+        call = triage_fn(self.backend, self.call_id, transcript, self.risk_flags)
         if call is None:
             return  # the backend client printed why
+        obslog.event(
+            "visit.triaged",
+            call_id=self.call_id,
+            urgency=call.get("urgency"),
+            category=call.get("category"),
+            call_status=call.get("status"),
+        )
         with self.lock:
             # answers can come back out of order; the backend never lowers urgency, so keep the top
             if urgency_rank(call) >= urgency_rank(self.latest_call):
@@ -475,6 +504,7 @@ class Visit:
             urgency = call.get("urgency") if call else None
         decision = resolve_decision(urgency, triaged=bool(self.triage_threads))
         print(f"visit: ending with urgency {urgency} -> {decision}")
+        obslog.event("visit.ending", call_id=self.call_id, urgency=urgency, decision=decision)
         if decision == "robot":
             if quiet:
                 self.say_line(QUIET_GOODBYE)
@@ -484,7 +514,7 @@ class Visit:
                 self.phase = "talk"
                 self.last_activity = time.monotonic()
                 return
-            self.backend.resolve(self.call_id, by_robot=True)
+            self.close_call(by_robot=True)
             self.end()
             return
         self.say_line(NURSE_COMING)
@@ -508,12 +538,34 @@ class Visit:
         else:
             print(f"visit: {'nurse acknowledged' if self.nurse_status else 'Enter pressed'}")
             self.wait_for_triage()  # the backend ignores a score posted after resolve
-            self.backend.resolve(self.call_id, by_robot=False)
+            self.close_call(by_robot=False)
         self.end()
+
+    def close_call(self, by_robot: bool) -> bool:
+        """Resolve the call and make sure it landed: a failed resolve left the call open for good,
+        and the backend keeps a robot with an open call busy, so the robot was lost to dispatch.
+        When it never lands, a robot-closed call is escalated (triage-failed) so a nurse sees it."""
+        wait = RESOLVE_RETRY_S
+        for attempt in range(1, RESOLVE_TRIES + 1):
+            if self.backend.resolve(self.call_id, by_robot=by_robot) is not None:
+                return True
+            latest = self.backend.get_call(self.call_id)  # the answer may only have been lost
+            if latest is not None and latest.get("status") in FINISHED:
+                return True
+            if attempt < RESOLVE_TRIES:
+                print(f"visit: resolve not accepted (try {attempt} of {RESOLVE_TRIES}); retrying")
+                time.sleep(wait)
+                wait *= 2
+        print(f"fallback: could not resolve call {self.call_id}; leaving it for a nurse")
+        obslog.event("visit.resolve_failed", call_id=self.call_id, by_robot=by_robot)
+        if by_robot:
+            self.backend.triage_failed(self.call_id)
+        return False
 
     def end(self) -> None:
         """The call is closed: the visit is over and the robot drives home."""
         self.done = True
+        obslog.event("visit.end", call_id=self.call_id, room=self.room)
         reason = post_pi("/go_to", {"room": config.HOME_ROOM})
         if reason:
             print(f"fallback: could not send the robot home: {reason}")
@@ -533,8 +585,10 @@ def find_call(backend: Backend, call_id: str | None, finished: set[str]) -> dict
         time.sleep(config.CALL_POLL_S)
 
 
-def wait_for_arrival(face: FaceGate, room: str, forced: bool) -> None:
+def wait_for_arrival(face: FaceGate, room: str, forced: bool, check_drive: bool = True) -> None:
     seen_at = time.monotonic()
+    next_drive_check = 0.0
+    at_room = False
     face.reset_facing()  # a timer left from the last visit would start this one at once
     marker_seen = False
     while True:
@@ -543,7 +597,11 @@ def wait_for_arrival(face: FaceGate, room: str, forced: bool) -> None:
         marker_seen = marker_seen or marker_m is not None
         # a face counts only at this room's door, not anyone facing the robot on the way
         facing_s = face.facing_for(now) if marker_seen else 0.0
-        reason = should_start_visit(marker_m, facing_s, now - seen_at, forced)
+        if check_drive and now >= next_drive_check:
+            # the simulated navigator never sees a marker, so the drive server tells us
+            at_room = drive_arrived(fetch_snapshot(), room)
+            next_drive_check = now + DRIVE_CHECK_S
+        reason = should_start_visit(marker_m, facing_s, now - seen_at, forced, at_room)
         if reason == "timeout":
             print(
                 f"fallback: no room marker or facing face after "
@@ -556,22 +614,73 @@ def wait_for_arrival(face: FaceGate, room: str, forced: bool) -> None:
         time.sleep(FRAME_S)
 
 
+def attend(
+    call: dict,
+    room: str,
+    face: FaceGate,
+    make_visit: Callable[[dict, str], Visit],
+    forced: bool,
+    release: Callable[[], object],
+) -> None:
+    """Drive to the room, wait to arrive, run the visit. The LED is kept up while it lasts and
+    set idle when it ends; if it ends abnormally (crash, SIGTERM) `release` also stops the robot,
+    because a dead backend can no longer send idle."""
+    with ledguard.visit_guard(release):
+        wait_for_arrival(face, room, forced=forced)
+        make_visit(call, room).run()
+
+
+def start_status(backend: Backend, disabled: bool = False) -> threading.Thread | None:
+    """Report battery, room and status to the backend every few seconds, in a daemon thread."""
+    if disabled:
+        return None
+    return StatusReporter(backend).start(threading.Event())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bellhop voice: one visit at a time")
     parser.add_argument("--call", help="visit this call id straight away, then exit")
     parser.add_argument("--no-face", action="store_true", help="accept turns without vision")
     parser.add_argument("--room", help="testing: room for the marker check and the greeting")
+    parser.add_argument("--no-status", action="store_true", help="do not report robot status")
+    parser.add_argument(
+        "--script",
+        help="text mode: resident lines from a JSONL file, no mic or audio (see speech.textmode)",
+    )
+    parser.add_argument(
+        "--live-claude",
+        action="store_true",
+        help="with --script: real Claude replies and triage instead of the offline mocks",
+    )
     args = parser.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # logs piped to a file survive a kill
+    obslog.configure("speech")
 
     backend = Backend()
-    brain = Brain()
-    voice = Voice()  # loaded once; each visit sets the resident's speech settings
-    stt = OfflineSTT()
-    listener = VisionListener()
-    listener.start()
-    face = FaceGate(listener, disabled=args.no_face)
+    start_status(backend, disabled=args.no_status)
+    if args.script:
+        from rover.speech import textmode  # text mode only: keeps the audio stack out of its way
+
+        script = textmode.load_script(args.script)
+        face = FaceGate(None, disabled=True)
+
+        def make_visit(call: dict, room: str) -> Visit:
+            return textmode.TextVisit(call, room, backend, script, live_claude=args.live_claude)
+
+    else:
+        brain = Brain()
+        voice = Voice()  # loaded once; each visit sets the resident's speech settings
+        stt = OfflineSTT()
+        listener = VisionListener()
+        listener.start()
+        face = FaceGate(listener, disabled=args.no_face)
+
+        def make_visit(call: dict, room: str) -> Visit:
+            return Visit(call, room, backend, brain, voice, stt, listener, face)
+
     threading.Thread(target=read_enter, daemon=True).start()
+    # SIGTERM/SIGINT/SIGHUP: LED idle and wheels stopped, then exit 0 (finally blocks still run)
+    release = safety.install_motors_off(ledguard.release_robot)
     finished: set[str] = set()
     while True:
         call = find_call(backend, args.call, finished)
@@ -582,8 +691,10 @@ def main() -> None:
             raise SystemExit(1)
         room = args.room or call.get("room") or ""
         print(f"visit: call {call['id']} for room {room} (status {call.get('status')})")
-        wait_for_arrival(face, room, forced=bool(args.call))
-        Visit(call, room, backend, brain, voice, stt, listener, face).run()
+        obslog.event(
+            "visit.assigned", call_id=call["id"], room=room, call_status=call.get("status")
+        )
+        attend(call, room, face, make_visit, bool(args.call), release)
         finished.add(call["id"])  # never revisit a call the backend failed to move on
         if args.call:
             return

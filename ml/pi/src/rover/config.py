@@ -78,6 +78,12 @@ FOLLOW_STOP_HEIGHT = 0.7  # person box taller than this share of the frame -> cl
 FORWARD_DUTY = 1200
 FORWARD_MAX_S = 2.0
 HEARTBEAT_S = 5.0  # PUT /robots/{id}
+# A non-idle LED with no /led command this long goes back to idle. The backend only sends idle when
+# a call ends, so a dead backend would leave "listening" or "emergency" lit for good. A live visit
+# re-sends its LED four times per hold, so it never expires while someone is being looked after.
+LED_HOLD_S = float(os.environ.get("LED_HOLD_S", "120"))
+LED_KEEPALIVE_S = LED_HOLD_S / 4
+POWER_CACHE_S = 2.0  # vcgencmd and iw are subprocesses; /snapshot is polled more often than this
 BATTERY_EMPTY_V = 6.4  # two 18650 cells in series
 BATTERY_FULL_V = 8.4
 LED_COLORS = {
@@ -144,11 +150,20 @@ BRAIN_MAX_TOOL_ROUNDS = 3
 BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before giving up
 
 # Triage
-TRIAGE_TIMEOUT_S = 3.0
+TRIAGE_TIMEOUT_S = 6.0  # overall budget for both models, retry included
+TRIAGE_ATTEMPT_S = 3.0  # one Claude call; a failure inside the budget gets one retry
+TRIAGE_RETRY_MIN_S = 1.0  # no retry unless at least this much budget is left
+JEV_GRACE_S = 1.0  # once Claude has answered, wait this long at most for Jev
 JEV_MODEL = "jev-latest"
 JEV_ONLY_CONFIDENCE = 0.5  # below the backend's 0.6, so it bumps urgency one level
+# Local scorer (ONNX embedding + linear head, raise-only). Needs rover/triage/local_head.npz and
+# the embedding model in MODELS_DIR/embed (python -m rover.triage.local); without them: no-op.
+LOCAL_TRIAGE = os.environ.get("LOCAL_TRIAGE", "0") == "1"  # off by default: see README
+LOCAL_HEAD = Path(__file__).parent / "triage" / "local_head.npz"
+LOCAL_EMBED_DIR = MODELS_DIR / "embed"
+LOCAL_MIN_CONFIDENCE = 0.5  # a local score below this is ignored
 SUMMARY_MAX_CHARS = 300
-TRIAGE_EFFORT = "low"  # has to answer inside TRIAGE_TIMEOUT_S
+TRIAGE_EFFORT = "low"  # has to answer inside TRIAGE_ATTEMPT_S
 TRIAGE_MAX_TOKENS = 1024  # room for any thinking plus the small JSON answer
 
 # Visit

@@ -15,6 +15,7 @@ from rover.speech.gates import FaceGate
 from rover.speech.visit import (
     TurnLog,
     backfill,
+    drive_arrived,
     drop_reason,
     is_echo,
     is_goodbye,
@@ -370,6 +371,7 @@ class FacingListener:
 
 
 def test_arrival_ignores_a_stale_facing_timer_and_faces_before_the_door(monkeypatch, capsys):
+    monkeypatch.setattr(voice_main, "fetch_snapshot", lambda: None)
     monkeypatch.setattr(config, "VISIT_START_FALLBACK_S", 0.3)
     face = FaceGate(FacingListener([]))
     face._facing_since = time.monotonic() - 100  # left over from the last visit
@@ -378,7 +380,220 @@ def test_arrival_ignores_a_stale_facing_timer_and_faces_before_the_door(monkeypa
 
 
 def test_arrival_counts_facing_once_the_door_marker_is_seen(monkeypatch, capsys):
+    monkeypatch.setattr(voice_main, "fetch_snapshot", lambda: None)
     monkeypatch.setattr(config, "FACE_START_S", 0.1)
     face = FaceGate(FacingListener([{"room": "12", "distance_m": 3.0}]))
     voice_main.wait_for_arrival(face, "12", forced=False)
     assert "face facing" in capsys.readouterr().out
+
+
+# ---- arrival from the drive server (the Sim navigator never sees a marker)
+
+
+def test_drive_arrival_needs_the_room_and_a_stopped_robot():
+    idle_at = {"room": "12", "target": None, "mode": "idle", "moving": False}
+    assert drive_arrived(idle_at, "12")
+    assert not drive_arrived(idle_at, "14")
+    assert not drive_arrived({**idle_at, "mode": "going", "moving": True, "room": "lobby"}, "12")
+    assert not drive_arrived({**idle_at, "moving": True}, "12")
+    assert not drive_arrived(None, "12")
+    assert not drive_arrived({"room": "12"}, "12")  # no mode: not trusted
+    assert not drive_arrived(idle_at, "")
+
+
+def test_visit_starts_when_the_drive_reports_arrival():
+    reason = should_start_visit(None, 0.0, 0.0, forced=False, drive_arrived=True)
+    assert reason and "drive" in reason
+    assert should_start_visit(None, 0.0, 0.0, forced=False) is None
+
+
+def test_wait_for_arrival_returns_when_the_drive_server_says_arrived(monkeypatch, capsys):
+    monkeypatch.setattr(config, "VISIT_START_FALLBACK_S", 30.0)
+    snapshots = iter(
+        [
+            {"room": "lobby", "mode": "going", "moving": True},
+            {"room": "12", "mode": "idle", "moving": False},
+        ]
+    )
+    monkeypatch.setattr(voice_main, "fetch_snapshot", lambda: next(snapshots))
+    monkeypatch.setattr(voice_main, "DRIVE_CHECK_S", 0.0)
+    started = time.monotonic()
+    voice_main.wait_for_arrival(FaceGate(None, disabled=True), "12", forced=False)
+    assert time.monotonic() - started < 5
+    assert "the drive server reports arrival" in capsys.readouterr().out
+
+
+# ---- a resolve the backend did not accept must not leave the call open
+
+
+class FlakyResolve(FakeBackend):
+    """resolve() answers None (the client's way of saying it failed) `failures` times."""
+
+    def __init__(self, failures, status_after_failure="in_visit", **kwargs):
+        super().__init__(**kwargs)
+        self.failures = failures
+        self.status_after_failure = status_after_failure
+
+    def resolve(self, call_id, by_robot):
+        self.log.append(("resolve", by_robot))
+        if self.failures > 0:
+            self.failures -= 1
+            self.call["status"] = self.status_after_failure
+            return None
+        self.call["status"] = "resolved"
+        return dict(self.call)
+
+
+@pytest.fixture
+def quick_resolve(monkeypatch):
+    monkeypatch.setattr(voice_main, "RESOLVE_RETRY_S", 0.0)
+
+
+def test_failed_resolve_is_retried_until_it_lands(tmp_path, monkeypatch, quick_resolve):
+    backend = FlakyResolve(2, urgency=1)
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.finish(quiet=False)
+    assert [e for e in backend.log if e[0] == "resolve"] == [("resolve", True)] * 3
+    assert backend.call["status"] == "resolved"
+    assert backend.log[-1] == ("/go_to", {"room": config.HOME_ROOM}) and visit.done
+
+
+def test_lost_resolve_answer_is_not_retried_when_the_call_is_resolved(
+    tmp_path, monkeypatch, quick_resolve
+):
+    backend = FlakyResolve(1, status_after_failure="resolved", urgency=1)
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.finish(quiet=False)
+    assert [e for e in backend.log if e[0] == "resolve"] == [("resolve", True)]
+    assert visit.done
+
+
+def test_resolve_that_never_lands_asks_for_a_nurse(tmp_path, monkeypatch, quick_resolve, capsys):
+    backend = FlakyResolve(99, urgency=1)
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.finish(quiet=False)
+    assert len([e for e in backend.log if e[0] == "resolve"]) == voice_main.RESOLVE_TRIES
+    assert ("triage_failed",) in backend.log  # the backend then escalates the open call
+    assert "fallback: could not resolve" in capsys.readouterr().out
+    assert visit.done
+
+
+def test_nurse_resolve_is_retried_too(tmp_path, monkeypatch, quick_resolve):
+    backend = FlakyResolve(1, urgency=4, status="nurse_acked")
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.nurse_status = "nurse_acked"
+    visit.resolve_after_nurse()
+    assert [e for e in backend.log if e[0] == "resolve"] == [("resolve", False)] * 2
+    assert ("triage_failed",) not in backend.log
+
+
+class RecordingMic:
+    def __init__(self, fail_start=False):
+        self.events = []
+        self.fail_start = fail_start
+
+    def start(self):
+        if self.fail_start:
+            raise OSError("no mic")
+        self.events.append("start")
+
+    def stop(self):
+        self.events.append("stop")
+
+
+def test_mic_is_closed_when_the_visit_setup_fails_after_it_opened(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.mic = RecordingMic()
+    visit.begin = lambda: None
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("flux setup")
+
+    monkeypatch.setattr(voice_main, "FluxStream", boom)
+    with pytest.raises(RuntimeError):
+        visit.run()
+    assert visit.mic.events == ["start", "stop"]
+
+
+def test_mic_is_closed_when_the_loop_is_interrupted(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.mic = RecordingMic()
+    visit.begin = lambda: None
+
+    class Flux:
+        def __init__(self, *a):
+            self.closed = False
+
+        def start(self):
+            return True
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(voice_main, "FluxStream", Flux)
+    visit.submit = lambda *a, **k: None
+    visit.mic.read = lambda: (_ for _ in ()).throw(SystemExit(0))  # SIGTERM lands in the loop
+    with pytest.raises(SystemExit):
+        visit.run()
+    assert visit.mic.events == ["start", "stop"]
+    assert visit.flux.closed
+
+
+class FakePi:
+    def __init__(self):
+        self.posts = []
+
+    def post(self, path, body):
+        self.posts.append((path, body))
+
+    def fetch(self):
+        return {"led": "idle"}
+
+
+def attend_with(monkeypatch, make_visit, released):
+    from rover.speech import ledguard
+
+    pi = FakePi()
+    monkeypatch.setattr(ledguard, "_post", pi.post)
+    monkeypatch.setattr(ledguard, "_fetch", pi.fetch)
+    monkeypatch.setattr(voice_main, "wait_for_arrival", lambda *a, **k: None)
+    return pi, lambda: voice_main.attend({"id": "c1"}, "12", None, make_visit, False, released)
+
+
+def test_attend_normal_visit_end_sets_led_idle_without_stopping(monkeypatch):
+    ran = []
+
+    class V:
+        def run(self):
+            ran.append(1)
+
+    released = []
+    pi, go = attend_with(monkeypatch, lambda call, room: V(), lambda: released.append(1))
+    go()
+    assert ran == [1] and released == []
+    assert pi.posts == [("/led", {"state": "idle"})]
+
+
+def test_attend_crash_during_the_visit_releases_the_robot(monkeypatch):
+    class V:
+        def run(self):
+            raise RuntimeError("backend died")
+
+    released = []
+    pi, go = attend_with(monkeypatch, lambda call, room: V(), lambda: released.append(1))
+    with pytest.raises(RuntimeError):
+        go()
+    assert released == [1]
+
+
+def test_attend_sigterm_while_waiting_for_arrival_releases_the_robot(monkeypatch):
+    released = []
+    pi, go = attend_with(monkeypatch, lambda call, room: None, lambda: released.append(1))
+
+    def term(*a, **k):
+        raise SystemExit(0)
+
+    monkeypatch.setattr(voice_main, "wait_for_arrival", term)
+    with pytest.raises(SystemExit):
+        go()
+    assert released == [1]

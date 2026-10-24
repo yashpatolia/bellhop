@@ -32,9 +32,7 @@ def activity_for(category: str | None) -> str | None:
     return ACTIVITY_BY_CATEGORY.get(category or "")
 
 
-def _resident_block(
-    resident: dict | None, preferences: dict | None, memories: list[dict]
-) -> str:
+def _resident_block(resident: dict | None, preferences: dict | None, memories: list[dict]) -> str:
     if resident is None:
         return "## Who you are talking to\nUnknown. Ask their name."
     lines = ["## Who you are talking to"]

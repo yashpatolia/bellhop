@@ -45,12 +45,30 @@ def drop_reason(text: str, last_reply: str) -> str | None:
     return None
 
 
+def drive_arrived(snapshot: dict | None, room: str) -> bool:
+    """The drive server's /snapshot says the robot stands still in this room. Needs an explicit
+    idle mode: a snapshot without one (or a moving robot) is never taken as arrival."""
+    if not isinstance(snapshot, dict) or not room:
+        return False
+    return (
+        snapshot.get("room") == room
+        and snapshot.get("mode") == "idle"
+        and not snapshot.get("moving")
+    )
+
+
 def should_start_visit(
-    marker_m: float | None, facing_s: float, waited_s: float, forced: bool
+    marker_m: float | None,
+    facing_s: float,
+    waited_s: float,
+    forced: bool,
+    drive_arrived: bool = False,
 ) -> str | None:
     """Reason to start the visit now, or None to keep waiting."""
     if forced:
         return "call given on the command line"
+    if drive_arrived:
+        return "the drive server reports arrival"
     if marker_m is not None and math.isfinite(marker_m) and marker_m <= config.ARRIVE_DISTANCE_M:
         return f"room marker at {marker_m:.2f} m"
     if facing_s >= config.FACE_START_S:
