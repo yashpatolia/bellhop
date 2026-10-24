@@ -3,11 +3,10 @@ import math
 import cv2
 import numpy as np
 import pytest
-
 from rover import config
-from rover.vision.faces import SeenCounter, is_facing, to_frame
+from rover.vision.faces import FaceFinder, SeenCounter, is_facing, to_frame
 from rover.vision.markers import MarkerFinder, distance_m, side_px
-from rover.vision.people import Target, choose_target
+from rover.vision.people import PersonTracker, Target, choose_target
 
 
 def test_generated_marker_is_found_with_room_and_distance():
@@ -99,6 +98,17 @@ def test_target_relocks_only_near_last_box_while_coasting():
     near = {7: [500, 100, 600, 300], 8: [150, 110, 250, 310]}
     assert choose_target(near, target, now=0.5).id == 8
     assert choose_target(far, target, now=config.COAST_S + 0.1).id == 7  # coast over: take it
+
+
+def test_missing_optional_models_do_not_download_or_block_marker_mode(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "YOLO_MODEL", tmp_path / "missing-ncnn")
+    monkeypatch.setattr(config, "MODELS_DIR", tmp_path)
+    monkeypatch.setattr(config, "YUNET_MODEL", tmp_path / "missing-face.onnx")
+    people = PersonTracker()
+    faces = FaceFinder()
+    frame = np.zeros((480, 640, 3), np.uint8)
+    assert people.update(frame, now=0.0) is None
+    assert faces.update(frame, None) is None
 
 
 def test_vision_main_closes_the_camera_on_sigterm_and_installs_handlers(monkeypatch):
