@@ -129,7 +129,7 @@ def test_no_model_answer_only_a_serious_local_score_is_used(monkeypatch):
     result = triage_module.raise_urgency(None, (4, 0.9), summary='Resident said: "chest"')
     assert result.urgency == 4
     assert result.source == "local"
-    assert result.confidence == config.JEV_ONLY_CONFIDENCE
+    assert result.confidence == config.LOCAL_ONLY_CONFIDENCE
 
 
 def answer(result):
@@ -140,7 +140,6 @@ def test_triage_raises_with_local_input():
     result = triage(
         TRANSCRIPT,
         [],
-        ask_jev=answer(None),
         ask_claude=answer(CLAUDE),
         ask_local=lambda transcript: (4, 0.95),
     )
@@ -153,7 +152,7 @@ def test_triage_ignores_a_crashing_or_missing_local():
 
     for ask in (crash, lambda transcript: None):
         result = triage(
-            TRANSCRIPT, [], ask_jev=answer(None), ask_claude=answer(CLAUDE), ask_local=ask
+            TRANSCRIPT, [], ask_claude=answer(CLAUDE), ask_local=ask
         )
         assert result == CLAUDE
 
@@ -162,7 +161,6 @@ def test_triage_local_cannot_lower():
     result = triage(
         TRANSCRIPT,
         [],
-        ask_jev=answer(None),
         ask_claude=answer(TriageResult(4, "fall", "x", 0.9, "claude")),
         ask_local=lambda transcript: (1, 0.99),
     )
@@ -172,6 +170,6 @@ def test_triage_local_cannot_lower():
 def test_triage_default_local_is_off_when_disabled(monkeypatch):
     monkeypatch.setattr(config, "LOCAL_TRIAGE", False)
     monkeypatch.setattr(local, "get_scorer", lambda: pytest.fail("must not load when disabled"))
-    result = triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=answer(CLAUDE))
+    result = triage(TRANSCRIPT, [], ask_claude=answer(CLAUDE))
     assert result == CLAUDE
     assert triage_module._real_ask_local(TRANSCRIPT) is None

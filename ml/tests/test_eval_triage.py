@@ -106,7 +106,6 @@ def test_main_mock_runs_offline_and_writes_predictions(monkeypatch, tmp_path, ca
 
     monkeypatch.setattr(config, "RUNS_DIR", tmp_path)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
     assert eval_triage.main(["--mock"]) == 0
     assert "UNDER-ESCALATIONS: 0" in capsys.readouterr().out
     assert (tmp_path / "predictions.json").is_file()
