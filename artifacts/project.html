@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bellhop · Project plan</title>
+<meta name="description" content="The Bellhop plan: problem, agents, hardware, software, sponsors, build plan, demo script, cost model and guardrails.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<a class="brand" href="index.html">Bell<span>hop</span></a>
+<nav aria-label="Pages"><a href="index.html">Overview</a><a href="project.html" aria-current="page">Project plan</a><a href="research.html">Research</a><a href="extra-ideas.html">Extra ideas</a></nav>
+</div></header>
+<main>
+<article class="prose-wide"><h1>Bellhop: the robot that answers the call bell</h1>
+<p>Oct 9, 2026 · @yash</p>
+<p>Bellhop is a small AI robot that rolls to a resident's room when the bell rings, talks to them, and calls a nurse only when the situation needs one.</p>
+<h2>The problem</h2>
+<p>Care homes are short-staffed, and one nurse can be responsible for 20, 30 or even 50 residents. Residents are told to use the call bell only for emergencies or something important, but some ring to talk or to ask for a coffee. A nurse cannot tell from the bell alone which kind of call it is, so every ring pulls them away from someone who may need clinical care.</p>
+<p><strong>The numbers behind it</strong> (sources and caveats are on the Research tab):</p>
+<ul>
+<li><strong>Thin staffing.</strong> No federal staffing ratio is in force. US nursing homes average <a href="https://nursinghome411.org/data/staffing/staffing-q4-2023/">3.68 nursing hours per resident per day against 4.10 recommended</a>, and <a href="https://www.hebrewseniorlife.org/news/new-study-shows-nursing-home-staffing-patterns-can-reduce-harmful-falls-among-residents">70.3% fall short of the 2.45 aide-hour benchmark</a>. In four New York homes each aide had <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">8 to 13 residents and each LPN 9 to 14</a>.</li>
+<li><strong>Calls that don't need a nurse.</strong> In a <a href="https://link.springer.com/article/10.1186/1472-6963-10-52">survey of 808 hospital staff</a> only 52% said calls needed a nurse, with about 6.5 calls an hour per person at roughly 4 minutes each. By our estimate that is about 1.7 hours of every 8-hour shift. In one nursing home, <a href="https://journals.sagepub.com/doi/10.1177/2377960820903546">72% of staff who answered open questions</a> said residents ring for non-urgent requests.</li>
+<li><strong>Slow responses.</strong> In a 300-bed home <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7148550/">the average response was 9 minutes</a>, about half of calls missed the home's 5-minute standard, and in 7.5% of calls residents got up or shouted for help.</li>
+<li><strong>Falls are the danger.</strong> <a href="https://nursinghome411.org/wp-content/uploads/2022/09/Fact-Sheet-Fall-Prevention.pdf">More than half of nursing-home residents fall each year</a>, and in well-staffed homes <a href="https://www.hebrewseniorlife.org/news/new-study-shows-nursing-home-staffing-patterns-can-reduce-harmful-falls-among-residents">each extra RN hour went with nearly 40% fewer injurious falls</a>.</li>
+</ul>
+<p>We found no study that counts deaths caused by non-urgent calls, so our claims are about nurse time and response speed, not lives saved.</p>
+<p><strong>Pitch:</strong> don't send a nurse to every bell. Send a robot first, and let it work out whether a nurse is needed.</p>
+<h2>How it works</h2>
+<div class="figure" role="group" aria-label="Bell to outcome flow"><svg viewBox="0 0 760 452" role="img" aria-label="The robot answers first; a nurse is pulled in only at urgency 3 or 4"><style>
+.b{fill:none;stroke:var(--line);stroke-width:1.5}
+.b.acc{fill:var(--accent-tint);stroke:var(--accent);stroke-width:2}
+.b.crit{fill:var(--crit-tint);stroke:var(--crit);stroke-width:2}
+.t1{font-size:13px;font-weight:600;fill:var(--ink)}
+.t2{font-size:11.5px;fill:var(--ink-2)}
+.ln{fill:none;stroke:var(--ink-2);stroke-width:1.25}
+</style>
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-2)"/></marker></defs><text x="16" y="34" font-size="15" font-weight="600" fill="var(--ink)">The robot answers first; a nurse is pulled in only at urgency 3 or 4</text><path class="ln" d="M172.0 96H200.0" marker-end="url(#ar)"/><path class="ln" d="M356.0 96H384.0" marker-end="url(#ar)"/><path class="ln" d="M540.0 96H568.0" marker-end="url(#ar)"/><path class="ln" d="M646 124.0V162.0" marker-end="url(#ar)"/><path class="ln" d="M646 218.0V284.0" marker-end="url(#ar)"/><path class="ln" d="M646 250H94"/><path class="ln" d="M94 250V284.0" marker-end="url(#ar)"/><path class="ln" d="M278 250V284.0" marker-end="url(#ar)"/><path class="ln" d="M462 250V284.0" marker-end="url(#ar)"/><rect x="16.0" y="68.0" width="156" height="56" rx="8" class="b "/><text x="94" y="93" text-anchor="middle" class="t1">Bell rings</text><text x="94" y="111" text-anchor="middle" class="t2">bell or room button</text><rect x="200.0" y="68.0" width="156" height="56" rx="8" class="b "/><text x="278" y="93" text-anchor="middle" class="t1">Dispatcher</text><text x="278" y="111" text-anchor="middle" class="t2">queue and nurse load</text><rect x="384.0" y="68.0" width="156" height="56" rx="8" class="b "/><text x="462" y="93" text-anchor="middle" class="t1">Robot rolls over</text><text x="462" y="111" text-anchor="middle" class="t2">follows a floor line</text><rect x="568.0" y="68.0" width="156" height="56" rx="8" class="b "/><text x="646" y="93" text-anchor="middle" class="t1">Talks to resident</text><text x="646" y="111" text-anchor="middle" class="t2">voice in, voice out</text><rect x="568.0" y="162.0" width="156" height="56" rx="8" class="b acc"/><text x="646" y="187" text-anchor="middle" class="t1">Triage</text><text x="646" y="205" text-anchor="middle" class="t2">urgency score, 1 to 4</text><text x="556.0" y="188" text-anchor="end" class="t2">Jev scores urgency in one fast call</text><text x="556.0" y="204" text-anchor="end" class="t2">Claude writes the nurse summary</text><rect x="16.0" y="284.0" width="156" height="56" rx="8" class="b "/><text x="94" y="309" text-anchor="middle" class="t1">1: Resolve it</text><text x="94" y="327" text-anchor="middle" class="t2">chat, answer, remind</text><rect x="200.0" y="284.0" width="156" height="56" rx="8" class="b "/><text x="278" y="309" text-anchor="middle" class="t1">2: Hand to staff</text><text x="278" y="327" text-anchor="middle" class="t2">aide, kitchen, family</text><rect x="384.0" y="284.0" width="156" height="56" rx="8" class="b "/><text x="462" y="309" text-anchor="middle" class="t1">3: Nurse, soon</text><text x="462" y="327" text-anchor="middle" class="t2">summary to nurse app</text><rect x="568.0" y="284.0" width="156" height="56" rx="8" class="b crit"/><text x="646" y="309" text-anchor="middle" class="t1">4: Emergency</text><text x="646" y="327" text-anchor="middle" class="t2">alert now, stay close</text><path class="ln" d="M94 340.0V372" marker-end="url(#ar)"/><path class="ln" d="M278 340.0V372" marker-end="url(#ar)"/><path class="ln" d="M462 340.0V372" marker-end="url(#ar)"/><path class="ln" d="M646 340.0V372" marker-end="url(#ar)"/><rect x="16" y="372" width="708" height="56" rx="8" fill="var(--accent-tint)" stroke="var(--line)" stroke-width="1.5"/><text x="370" y="397" text-anchor="middle" class="t1">Every visit is logged to resident memory</text><text x="370" y="415" text-anchor="middle" class="t2">likes, mood and history are read before the next chat and updated after it</text></svg></div>
+<p>Bellhop reads the resident's memory before it speaks, so it already knows who it is talking to. Urgency 1 and 2 never reach a nurse, 3 arrives with a short written summary, and 4 sets off an alert immediately while the robot stays with the resident.</p>
+<h2>The agents</h2>
+<p>Six core agents, each with one job, pass work to each other. The split also makes the build easy to share across teammates.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Agent</th>
+<th>Job</th>
+<th>Runs on</th>
+<th>Uses</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dispatcher</td>
+<td>Decides who answers each bell: robot, nurse, or both, using the resident's risk flags and how busy nurses are</td>
+<td>Cloud</td>
+<td>Shared realtime state</td>
+</tr>
+<tr>
+<td>Navigator</td>
+<td>Drives to the room, stops for obstacles, parks facing the resident</td>
+<td>Robot (Pi 5)</td>
+<td>Line tracking, ultrasonic sensor, servo head</td>
+</tr>
+<tr>
+<td>Companion</td>
+<td>Holds the conversation: listens, answers, jokes, reminds, stays calm with confused residents</td>
+<td>Cloud + robot audio</td>
+<td>Speech-to-text, Claude, text-to-speech</td>
+</tr>
+<tr>
+<td>Triage</td>
+<td>Scores urgency 1 to 4 from what was said, how it was said and what the camera sees</td>
+<td>Cloud</td>
+<td>Jev for the fast score, Claude for the reasoning</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>Keeps each resident's profile: likes, people, routines, mood over time. Fed to Companion before every visit</td>
+<td>Cloud</td>
+<td>Vector search, resident database</td>
+</tr>
+<tr>
+<td>Staff Liaison</td>
+<td>Pings the right person with a short summary, or creates a task for an aide, the kitchen or family</td>
+<td>Cloud</td>
+<td>Nurse dashboard, push alerts</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Hardware and materials</h2>
+<p>The robot is the Freenove 4WD Smart Car Kit with a Raspberry Pi 5 on top. The kit already gives us four drive wheels, a camera and ultrasonic head on servos, line-tracking sensors and LEDs. We add audio, a bell and a few props.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Role in Bellhop</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Freenove 4WD Smart Car Kit</td>
+<td>Chassis, motors, camera, ultrasonic sensor, servo head, line tracking, LEDs</td>
+<td>Have</td>
+</tr>
+<tr>
+<td>Raspberry Pi 5</td>
+<td>Runs the robot's drive code, camera and audio streaming</td>
+<td>Have</td>
+</tr>
+<tr>
+<td>Batteries for kit and Pi</td>
+<td>Kit does not include them; use a separate stable supply for the Pi so motors cannot brown it out</td>
+<td>Confirm</td>
+</tr>
+<tr>
+<td>USB speakerphone (mic + speaker)</td>
+<td>The robot's ears and voice; the kit has no audio</td>
+<td>Confirm</td>
+</tr>
+<tr>
+<td>Wi-Fi bell button (ESP32 or Pico W)</td>
+<td>The call bell; pressing it sends a call to the Dispatcher. A web button works as a backup</td>
+<td>Confirm</td>
+</tr>
+<tr>
+<td>Black tape and QR stickers</td>
+<td>Hallway line for Navigator; one QR per room door so the camera knows where it is</td>
+<td>Make</td>
+</tr>
+<tr>
+<td>Touchscreen display on the robot</td>
+<td>Board games, captions for hard-of-hearing residents and a friendly face</td>
+<td>Have</td>
+</tr>
+<tr>
+<td>Laptop or tablet</td>
+<td>Nurse dashboard and alerts during the demo</td>
+<td>Have</td>
+</tr>
+<tr>
+<td>Phone hotspot or travel router</td>
+<td>Backup network in case venue Wi-Fi is unreliable</td>
+<td>Confirm</td>
+</tr>
+</tbody>
+</table></div>
+<p>The kit's LEDs double as a status light: idle, listening, nurse on the way and emergency each get a colour, so judges can read the robot's state from across the room.</p>
+<h2>Software and tools</h2>
+<p>Most of this is glue around services we call, which is what makes 48 hours realistic. Claude writes the glue; we spend our time on the robot and the demo.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Robot code</td>
+<td>Python on the Pi 5, starting from Freenove's open-source car server</td>
+<td>Motors, servos, camera and sensors already work</td>
+</tr>
+<tr>
+<td>Voice</td>
+<td>Cartesia Ink (speech-to-text) and Sonic (text-to-speech), streamed. Piper running on the Pi is the local option, with voice picks on the Research tab</td>
+<td>Fast first audio and built-in turn detection, so it feels like a conversation</td>
+</tr>
+<tr>
+<td>Conversation brain</td>
+<td>Claude with a per-resident persona and memory in the prompt</td>
+<td>Warm, flexible dialogue and good judgement on edge cases</td>
+</tr>
+<tr>
+<td>Urgency scoring</td>
+<td>Jev, with Claude as the fallback and the explainer (details on the Research tab)</td>
+<td>One fast typed call returns urgency and category with probabilities</td>
+</tr>
+<tr>
+<td>Agent orchestration</td>
+<td>Claude Agent SDK for Companion and Triage; plain async Python workers for the rest</td>
+<td>Keeps each agent small and testable</td>
+</tr>
+<tr>
+<td>Shared realtime state</td>
+<td>SpacetimeDB: call queue, robot status, resident profiles, visit log</td>
+<td>The dashboard updates live with no polling code</td>
+</tr>
+<tr>
+<td>Memory recall</td>
+<td>Semantic search over each resident's notes, from the sponsor list below</td>
+<td>Pulls the right memory into the chat in milliseconds</td>
+</tr>
+<tr>
+<td>Nurse dashboard</td>
+<td>Web app (TypeScript/React) with a live call feed, robot status, summaries and a nurse-minutes-saved counter</td>
+<td>The screen judges will look at</td>
+</tr>
+<tr>
+<td>Alerts</td>
+<td>Dashboard banner plus a phone notification</td>
+<td>Urgency 3 and 4 must reach a human fast</td>
+</tr>
+<tr>
+<td>Vision (stretch)</td>
+<td>Claude vision on camera snapshots for "person on the floor" and posture checks</td>
+<td>Adds an emergency trigger beyond what the resident says</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Sponsor APIs for bonus points</h2>
+<p>Bonus points are optional, so we pick a few sponsors that do real work in the build rather than name-dropping ten. The first five rows are the recommended set; each has a genuine job in the flow above. What each sponsor offers and how sure we are is on the Research tab.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Sponsor</th>
+<th>Job in Bellhop</th>
+<th>Fit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic (cohost)</td>
+<td>Claude is the Companion's brain, writes the nurse summaries, reasons about edge cases and reads camera snapshots</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>Cartesia</td>
+<td>Streaming speech-to-text with turn detection and fast text-to-speech, so the robot talks like a person</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>SpacetimeDB (cohost)</td>
+<td>Shared realtime state for the call queue, robot status, resident profiles and visit log; the dashboard updates live</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>Fetch.ai</td>
+<td>Register Dispatcher, Triage and Liaison as agents on Agentverse so a nurse can ask "what happened in room 12?" through ASI:One</td>
+<td>Strong</td>
+</tr>
+<tr>
+<td>Moss</td>
+<td>Sub-10 ms semantic recall of a resident's preferences and history, inside the voice loop</td>
+<td>Strong</td>
+</tr>
+<tr>
+<td>Engramme</td>
+<td>Alternative or add-on memory layer for long-term resident memory, if API access works</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Elastic</td>
+<td>Hybrid search over care-plan notes and visit logs; Agent Builder for a nurse-facing question agent</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Convex</td>
+<td>Alternative to SpacetimeDB for shared state; we use one or the other, not both</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>SpaceXAI</td>
+<td>Grok Voice as a multilingual voice fallback if Cartesia has an outage</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Runpod</td>
+<td>GPU endpoint for an open vision model (fall detection) or an offline-capable Llama if we want a privacy story</td>
+<td>Stretch</td>
+</tr>
+<tr>
+<td>Context.dev</td>
+<td>Pulls today's weather, news or sports so the robot has something fresh to chat about</td>
+<td>Stretch</td>
+</tr>
+<tr>
+<td>Creao</td>
+<td>Builds a scheduled shift-summary agent for nurses without extra code</td>
+<td>Stretch</td>
+</tr>
+<tr>
+<td>Coinbase</td>
+<td>x402 payments let an agent reorder supplies in stablecoin after a human signs off. The very last step, only if everything else works (inventory idea on the Extra ideas tab)</td>
+<td>Last</td>
+</tr>
+</tbody>
+</table></div>
+<h2>48-hour build plan</h2>
+<div class="figure" role="group" aria-label="48-hour build plan"><svg viewBox="0 0 780 540" role="img" aria-label="Hardware and software run in parallel, with a first end-to-end run at hour 28"><text x="16" y="28" font-size="15" font-weight="600" fill="var(--ink)">Hardware and software run in parallel, with a first end-to-end run at hour 28</text><text x="16" y="48" font-size="11.5" fill="var(--ink-2)">48-hour plan, hours from the start of the hackathon · dashed bars are stretch goals</text><line x1="330.0" x2="330.0" y1="88" y2="520" stroke="var(--line)"/><text x="330.0" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">0h</text><line x1="380.4" x2="380.4" y1="88" y2="520" stroke="var(--line)"/><text x="380.4" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">6h</text><line x1="430.8" x2="430.8" y1="88" y2="520" stroke="var(--line)"/><text x="430.8" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">12h</text><line x1="481.20000000000005" x2="481.20000000000005" y1="88" y2="520" stroke="var(--line)"/><text x="481.20000000000005" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">18h</text><line x1="531.6" x2="531.6" y1="88" y2="520" stroke="var(--line)"/><text x="531.6" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">24h</text><line x1="582.0" x2="582.0" y1="88" y2="520" stroke="var(--line)"/><text x="582.0" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">30h</text><line x1="632.4000000000001" x2="632.4000000000001" y1="88" y2="520" stroke="var(--line)"/><text x="632.4000000000001" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">36h</text><line x1="682.8" x2="682.8" y1="88" y2="520" stroke="var(--line)"/><text x="682.8" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">42h</text><line x1="733.2" x2="733.2" y1="88" y2="520" stroke="var(--line)"/><text x="733.2" y="78" text-anchor="middle" font-size="11.5" fill="var(--ink-2)">48h</text><text x="16" y="116" font-size="13" font-weight="700" fill="var(--lane-hw)">Hardware</text><text x="108" y="116" font-size="12.5" fill="var(--ink)">Assemble and test the kit</text><rect x="330.0" y="105" width="42.0" height="14" rx="7" fill="var(--lane-hw)" fill-opacity="0.2" stroke="var(--lane-hw)" stroke-width="1.5"/><text x="108" y="144" font-size="12.5" fill="var(--ink)">Audio, bell button, LEDs</text><rect x="372.0" y="133" width="58.80000000000001" height="14" rx="7" fill="var(--lane-hw)" fill-opacity="0.2" stroke="var(--lane-hw)" stroke-width="1.5"/><text x="108" y="172" font-size="12.5" fill="var(--ink)">Floor line and room QR codes</text><rect x="430.8" y="161" width="83.99999999999994" height="14" rx="7" fill="var(--lane-hw)" fill-opacity="0.2" stroke="var(--lane-hw)" stroke-width="1.5"/><text x="108" y="200" font-size="12.5" fill="var(--ink)">Drive tests in the demo space</text><rect x="514.8" y="189" width="67.20000000000005" height="14" rx="7" fill="var(--lane-hw)" fill-opacity="0.2" stroke="var(--lane-hw)" stroke-width="1.5"/><text x="16" y="240" font-size="13" font-weight="700" fill="var(--lane-sw)">Software</text><text x="108" y="240" font-size="12.5" fill="var(--ink)">State store and dashboard</text><rect x="330.0" y="229" width="84.0" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5"/><text x="108" y="268" font-size="12.5" fill="var(--ink)">Voice loop: listen, think, speak</text><rect x="363.6" y="257" width="100.79999999999995" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5"/><text x="108" y="296" font-size="12.5" fill="var(--ink)">Triage and resident memory</text><rect x="430.8" y="285" width="117.59999999999997" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5"/><text x="108" y="324" font-size="12.5" fill="var(--ink)">Sponsor hooks and agents</text><rect x="531.6" y="313" width="67.19999999999993" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5"/><text x="108" y="352" font-size="12.5" fill="var(--ink-2)">Board games on the touchscreen</text><rect x="565.2" y="341" width="67.20000000000005" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5" stroke-dasharray="4 3"/><text x="108" y="380" font-size="12.5" fill="var(--ink-2)">x402 restocking (last step)</text><rect x="615.6" y="369" width="33.60000000000002" height="14" rx="7" fill="var(--lane-sw)" fill-opacity="0.2" stroke="var(--lane-sw)" stroke-width="1.5" stroke-dasharray="4 3"/><text x="16" y="420" font-size="13" font-weight="700" fill="var(--lane-tg)">Together</text><text x="108" y="420" font-size="12.5" fill="var(--ink)">First end-to-end run</text><path d="M565.2 407l9 9l-9 9l-9 -9z" fill="var(--ink)"/><text x="108" y="448" font-size="12.5" fill="var(--ink)">Feature freeze</text><path d="M649.2 435l9 9l-9 9l-9 -9z" fill="var(--ink)"/><text x="108" y="476" font-size="12.5" fill="var(--ink)">Rehearse, record backup video</text><rect x="649.2" y="465" width="67.20000000000005" height="14" rx="7" fill="var(--lane-tg)" fill-opacity="0.2" stroke="var(--lane-tg)" stroke-width="1.5"/><text x="108" y="504" font-size="12.5" fill="var(--ink)">Demo and submit</text><path d="M733.2 491l9 9l-9 9l-9 -9z" fill="var(--ink)"/></svg></div>
+<p>The first end-to-end run (a bell press that ends in a spoken answer and a dashboard entry) is the milestone that matters. Everything after it is improvement, and the last ten hours are for rehearsal, not new features.</p>
+<h3>Risks and fallbacks</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Fallback</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Venue Wi-Fi is slow or drops, and voice needs the network</td>
+<td>Phone hotspot or travel router; keep replies short so audio streams quickly</td>
+</tr>
+<tr>
+<td>Floor navigation is unreliable</td>
+<td>Drive the robot with the Freenove app for the demo while everything else stays real</td>
+</tr>
+<tr>
+<td>Pi browns out when the motors draw current</td>
+<td>Separate stable supply for the Pi, as in the kit's own reviews</td>
+</tr>
+<tr>
+<td>Triage gets a case wrong on stage</td>
+<td>Bias toward escalating; Claude double-checks any score below a confidence threshold; rehearse scripted cases</td>
+</tr>
+<tr>
+<td>A sponsor API has no access or breaks</td>
+<td>Each sponsor sits behind one small adapter, so Claude-only or local versions can replace it in minutes</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Demo script</h2>
+<p>Three short scenes, one per outcome tier, with a teammate playing the resident. The dashboard stays on screen throughout.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Scene</th>
+<th>Resident says</th>
+<th>Bellhop does</th>
+<th>Dashboard shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Just lonely</td>
+<td>"Can I get a cup of tea and a chat?"</td>
+<td>Rolls over, greets her by name, remembers she takes two sugars and asks about her grandson, and sends a tea request to the kitchen</td>
+<td>Urgency 1, resolved, no nurse alert</td>
+</tr>
+<tr>
+<td>2. Needs a nurse, not urgently</td>
+<td>"My hip has been aching since last night."</td>
+<td>Asks where and how bad on a 1 to 10 scale, reassures her, and sends the nurse a short summary</td>
+<td>Urgency 3 card with the summary; nurse taps "on my way"</td>
+</tr>
+<tr>
+<td>3. Emergency</td>
+<td>"I've fallen and I can't get up." (or the camera sees someone on the floor)</td>
+<td>LEDs go red, alerts the nurse immediately, stays and keeps the resident calm until help arrives</td>
+<td>Urgency 4 banner, alert time, live transcript</td>
+</tr>
+</tbody>
+</table></div>
+<p>The closing shot is the counter for calls the robot resolved and nurse minutes saved. It uses an assumed minutes-per-call that we state openly on screen.</p>
+<h3>Alternative opening: judges play the residents</h3>
+<ul>
+<li>Bellhop opens by saying who it is and what it can do, which steers judges toward questions we have rehearsed.</li>
+<li>A teammate stands behind the robot holding funny prompt cards, such as "ASK IT TO PLAY A GAME", to guide the next question.</li>
+<li>This runs for about the first minute. Then we switch to the dashboard and show that the conversation was recorded and the judge is now a resident in the database.</li>
+<li>The venue will be loud, so the judge has to speak close to the robot or it may pick up someone else. A small, close-up robot makes that feel natural.</li>
+</ul>
+<h2>Cost and savings</h2>
+<p>A robot is a one-time hardware cost plus usage-based API fees, so extending to more residents means adding robots. In the base case one robot frees about 970 staff hours a year, worth about $24,100 at a loaded $24.80 an hour, for about $3,200 a year in running costs, and the hardware pays back in under two months. These are model results from untested assumptions (4 minutes saved per call, a $2,500 fleet robot, 40 calls resolved a day), laid out with sources on the Research tab. Freed time becomes cash only if it cuts overtime or agency hours, or buys more clinical care.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Calls resolved a day</th>
+<th>Staff hours freed a year</th>
+<th>Equivalent staff</th>
+<th>Value of freed time</th>
+<th>API plus upkeep</th>
+<th>Net a year</th>
+<th>Hardware payback</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>243</td>
+<td>0.12</td>
+<td>$6,035</td>
+<td>$1,087</td>
+<td>$4,948</td>
+<td>6.1 months</td>
+</tr>
+<tr>
+<td>20</td>
+<td>487</td>
+<td>0.23</td>
+<td>$12,069</td>
+<td>$1,799</td>
+<td>$10,270</td>
+<td>2.9 months</td>
+</tr>
+<tr>
+<td>40 (base)</td>
+<td>973</td>
+<td>0.47</td>
+<td>$24,139</td>
+<td>$3,222</td>
+<td>$20,917</td>
+<td>1.4 months</td>
+</tr>
+<tr>
+<td>70</td>
+<td>1,703</td>
+<td>0.82</td>
+<td>$42,242</td>
+<td>$5,357</td>
+<td>$36,885</td>
+<td>0.8 months</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Per call:</strong> about $0.22 of running cost against about $1.65 of staff time, roughly 7.5 times cheaper.</li>
+<li><strong>Per resident:</strong> a net saving of about $700 a year at 30 residents per robot.</li>
+</ul>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Robots (base case)</th>
+<th>One-time hardware</th>
+<th>Net saving a year</th>
+<th>Residents covered</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>$2,500</td>
+<td>$20,917</td>
+<td>30</td>
+</tr>
+<tr>
+<td>10</td>
+<td>$25,000</td>
+<td>$209,170</td>
+<td>300</td>
+</tr>
+<tr>
+<td>50</td>
+<td>$125,000</td>
+<td>$1,045,850</td>
+<td>1,500</td>
+</tr>
+</tbody>
+</table></div>
+<p>The dashboard shows these live: calls resolved without a nurse, minutes saved with the assumption labelled, cost per call, and the share answered within 10 minutes.</p>
+<h2>Scope and guardrails</h2>
+<ul>
+<li><strong>Prototype only.</strong> Residents in the demo are teammates, there is no real patient data.</li>
+<li><strong>The bell stays a bell.</strong> Anyone can still press it to reach a person, and the robot never discourages someone from calling a nurse.</li>
+<li><strong>Lean toward escalation.</strong> When the score is uncertain, Bellhop treats the call as more urgent, not less.</li>
+<li><strong>No diagnosis.</strong> The robot gathers information and passes it on; it does not give medical advice.</li>
+<li><strong>Calm with confusion.</strong> For residents with memory loss it stays gentle, never argues and never corrects them sharply.</li>
+</ul></article>
+</main>
+<footer>Bellhop · Cal Hacks 13 · The live Claude doc is the source of truth; these pages are a snapshot.</footer>
+</body>
+</html>
