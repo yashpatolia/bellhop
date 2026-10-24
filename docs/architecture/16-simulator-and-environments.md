@@ -22,9 +22,9 @@ The dashboard reads only the backend. Whatever writes to the backend, the simula
 
 `scripts/dev.sh` passes extra arguments to the simulator in mock mode: `scripts/dev.sh mock --scene busy --rate 3 --speed 2`. Set `BELLHOP_API_KEY` in the environment of all three (and `VITE_BELLHOP_API_KEY` for the dashboard) to try with auth on.
 
-## Sending a robot by hand
+## Driving a robot by hand
 
-The dashboard's Dispatch tab sends a chosen robot to a room with `POST /robots/{id}/dispatch {room}` (`ManualDispatch` in the backend). It is the bell for that room with the robot picked: `CallRaised` carries the robot id and the dispatcher may only choose from it, so the usual call, visit and alert flow follows. The backend refuses (409) a robot that is not idle or is under 20% charge, and a room that already has an open call. In the mock environment the simulator plays the visit for that robot.
+The dashboard's Dispatch tab drives a chosen robot to a room with `POST /robots/{id}/navigate {target}` and halts it with `POST /robots/{id}/stop` (both in `backend/src/bellhop/api/app.py`, see `contracts/README.md`). It only drives: no call is made and the robot does not start a visit. The target is an opaque label (up to 32 characters) that the Pi resolves against its own room and marker configuration, so a resident's room number is treated as a marker id unless the Pi maps it. The backend accepts only an idle robot (409 otherwise) and answers 503 when the Pi cannot be reached. In the mock environment the simulator follows a drive for ten seconds (the simulator has no map), and a stop frees the robot at once.
 
 ## Adding a home by hand (empty environment)
 

@@ -158,3 +158,6 @@
 .lx-sumi .sm-sent li { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0 8px 14px; border-left: 3px solid var(--line); margin-bottom: 4px; }
 .lx-sumi .sm-sent li.open { border-left-color: var(--accent); }
 .lx-sumi .sm-sent time { font-family: var(--f-mono); color: var(--ink-2); }
+.lx-sumi .sm-dispatch-robots li { display: flex; flex-wrap: wrap; align-items: center; }
+.lx-sumi .sm-dispatch-robots li > label { flex: 1 1 380px; }
+.lx-sumi .sm-stop { margin: 0 12px 0 0; padding: 6px 12px; border-color: var(--u4); color: var(--u4); }

@@ -3,10 +3,10 @@
     "id": 1,
     "event": "call.raised",
     "data": {
-      "call_id": "call_bcc0fc85",
+      "call_id": "call_bb5962d6",
       "room": "12",
       "call": {
-        "id": "call_bcc0fc85",
+        "id": "call_bb5962d6",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -20,10 +20,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:30.922111Z",
-        "assigned_at": "2026-10-24T22:35:30.922223Z",
+        "created_at": "2026-10-24T22:35:50.878013Z",
+        "assigned_at": "2026-10-24T22:35:50.878125Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:30.925632Z",
+        "resolved_at": "2026-10-24T22:35:50.881905Z",
         "resolved_by_robot": true
       }
     }
@@ -32,11 +32,11 @@
     "id": 2,
     "event": "call.assigned",
     "data": {
-      "call_id": "call_bcc0fc85",
+      "call_id": "call_bb5962d6",
       "robot_id": "robot_1",
       "nurse_id": "nurse_priya",
       "call": {
-        "id": "call_bcc0fc85",
+        "id": "call_bb5962d6",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -50,10 +50,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:30.922111Z",
-        "assigned_at": "2026-10-24T22:35:30.922223Z",
+        "created_at": "2026-10-24T22:35:50.878013Z",
+        "assigned_at": "2026-10-24T22:35:50.878125Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:30.925632Z",
+        "resolved_at": "2026-10-24T22:35:50.881905Z",
         "resolved_by_robot": true
       }
     }
@@ -62,11 +62,11 @@
     "id": 3,
     "event": "call.scored",
     "data": {
-      "call_id": "call_bcc0fc85",
+      "call_id": "call_bb5962d6",
       "urgency": 1,
       "category": "social",
       "call": {
-        "id": "call_bcc0fc85",
+        "id": "call_bb5962d6",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -80,10 +80,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:30.922111Z",
-        "assigned_at": "2026-10-24T22:35:30.922223Z",
+        "created_at": "2026-10-24T22:35:50.878013Z",
+        "assigned_at": "2026-10-24T22:35:50.878125Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:30.925632Z",
+        "resolved_at": "2026-10-24T22:35:50.881905Z",
         "resolved_by_robot": true
       }
     }
@@ -92,10 +92,10 @@
     "id": 4,
     "event": "call.resolved",
     "data": {
-      "call_id": "call_bcc0fc85",
+      "call_id": "call_bb5962d6",
       "by_robot": true,
       "call": {
-        "id": "call_bcc0fc85",
+        "id": "call_bb5962d6",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -109,10 +109,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:30.922111Z",
-        "assigned_at": "2026-10-24T22:35:30.922223Z",
+        "created_at": "2026-10-24T22:35:50.878013Z",
+        "assigned_at": "2026-10-24T22:35:50.878125Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:30.925632Z",
+        "resolved_at": "2026-10-24T22:35:50.881905Z",
         "resolved_by_robot": true
       }
     }
@@ -121,16 +121,16 @@
     "id": 8,
     "event": "alert.raised",
     "data": {
-      "alert_id": "alert_5e11431d",
-      "call_id": "call_4338a585",
+      "alert_id": "alert_fdb46633",
+      "call_id": "call_6bdb875b",
       "level": 3,
       "alert": {
-        "id": "alert_5e11431d",
-        "call_id": "call_4338a585",
+        "id": "alert_fdb46633",
+        "call_id": "call_6bdb875b",
         "nurse_id": "nurse_priya",
         "level": 3,
         "message": "Hip pain since last night",
-        "created_at": "2026-10-24T22:35:30.932291Z",
+        "created_at": "2026-10-24T22:35:50.887538Z",
         "acked_at": null
       }
     }
