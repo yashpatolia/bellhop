@@ -28,14 +28,15 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 
 export function statusText(c: Call): string {
   switch (c.status) {
+    case 'waiting':
+      return 'Waiting for a free robot or a nurse'
     case 'robot_en_route':
       return 'Robot is on the way'
     case 'robot_with_resident':
       return 'Robot is talking with them'
     case 'nurse_notified':
       if (c.urgency === 4) return 'Alert sent. Robot is staying with them'
-      if (c.handledBy === 'nurse') return 'Waiting for a nurse'
-      return c.handledBy === 'kitchen' ? 'Kitchen has been asked' : 'Aide has been asked'
+      return c.handledBy === 'nurse' ? 'Waiting for a nurse' : 'Staff has been asked'
     case 'nurse_en_route':
       return 'Nurse is on the way'
     case 'resolved':
@@ -55,8 +56,6 @@ export function clock(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-export const money = (n: number) => `$${n.toFixed(2)}`
-
 const MIN_SAVED_PER_CALL = 4
 export { MIN_SAVED_PER_CALL }
 
@@ -67,9 +66,6 @@ export interface Kpis {
   minutesSaved: number
   medianResponseSec: number
   within10: number
-  costToday: number
-  costPerCall: number
-  avgFeedback: number
 }
 
 export function computeKpis(s: Snapshot): Kpis {
@@ -78,8 +74,6 @@ export function computeKpis(s: Snapshot): Kpis {
   const times = s.calls.map((c) => c.firstResponseSec).filter((x): x is number => x != null).sort((a, b) => a - b)
   const median = times.length ? times[Math.floor(times.length / 2)] : 0
   const within = times.length ? times.filter((t) => t <= 600).length / times.length : 1
-  const cost = s.calls.reduce((a, c) => a + c.costUsd, 0)
-  const fb = s.calls.map((c) => c.feedback).filter((x): x is 1 | 2 | 3 | 4 | 5 => x != null)
   return {
     total: s.calls.length,
     byRobot,
@@ -87,9 +81,6 @@ export function computeKpis(s: Snapshot): Kpis {
     minutesSaved: byRobot * MIN_SAVED_PER_CALL,
     medianResponseSec: median,
     within10: within,
-    costToday: cost,
-    costPerCall: s.calls.length ? cost / s.calls.length : 0,
-    avgFeedback: fb.length ? fb.reduce((a, b) => a + b, 0) / fb.length : 0,
   }
 }
 

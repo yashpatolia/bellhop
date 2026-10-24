@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:api": "npx --yes openapi-typescript@7.13.0 ../contracts/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {
     "motion": "^14.6.0",
