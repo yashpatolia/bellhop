@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for any contributor or tooling. Read this, then [docs/architecture/README.md](docs/architecture/README.md).
+Entry point for any contributor or tooling. Read [CONTEXT.md](CONTEXT.md) for the full handoff, then this, then [docs/architecture/README.md](docs/architecture/README.md).
 
 ## What this repo is
 Bellhop: a care-home robot that answers the call bell and escalates to a nurse only when needed.
