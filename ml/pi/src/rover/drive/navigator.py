@@ -8,6 +8,7 @@ from typing import Protocol
 
 from rover import config
 from rover.drive.car import FakeCar, RealCar
+from rover.drive.vision import VisionReceiver
 
 
 class Navigator(Protocol):
@@ -57,3 +58,53 @@ class SimNavigator:
 
     def cancel(self) -> None:
         self._room = None
+
+
+class MarkerNavigator:
+    """Steer only from fresh camera observations of the requested ArUco marker.
+
+    It never follows a closer non-target marker, and it never searches blindly: absent, stale or
+    malformed vision stops the car. Room names are resolved through deployment configuration.
+    """
+
+    def __init__(
+        self,
+        vision: VisionReceiver,
+        marker_for_room: Callable[[str], int | None] = config.marker_for_room,
+    ) -> None:
+        self._vision, self._marker_for_room = vision, marker_for_room
+        self._marker_id: int | None = None
+
+    def start(self, room: str) -> None:
+        self._marker_id = self._marker_for_room(room)
+
+    def cancel(self) -> None:
+        self._marker_id = None
+
+    def step(self, car: FakeCar | RealCar) -> bool:
+        marker_id = self._marker_id
+        if marker_id is None:
+            car.stop()
+            return False
+        markers = self._vision.markers()
+        if markers is None:
+            car.stop()
+            return False
+        target = next((row for row in markers if row.get("id") == marker_id), None)
+        if target is None:
+            car.stop()
+            return False
+        try:
+            distance, x = float(target["distance_m"]), float(target["x"])
+        except (KeyError, TypeError, ValueError):
+            car.stop()
+            return False
+        if not (0.0 < distance < float("inf")) or not (-1.0 <= x <= 1.0):
+            car.stop()
+            return False
+        if distance <= config.ARRIVE_DISTANCE_M:
+            car.stop()
+            return True
+        correction = config.STEER_GAIN * x
+        car.drive(config.FORWARD_DUTY + correction, config.FORWARD_DUTY - correction)
+        return False

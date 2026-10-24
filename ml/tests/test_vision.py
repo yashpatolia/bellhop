@@ -20,7 +20,7 @@ def test_generated_marker_is_found_with_room_and_distance():
 
     assert len(found) == 1
     assert found[0]["id"] == 201
-    assert found[0]["room"] == config.MARKER_ROOMS[201]
+    assert found[0]["room"] == config.room_for_marker(201)
     expected = config.MARKER_SIZE_M * config.MARKER_FOCAL_PX / 200
     assert found[0]["distance_m"] == pytest.approx(expected, rel=0.05)
     assert found[0]["x"] == pytest.approx(0.0, abs=0.02)
