@@ -225,6 +225,8 @@ The example home is a **separate service**, `simulator/`, that talks to the back
 
 ## Running it
 
+Setting up every service (backend, dashboard, simulator, SpacetimeDB, Claude, Moss, Apify, the Fetch.ai agent, the robot and Tailscale) is in [SETUP.md](SETUP.md). The short version:
+
 Everything at once, on this machine:
 
 ```bash
@@ -282,6 +284,7 @@ Then ask "what happened in room 12?" from ASI:One with the Agents toggle on. Det
 | `backend/` | Python backend (`uv`): call state, dispatch, memory recall, staff alerts |
 | `contracts/` | Frontend contract: OpenAPI spec plus real example payloads |
 | `spacetimedb/` | SpacetimeDB module |
+| `SETUP.md` | How to set up every service, from a fresh clone to a demo |
 | `AGENTS.md` | Commands and rules for AI agents and new contributors |
 | `CLAUDE.md` | Working rules and design rules for contributors and AI assistants |
 

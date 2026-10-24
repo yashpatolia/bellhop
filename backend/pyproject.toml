@@ -18,6 +18,12 @@ dependencies = [
 fetch = [
     "uagents>=0.26.1",
 ]
+claude = [
+    "anthropic>=2.3.0",
+]
+moss = [
+    "moss>=1.21.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]
