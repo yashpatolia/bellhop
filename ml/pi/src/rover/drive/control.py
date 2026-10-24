@@ -8,7 +8,7 @@ from collections.abc import Callable
 from typing import Any
 
 from rover import config, obslog, power
-from rover.drive import DRIVE_TIMEOUT_S, HOME_ROOM, LED_STATES, ROOMS, WATCHDOG_S
+from rover.drive import DRIVE_TIMEOUT_S, HOME_ROOM, LED_STATES, WATCHDOG_S
 from rover.drive.car import FakeCar, RealCar
 from rover.drive.navigator import Navigator
 
@@ -57,7 +57,7 @@ class Controller:
         self._target, self._mode = None, "idle"
 
     def go_to(self, room: str) -> None:
-        if room not in ROOMS:
+        if config.marker_for_room(room) is None:
             raise UnknownRoom(room)
         with self._lock:
             self._fresh()

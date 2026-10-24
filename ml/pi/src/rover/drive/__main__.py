@@ -12,8 +12,9 @@ from rover import config, obslog, safety
 from rover.drive import DRIVE_TIMEOUT_S, WATCHDOG_S
 from rover.drive.car import open_car
 from rover.drive.control import Controller, run_loop
-from rover.drive.navigator import SimNavigator
+from rover.drive.navigator import MarkerNavigator, SimNavigator
 from rover.drive.server import make_server
+from rover.drive.vision import VisionReceiver
 
 
 def motors_off(ctl: Controller) -> None:
@@ -63,15 +64,25 @@ def main() -> None:
     obslog.configure("drive")
 
     car = open_car(args.fake)
-    ctl = Controller(
-        car,
-        SimNavigator(travel_s=args.travel_s),
-        watchdog_s=args.watchdog_s,
-        drive_timeout_s=args.drive_timeout_s,
-    )
-    httpd = make_server(ctl, args.host, args.port)
-    print(f"drive: serving on {args.host}:{args.port} ({type(car).__name__})", flush=True)
-    serve(ctl, car, httpd)
+    vision = VisionReceiver()
+    vision.start()
+    try:
+        navigator = SimNavigator(travel_s=args.travel_s) if args.fake else MarkerNavigator(vision)
+        ctl = Controller(
+            car,
+            navigator,
+            watchdog_s=args.watchdog_s,
+            drive_timeout_s=args.drive_timeout_s,
+        )
+        httpd = make_server(ctl, args.host, args.port)
+        kind = "simulated" if args.fake else "marker-guided"
+        print(
+            f"drive: serving on {args.host}:{args.port} ({type(car).__name__}, {kind})",
+            flush=True,
+        )
+        serve(ctl, car, httpd)
+    finally:
+        vision.close()
 
 
 if __name__ == "__main__":

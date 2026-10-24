@@ -2,8 +2,9 @@
 
 from rover import config
 
-# ArUco marker id -> room id the backend uses (printed sheet aruco_201-210).
-MARKER_ROOMS: dict[int, str] = {201: "12", 202: "14", 203: "lobby"}
+# Deployment configuration maps physical ArUco IDs to backend room labels. Numeric labels address
+# their matching marker directly, so all valid IDs can be used without source changes.
+MARKER_ROOMS = config.MARKER_ROOMS
 ROOMS = frozenset(MARKER_ROOMS.values())
 LED_STATES = ("idle", "listening", "nurse_on_way", "emergency")
 WATCHDOG_S = 5.0  # no fresh command this long in follow/face mode -> stop

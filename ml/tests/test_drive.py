@@ -6,7 +6,7 @@ import urllib.request
 import pytest
 
 from rover import config
-from rover.drive import DRIVE_TIMEOUT_S, MARKER_ROOMS, WATCHDOG_S
+from rover.drive import DRIVE_TIMEOUT_S, WATCHDOG_S
 from rover.drive.car import FakeCar
 from rover.drive.control import Controller, UnknownRoom
 from rover.drive.navigator import SimNavigator
@@ -44,8 +44,9 @@ def make(distance: float = 300.0, travel_s: float = SimNavigator.TRAVEL_S):
     return ctl, car, clock
 
 
-def test_marker_map_matches_spec():
-    assert MARKER_ROOMS == {201: "12", 202: "14", 203: "lobby"}
+def test_numeric_marker_targets_do_not_need_a_site_specific_map():
+    assert config.marker_for_room("210") == 210
+    assert config.marker_for_room("999") is None
 
 
 def test_startup_stops_motors_and_sets_led_idle():
@@ -304,8 +305,8 @@ def test_openapi_file_lists_exactly_the_servers_routes():
     )
     routes = {*drive_server._Server.POST_PATHS, "/snapshot"}
     assert set(spec["paths"]) == routes
-    rooms = spec["paths"]["/go_to"]["post"]["requestBody"]["content"]["application/json"]
-    assert set(rooms["schema"]["properties"]["room"]["enum"]) == set(MARKER_ROOMS.values())
+    room = spec["paths"]["/go_to"]["post"]["requestBody"]["content"]["application/json"]
+    assert room["schema"]["properties"]["room"]["type"] == "string"
 
 
 # --- power in the snapshot ------------------------------------------------------------------
