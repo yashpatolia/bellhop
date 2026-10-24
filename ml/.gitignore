@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.env
+models/
+runs/
+*.wav
+# dev-only notes for coding assistants; not committed, not copied to the Pi
+AGENTS.md
+CLAUDE.md
+GOTCHAS.md
