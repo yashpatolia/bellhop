@@ -1,11 +1,11 @@
 # Status
 
-Snapshot of 2026-10-23. Read [01-module-map.md](01-module-map.md) for what exists and [09-hardware-interface.md](09-hardware-interface.md) for the Pi contract.
+Snapshot of 2026-10-24. Single-file handoff: [../../CONTEXT.md](../../CONTEXT.md). Read [01-module-map.md](01-module-map.md) for what exists and [09-hardware-interface.md](09-hardware-interface.md) for the Pi contract.
 
 ## Numbers (from `cd backend && .venv/bin/python -m pytest -q -p no:warnings`)
 | Check | Result |
 | --- | --- |
-| Tests | Re-run before quoting: HTTP integration tests are temporarily blocked by the lockfile's Starlette 1.9.0 test-client dependency issue (it expects `httpx2`, which is not locked). The last reported green snapshot before the SSE/admin work was 1,002 passed, 1 skipped. |
+| Tests | 1069 passed, 1 skipped, exit 0 (2026-10-24, full suite) |
 | Lint | `ruff check src tests` clean |
 | Strict xfail | Known-bug records live in `tests/integration/test_edge_cases_2.py` (see [05-testing.md](05-testing.md)) |
 
@@ -21,7 +21,7 @@ c40cfad Broaden triage keyword floor by pattern; document measured limits
 74585be Add Bellhop backend, architecture docs and frontend contract
 6dd6ed4 Add Bellhop plan, research and polished HTML artifacts
 ```
-The working tree contains the pending admin/SSE release and research notes. Do not call it green until `httpx2` is available and the full suite has run.
+Admin routes, SSE and research notes are merged on master (eb62be9, with the dashboard).
 
 ## Done and verified
 | Area | How verified |
@@ -53,8 +53,9 @@ The working tree contains the pending admin/SSE release and research notes. Do n
 | Triage keyword guard is weak | Recall on independent fresh batches: 20/24, 19/24, then 11/24 on the paraphrase-heavy batch. Gordon's model is the real safety net; the guard is a backstop (ADR-13) |
 | No auth by default | `BELLHOP_API_KEY` is optional; unset means open. CORS default is `*` |
 | In-memory default store | State is lost on restart unless `BELLHOP_STORE=spacetimedb` works |
+| `POST /calls` blocks while `go_to` hangs | The Dispatcher runs synchronously in the bell request, so a hung Pi costs up to the 2 s guard timeout (and holds the `CallService` lock). Not fixed: an async dispatch needs its completion to share that lock and reorders `call.assigned` and the LED signal. Details in [09-hardware-interface.md](09-hardware-interface.md) |
+| Ghost drive is only mitigated | After a `go_to` timeout the backend sends `/stop` now and once more one guard window later (heuristic). The Pi should reject stale `go_to`; a late `/stop` can also cut a legitimate drive started in that window |
 | Other synchronous event handlers | The SSE fan-out is bounded and non-blocking; unrelated synchronous bus handlers can still delay a request |
-| Test-client dependency | Starlette 1.9.0's `TestClient` expects `httpx2`, absent from the lockfile; all HTTP integration tests hang until that dev dependency is restored |
 | Forgotten memory with Moss on | Removed from the local index only; the Moss copy stays |
 | Labelled set is small | 30 fictional cases, plus nurse overrides once calls resolve |
 
@@ -74,7 +75,7 @@ The working tree contains the pending admin/SSE release and research notes. Do n
 5. Try SpacetimeDB with a token, then Maincloud; decide whether persistence is needed for the demo.
 6. Set `BELLHOP_API_KEY` and a narrow `BELLHOP_CORS_ORIGINS` for the demo deployment.
 7. On demo hardware, test Tailscale inside WSL plus Pi/Yash devices; run with `--host 0.0.0.0`, seed demo data, phone hotspot and backup hotspot. Confirm the Pi's five-second stop-and-idle watchdog.
-8. Restore the missing `httpx2` test dependency, then run the full suite and quote its final count.
+8. Fix dashboard live-mode field mapping and finish/merge the ML branch (see CONTEXT.md sections 4 and 5).
 
 ## Team handoff
 | Person | Owns | Needs from the backend or from them |

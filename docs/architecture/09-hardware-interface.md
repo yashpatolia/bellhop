@@ -13,7 +13,13 @@ Owner on the hardware side: Jeremy. Backend side: Aditya. Status: **backend half
 
 ## What the backend added (DONE)
 1. `GET /robots`, `PUT /robots/{id} {status, battery, room}` so the Pi can report in (every 5 s is enough). `status` is one of `idle`, `busy`, `charging`, `fault`. `battery` is 0 to 1 (else 422). Unknown ids are created. A robot reporting `charging` or `fault` is skipped by dispatch. An `idle` report is **ignored for status** while the robot holds an open call (resolving the call frees it); battery and room still apply.
-2. `HttpRobotGateway`: the backend calls an HTTP server on the Pi. Wrapped in the existing timeout guard; on failure the call falls back to a nurse. Wire format: `POST {BELLHOP_ROBOT_URL}/go_to {"room"}` and `POST {BELLHOP_ROBOT_URL}/led {"state"}`; any non-2xx is a failure. `RobotSignals` sets the LED on the call's robot only; LED failures are logged and ignored.
+2. `HttpRobotGateway`: the backend calls an HTTP server on the Pi. Wrapped in the existing timeout guard; on failure the call falls back to a nurse. Wire format: `POST {BELLHOP_ROBOT_URL}/go_to {"room"}`, `POST {BELLHOP_ROBOT_URL}/led {"state"}` and `POST {BELLHOP_ROBOT_URL}/stop {}`; any non-2xx is a failure. `RobotSignals` sets the LED on the call's robot only; LED failures are logged and ignored.
+
+## Failure handling (backend)
+- A failed or timed-out `go_to` (2 s guard, `Settings.gateway_timeout`, not env-driven) always falls back to the least-loaded on-shift nurse, whatever the resident's risk flags, and raises a level 3 alert to that nurse ("The robot could not be sent to room N"). The call's urgency is untouched.
+- The backend then sends a best-effort `POST /stop`, and one more `/stop` one guard window later if the slow `go_to` may still land (a heuristic). Failures are logged and ignored. The proper fix is the Pi rejecting stale `go_to` requests; until then a `/stop` can also cut short a legitimate drive started in that window.
+- A successful `go_to` moves the call to `robot_en_route`; the Pi's `POST /calls/{id}/in-visit` moves it to `in_visit`. If the call was escalated meanwhile (score 3 or 4, or a nurse fallback), `in-visit` is still accepted (200), records `first_response_at` and leaves the status `escalated` or `nurse_acked`.
+- `POST /calls` still blocks up to the guard timeout (2 s) when `go_to` hangs: the dispatcher runs synchronously inside the bell request. Making it asynchronous needs the completion handlers to share `CallService`'s lock and a reordering of the LED and `call.assigned` signals; not done.
 
 ## What we need from the hardware side
 | # | Need | Why |

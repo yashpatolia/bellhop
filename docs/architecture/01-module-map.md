@@ -5,7 +5,7 @@ Status: everything below is implemented and green unless marked `later`.
 
 ## domain/ (done)
 `models.py`: `Urgency`, `CallStatus`, `Call`, `Turn`, `Resident`, `MemoryFact`, `Nurse`, `Robot`, `RobotStatus`, `LedState`, `Alert`, `Visit`, `InvalidTransition`.
-`events.py`: `CallRaised`, `CallAssigned`, `CallScored`, `CallResolved`, `AlertRaised` (frozen dataclasses).
+`events.py`: `CallRaised`, `CallAssigned`, `CallScored`, `CallResolved`, `AlertRaised`, `RobotUnreachable` (frozen dataclasses).
 Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nurse_tasks`); `Call.robot_id` is the robot assigned. `Call.transition(to, at)` enforces the state machine; `Call.score(urgency, category)` only ratchets up; `Call.needs_nurse` is urgency >= 3.
 
 ## ports/ (done)
@@ -19,8 +19,8 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 | `adapters/memory_store.py` | `InMemoryStore` is a facade with one repository per aggregate: `.calls`, `.residents`, `.nurses`, `.robots`, `.visits`, `.alerts` (the container passes `store.calls` etc.). `save` is upsert; `get` returns a copy-safe object; `list_open` = calls not in RESOLVED/CLOSED |
 | `adapters/event_bus.py` | `InMemoryEventBus`: synchronous, handlers run in subscription order, one failing handler is logged and does not block others |
 | `adapters/system.py` | `SystemClock`, `UuidIds` (`new_id("call")` -> `"call_<8 hex>"`) |
-| `services/call_service.py` | `CallService(calls, residents, bus, clock, ids, nurses=None)`: `raise_call(room) -> Call` (attaches resident by room if known, publishes `CallRaised`), `add_turn(call_id, speaker, text)`, `score(call_id, urgency, category, summary=None)` (publishes `CallScored`; urgency >= 3 moves the call to ESCALATED; scores on RESOLVED/CLOSED calls are ignored), `mark_in_visit(call_id)`, `resolve(call_id, by_robot=True)` (publishes `CallResolved`; `by_robot` is only true if the call had a robot and no nurse was needed), `ack_by_nurse(call_id, nurse_id)` (unknown nurse raises `LookupError`). Unknown call id raises `CallNotFound` |
-| `services/dispatcher.py` | `DispatchPolicy` Protocol: `decide(call, resident, robots, nurses) -> Decision(robot_id, nurse_id)`. `DefaultPolicy`: idle robot with battery >= 0.2 nearest-first (any idle if no positions), nurse added when resident has risk flags or no robot is free; least-loaded on-shift nurse. `Dispatcher(calls, residents, robots, nurses, gateway, policy, bus, clock)` subscribes to `CallRaised`, assigns, transitions to ASSIGNED, calls `gateway.go_to` first, then sets the robot BUSY, charges the assigned nurse, publishes `CallAssigned`. If `go_to` raises, the robot is left untouched and the call falls back to a nurse. No robot and no nurse available: call is ESCALATED |
+| `services/call_service.py` | `CallService(calls, residents, bus, clock, ids, nurses=None)`: `raise_call(room) -> Call` (attaches resident by room if known, publishes `CallRaised`), `add_turn(call_id, speaker, text)`, `score(call_id, urgency, category, summary=None)` (publishes `CallScored`; urgency >= 3 moves the call to ESCALATED; scores on RESOLVED/CLOSED calls are ignored), `mark_in_visit(call_id)` (calls `Call.start_visit`: IN_VISIT from ASSIGNED or ROBOT_EN_ROUTE; after escalation (ESCALATED or NURSE_ACKED) the robot's arrival is accepted, sets `first_response_at` once and keeps the escalated status, so the escalation never disappears), `resolve(call_id, by_robot=True)` (publishes `CallResolved`; `by_robot` is only true if the call had a robot and no nurse was needed), `ack_by_nurse(call_id, nurse_id)` (unknown nurse raises `LookupError`). Unknown call id raises `CallNotFound` |
+| `services/dispatcher.py` | `DispatchPolicy` Protocol: `decide(call, resident, robots, nurses) -> Decision(robot_id, nurse_id)`. `DefaultPolicy`: idle robot with battery >= 0.2 nearest-first (any idle if no positions), nurse added when resident has risk flags or no robot is free; least-loaded on-shift nurse. `Dispatcher(calls, residents, robots, nurses, gateway, policy, bus, clock)` subscribes to `CallRaised`, assigns, calls `gateway.go_to` first, then sets the robot BUSY, moves the call to ASSIGNED and, when a robot was commanded, on to ROBOT_EN_ROUTE (both in one handler, so clients see `robot_en_route`), charges the assigned nurse, publishes `CallAssigned`. If `go_to` raises or times out, the robot is left untouched, the dispatcher best-effort calls `gateway.stop` (failures logged), the call falls back to the on-shift nurse regardless of risk flags (`policy.decide` with no robots), and `RobotUnreachable` is published. No robot and no nurse available: call is ESCALATED (the event is still published, so the alert is a broadcast) |
 | `services/workload.py` | `Workload(calls, robots, nurses, bus)` on `CallResolved`: sets the call's robot back to IDLE and releases every nurse charged for the call (`open_tasks` never goes below 0) |
 
 ### WP-B: memory and recall
@@ -35,7 +35,7 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 | File | Public interface |
 | --- | --- |
 | `adapters/notifiers.py` | `RecordingNotifier` (keeps sent alerts; used by dashboard feed and tests), `CompositeNotifier(*notifiers)` (one failing channel does not stop others) |
-| `services/liaison.py` | `Liaison(calls, nurses, alerts, notifier, bus, clock, ids)` subscribes to `CallScored`. Urgency 3: one alert to the nurse already on the call, else the least-loaded on-shift nurse, with a short summary. Urgency 4: one broadcast alert (`nurse_id=None`) immediately. Urgency 1-2: nothing. Re-scoring to the same level does not duplicate alerts; raising 3 to 4 sends the 4 alert. Publishes `AlertRaised` |
+| `services/liaison.py` | `Liaison(calls, nurses, alerts, notifier, bus, clock, ids)` subscribes to `CallScored` and `RobotUnreachable`. `RobotUnreachable`: one level-3 alert (message says the robot could not be sent to the room) to the nurse already on the call, else the least-loaded on-shift nurse, else a broadcast; skipped if a level 3 or higher alert exists; never changes the call's urgency, so a later score of 4 still raises its own alert. Urgency 3: one alert to the nurse already on the call, else the least-loaded on-shift nurse, with a short summary. Urgency 4: one broadcast alert (`nurse_id=None`) immediately. Urgency 1-2: nothing. Re-scoring to the same level does not duplicate alerts; raising 3 to 4 sends the 4 alert. Publishes `AlertRaised` |
 | `services/feedback.py` | `FeedbackService(visits, calls, bus, ids)`: `record_resolution(call_id, robot_id)` on `CallResolved` creates the `Visit`; `rate(call_id, rating, mood=None)`; `nurse_override(call_id, urgency)` |
 | `services/analytics.py` | `Analytics(calls, visits)`: `resolved_without_nurse()`, `minutes_saved(minutes_per_call=4.0)`, `share_answered_within(seconds=600)`, `calls_by(key)` with key in `hour|room|category`, `labelled_examples()` (calls where a nurse override exists, as dicts of transcript, robot urgency, nurse urgency) |
 
@@ -53,8 +53,8 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 ### Robot interface
 | File | Public interface |
 | --- | --- |
-| `adapters/robot_gateway.py` | `RecordingRobotGateway`: default `RobotGateway`; `go_to` and `set_led` append to `.commands` (a `BoundedLog` of the last 1000 `(kind, robot_id, arg)`). `BoundedLog` lives in `adapters/notifiers.py` |
-| `adapters/http_robot_gateway.py` | `HttpRobotGateway(base_url, timeout=2.0)`: `go_to` POSTs `/go_to {room}`, `set_led` POSTs `/led {state}`; non-2xx or transport error raises |
+| `adapters/robot_gateway.py` | `RecordingRobotGateway`: default `RobotGateway`; `go_to`, `set_led` and `stop` append to `.commands` (a `BoundedLog` of the last 1000 `(kind, robot_id, arg)`). `BoundedLog` lives in `adapters/notifiers.py` |
+| `adapters/http_robot_gateway.py` | `HttpRobotGateway(base_url, timeout=2.0)`: `go_to` POSTs `/go_to {room}`, `set_led` POSTs `/led {state}`, `stop` POSTs `/stop {}`; non-2xx or transport error raises |
 | `services/robot_signals.py` | `RobotSignals(calls, gateway, bus)`: urgency 4 -> `emergency`, 3 -> `nurse_on_way`, assigned -> `listening`, resolved -> `idle`, only for the call's `robot_id`; gateway errors are logged, never raised |
 
 ### Reminiscence content (Wikipedia direct; Apify optional)
@@ -91,7 +91,7 @@ Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` al
 | Interface | Other side | Contract |
 | --- | --- | --- |
 | Call record | Yash (dashboard) | `Call` JSON from the API |
-| Robot commands | Jeremy | `RobotGateway.go_to`, `set_led`; status written to `RobotRepository` |
+| Robot commands | Jeremy | `RobotGateway.go_to`, `set_led`, `stop`; status written to `RobotRepository` |
 | Triage call | Gordon | Posts to `POST /calls/{id}/score` |
 | Memory call | Yash / Companion | `MemoryService.recall`, under 50 ms |
 
@@ -155,7 +155,7 @@ Stdlib-only package for checking and tuning triage against hand-labelled calls. 
 | `call_with_timeout(fn, seconds, *args, default=...)` | Runs fn in a shared pool; raises `GuardTimeout` or returns `default` |
 | `CircuitBreaker(failures=3, reset_seconds=30, clock=...)` | `allow`, `record_success`, `record_failure`; half-open probe after the reset window |
 | `GuardedNotifier(inner, timeout=2.0)` | Never raises; `failed_alerts` and `retry_failed()` |
-| `GuardedRobotGateway(inner, timeout=2.0)` | Raises `GuardTimeout` so the Dispatcher falls back to a nurse |
+| `GuardedRobotGateway(inner, timeout=2.0, restop_after=None)` | `go_to` raises `GuardTimeout` so the Dispatcher falls back to a nurse; a timed-out `go_to` also schedules one more `stop` after `restop_after` (default: one more timeout) unless the robot got a newer `go_to`, to cancel a ghost drive. `stop` is fire and forget: never blocks, never raises, failures logged |
 | `GuardedMemoryIndex(inner, fallback, budget_ms=50)` | Falls back and trips the breaker on slow or failing recall |
 Container wiring: `Container.guarded_notifier` / `guarded_gateway` (None when `Settings(guard_timeouts=False)`, env `BELLHOP_GUARDS=0`); the memory index is wrapped only for `moss`. `Container.notifier` and `gateway` remain the recorders.
 
