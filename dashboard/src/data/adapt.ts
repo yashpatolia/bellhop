@@ -209,6 +209,9 @@ export function toMedical(m: ApiMedical): MedicalHistory {
 
 const RISK_LABEL: Record<string, string> = { falls: 'Fall risk', dementia: 'Dementia', oxygen: 'Oxygen', diabetic: 'Diabetic' }
 
+/** The risk flags staff can set, as the backend stores them, with the words shown for each. */
+export const RISK_CHOICES = Object.entries(RISK_LABEL).map(([code, label]) => ({ code, label }))
+
 export function flagsOf(riskFlags: string[], prefs: ApiPrefs | null): string[] {
   const flags = riskFlags.map((f) => RISK_LABEL[f.toLowerCase()] ?? f.charAt(0).toUpperCase() + f.slice(1))
   if (prefs?.hard_of_hearing) flags.push('Hard of hearing')
@@ -251,6 +254,9 @@ export function toResident(r: ApiResident, parts: ResidentParts, now: number): R
     room: r.room,
     age: r.birth_year ? new Date(now).getFullYear() - r.birth_year : null,
     flags: flagsOf(r.risk_flags ?? [], parts.prefs),
+    riskFlags: r.risk_flags ?? [],
+    birthYear: r.birth_year ?? null,
+    hardOfHearing: parts.prefs?.hard_of_hearing ?? false,
     mood: dailySeries(parts.care, 'mood', now),
     pain: dailySeries(parts.care, 'pain', now),
     learned: [...parts.facts.map(toFact), ...parts.pending.map((p) => toPending(p, now))],

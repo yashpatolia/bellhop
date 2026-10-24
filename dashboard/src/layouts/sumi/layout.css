@@ -161,3 +161,12 @@
 .lx-sumi .sm-dispatch-robots li { display: flex; flex-wrap: wrap; align-items: center; }
 .lx-sumi .sm-dispatch-robots li > label { flex: 1 1 380px; }
 .lx-sumi .sm-stop { margin: 0 12px 0 0; padding: 6px 12px; border-color: var(--u4); color: var(--u4); }
+
+/* add or change a resident */
+.lx-sumi .sm-add { display: inline-block; margin: 0 0 12px; text-decoration: none; }
+.lx-sumi .sm-add[aria-current='page'] { background: var(--accent-tint); }
+.lx-sumi .sm-editlink { margin-left: 8px; font-weight: 700; color: var(--accent); }
+.lx-sumi .sm-checks { display: grid; gap: 6px; margin: 0; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); }
+.lx-sumi .sm-checks legend { padding: 0 6px; font-weight: 600; color: var(--ink-2); }
+.lx-sumi .sm-checks label { display: flex; align-items: center; gap: 10px; font-weight: 400; color: var(--ink); }
+.lx-sumi .sm-checks input { width: 20px; height: 20px; padding: 0; accent-color: var(--accent); }
