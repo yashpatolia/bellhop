@@ -82,7 +82,7 @@ Admin routes, SSE and research notes are merged on master (eb62be9, with the das
 5. Try SpacetimeDB with a token, then Maincloud; decide whether persistence is needed for the demo.
 6. Set `BELLHOP_API_KEY` and a narrow `BELLHOP_CORS_ORIGINS` for the demo deployment.
 7. On demo hardware, test Tailscale inside WSL plus Pi/Yash devices; run with `--host 0.0.0.0`, seed demo data, phone hotspot and backup hotspot. Confirm the Pi's five-second stop-and-idle watchdog.
-8. Fix dashboard live-mode field mapping and finish/merge the ML branch (see CONTEXT.md sections 4 and 5).
+8. Run the real robot against the backend (`scripts/dev.sh empty`) and check the dashboard shows it. The dashboard live mode and the ML merge are done (see CONTEXT.md sections 4 and 5).
 
 ## Team handoff
 | Person | Owns | Needs from the backend or from them |

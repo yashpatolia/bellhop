@@ -14,9 +14,8 @@ Single-file handoff for any agent or teammate who starts with no chat history. S
 
 ## 2. Repo and branches
 Repo `yashpatolia/calhacks-13`. Push over SSH: `git push git@github.com:yashpatolia/calhacks-13.git backend:backend` (HTTPS has no credentials).
-- `master`: has everything merged (backend, contracts, SpacetimeDB module, dashboard). Local `backend` branch equals master (eb62be9) and the tree is clean.
-- `origin/ml`: Gordon's work, NOT merged. Based only on the docs commit. Read it with `git show origin/ml:<path>`; to work on it, branch from it.
-- `origin/dashboard`: already merged into master via PR #2.
+- `master`: has everything merged (backend, contracts, SpacetimeDB module, dashboard, simulator, robot code). Work happens on short branches and goes in by pull request.
+- `origin/ml` is Gordon's original work; `ml-work` (merged) is where it was finished. `origin/dashboard` and `origin/backend` are old and merged.
 - Rules: commit/push only when the user says so; never push to `master` without being told; **no AI attribution in commits or repo files** (no Co-Authored-By trailer).
 
 Layout: `backend/` (Python), `dashboard/` (Vite/React), `contracts/` (openapi + examples), `spacetimedb/` (TypeScript module), `docs/architecture/`, `docs/plan/`, `artifacts/` (static HTML), `tools/` (git-ignored local Node tooling).
@@ -62,7 +61,7 @@ Code under `ml/pi/src/rover/`: `vision/` (Picamera2, YOLO NCNN, YuNet faces, ArU
 
 ## 6. Open items, ranked
 1. ML-to-backend end-to-end run on the Pi (section 5). The dashboard live mode is done (section 4).
-2. Merge `origin/ml` into a working branch (do not push to master unasked), get its tests green.
+2. (done) The robot code is merged into master through `ml-work`; run its tests in `ml/pi` (`uv run pytest`).
 3. Jeremy: Pi server (`/go_to`, `/led`, `/stop`, `/snapshot`), room ids, marker map, battery.
 4. Dev tooling quick wins from [12-research-dev-tooling.md](docs/architecture/12-research-dev-tooling.md): import-linter (fixes 4 layering violations), Schemathesis, vulture, pytest-xdist + coverage floor, openapi-typescript/Prism for the frontend.
 5. Deploy plan (Tailscale, Pi watchdog, SSE) in [14-research-deploy-and-connectivity.md](docs/architecture/14-research-deploy-and-connectivity.md); set `BELLHOP_API_KEY` and narrow CORS for the demo.
