@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ML_DIR = Path(__file__).resolve().parents[2]
+ML_DIR = Path(__file__).resolve().parents[2]  # ml/pi: the folder sent to the Pi
 MODELS_DIR = ML_DIR / "models"
 RUNS_DIR = ML_DIR / "runs"
 AGENT_DIR = Path(__file__).resolve().parent / "agent"

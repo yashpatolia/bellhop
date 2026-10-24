@@ -281,7 +281,8 @@ def test_high_urgency_waits_for_the_nurse_then_resolves(tmp_path, monkeypatch):
         time.sleep(0.05)
     assert visit.nurse_status == "nurse_acked"
     visit.resolve_after_nurse()
-    assert backend.log[-2:] == [("resolve", False), ("/go_to", {"room": config.HOME_ROOM})] and visit.done
+    go_home = ("/go_to", {"room": config.HOME_ROOM})
+    assert backend.log[-2:] == [("resolve", False), go_home] and visit.done
 
 
 def test_failed_trip_home_prints_a_fallback(tmp_path, monkeypatch, capsys):
@@ -309,7 +310,8 @@ def test_turn_waiting_during_the_ending_stops_the_resolve(tmp_path, monkeypatch)
     visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain(("Bye now!",)))
     visit.submitted = visit.started + 1  # "wait, my chest hurts" is queued behind this job
     visit.handle_turn("Okay, bye", "flux", block(1), 0.5, time.monotonic(), None, True)
-    assert ("resolve", True) not in backend.log and ("/go_to", {"room": config.HOME_ROOM}) not in backend.log
+    go_home = ("/go_to", {"room": config.HOME_ROOM})
+    assert ("resolve", True) not in backend.log and go_home not in backend.log
     assert visit.phase == "talk" and not visit.done
 
 

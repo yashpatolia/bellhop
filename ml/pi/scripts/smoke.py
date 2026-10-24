@@ -64,7 +64,7 @@ def check_imports() -> dict[str, object]:
     if ON_LINUX:
         names.update(CAR_IMPORTS)
     else:
-        print(f"  skip {', '.join(CAR_IMPORTS)}: car I/O, Pi only (rover.drive uses a FakeCar here)")
+        print(f"  skip {', '.join(CAR_IMPORTS)}: car I/O, Pi only (rover.drive fakes the car)")
     modules = {}
     for name, dist in names.items():
         try:
