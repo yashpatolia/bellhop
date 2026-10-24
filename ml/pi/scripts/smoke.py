@@ -79,7 +79,8 @@ def check_imports() -> dict[str, object]:
 def check_versions(modules: dict) -> None:
     print("== versions")
     if numpy := modules.get("numpy"):
-        if int(numpy.__version__.split(".")[0]) >= 2:
+        # numpy 2 breaks Bookworm's apt picamera2 (Python 3.11); Trixie's (3.13) is built for it
+        if sys.version_info < (3, 12) and int(numpy.__version__.split(".")[0]) >= 2:
             fail(f"numpy {numpy.__version__} >= 2 breaks apt's picamera2 (simplejpeg)")
     if cv2 := modules.get("cv2"):
         major, minor = (int(part) for part in cv2.__version__.split(".")[:2])
