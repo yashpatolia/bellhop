@@ -17,6 +17,5 @@
 | [12-research-dev-tooling.md](12-research-dev-tooling.md) | You want the dev tooling research (research note; may still be in progress) |
 | [13-research-policy-and-triage.md](13-research-policy-and-triage.md) | You want research on a data-driven policy layer, clinical alignment and paraphrase recall |
 | [14-research-deploy-and-connectivity.md](14-research-deploy-and-connectivity.md) | You want research on deployment and connectivity (Pi to backend, dashboard hosting) |
-| [15-yash-dashboard-setup.md](15-yash-dashboard-setup.md) | You are Yash: join Tailscale, configure the dashboard, consume SSE and verify the demo |
 
 Scope: the `backend/` package `bellhop`. Robot firmware (Jeremy), triage model (Gordon) and React dashboard (Yash) integrate through the interfaces in the module map.
