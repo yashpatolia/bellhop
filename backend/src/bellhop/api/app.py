@@ -5,14 +5,28 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from bellhop.api.deps import AlertNotFound, ack_alert, get_call
+from bellhop.api.deps import (
+    ack_alert,
+    get_call,
+    require_resident,
+    triage_score,
+)
 from bellhop.container import Container
 from bellhop.domain import Alert, Call, InvalidTransition, MemoryFact, Robot, RobotStatus, Urgency
-from bellhop.services.call_service import CallNotFound
+from bellhop.domain.care import (
+    CareEntry,
+    EntryKind,
+    FamilyMessage,
+    Flag,
+    Preferences,
+)
+from bellhop.services.memory_guard import Accepted, PendingFact
 
 
 class RaiseCall(BaseModel):
@@ -28,6 +42,7 @@ class ScoreIn(BaseModel):
     urgency: int = Field(ge=1, le=4)
     category: str
     summary: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
 
 
 class ResolveIn(BaseModel):
@@ -47,6 +62,27 @@ class AckIn(BaseModel):
 class MemoryIn(BaseModel):
     text: str
     tags: list[str] = Field(default_factory=list)
+    source: str = "conversation"
+    confidence: float = Field(default=1.0, ge=0, le=1)
+
+
+class CareIn(BaseModel):
+    kind: EntryKind
+    value: float | None = Field(default=None, ge=1, le=5)
+    note: str = ""
+    call_id: str | None = None
+
+
+class PreferencesIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    hard_of_hearing: bool | None = None
+    quiet_mode: bool | None = None
+    night_mode: bool | None = None
+    favourite_drink: str | None = None
+
+
+class TextIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
 
 
 def _error(status: int):
@@ -61,8 +97,7 @@ def create_app(container: Container) -> FastAPI:
     app.add_middleware(
         CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
     )
-    app.add_exception_handler(CallNotFound, _error(404))
-    app.add_exception_handler(AlertNotFound, _error(404))
+    app.add_exception_handler(LookupError, _error(404))  # unknown call/alert/resident/flag/...
     app.add_exception_handler(InvalidTransition, _error(409))
     calls = container.call_service
 
@@ -90,8 +125,26 @@ def create_app(container: Container) -> FastAPI:
 
     @app.post("/calls/{call_id}/score")
     def score(call_id: str, body: ScoreIn) -> Call:
-        calls.score(call_id, Urgency(body.urgency), body.category, body.summary)
+        triage_score(
+            container, call_id, Urgency(body.urgency), body.category, body.summary, body.confidence
+        )
         return get_call(container, call_id)
+
+    @app.post("/calls/{call_id}/triage-failed")
+    def triage_failed(call_id: str) -> Call:
+        triage_score(container, call_id, None, "unknown", None, None)
+        return get_call(container, call_id)
+
+    @app.get("/calls/{call_id}/note")
+    def visit_note(call_id: str) -> dict[str, Any]:
+        get_call(container, call_id)
+        note = container.visit_notes.build(call_id)
+        return {
+            "text": note.text,
+            "resident_id": note.resident_id,
+            "room": note.room,
+            "at": note.at,
+        }
 
     @app.post("/calls/{call_id}/in-visit")
     def in_visit(call_id: str) -> Call:
@@ -116,8 +169,109 @@ def create_app(container: Container) -> FastAPI:
         return container.memory.recall(resident_id, q, k)
 
     @app.post("/residents/{resident_id}/memory", status_code=201)
-    def remember(resident_id: str, body: MemoryIn) -> MemoryFact:
-        return container.memory.remember(resident_id, body.text, body.tags)
+    def remember(resident_id: str, body: MemoryIn) -> Response:
+        result = container.memory_guard.propose(
+            resident_id, body.text, body.tags, body.source, body.confidence
+        )
+        if isinstance(result, Accepted):
+            return JSONResponse(status_code=201, content=jsonable_encoder(result.fact))
+        if result.reason == "pending_review":
+            return JSONResponse(
+                status_code=202,
+                content={"status": "pending_review", "detail": "queued for nurse review"},
+            )
+        return JSONResponse(status_code=422, content={"detail": result.reason})
+
+    @app.get("/residents/{resident_id}/memory/pending")
+    def pending_memory(resident_id: str) -> list[PendingFact]:
+        return container.memory_guard.pending(resident_id)
+
+    @app.post("/residents/{resident_id}/memory/pending/{pending_id}/approve")
+    def approve_memory(resident_id: str, pending_id: str) -> MemoryFact:
+        return container.memory_guard.approve(pending_id, resident_id).fact
+
+    @app.post("/residents/{resident_id}/memory/pending/{pending_id}/reject", status_code=200)
+    def reject_memory(resident_id: str, pending_id: str) -> dict[str, str]:
+        container.memory_guard.reject(pending_id, resident_id)
+        return {"status": "rejected"}
+
+    @app.delete("/residents/{resident_id}/memory/{fact_id}", status_code=204)
+    def forget_fact(resident_id: str, fact_id: str) -> Response:
+        if not container.memory_guard.forget(resident_id, fact_id):
+            raise LookupError(fact_id)
+        return Response(status_code=204)
+
+    @app.delete("/residents/{resident_id}/memory")
+    def forget_all(resident_id: str) -> dict[str, int]:
+        return {"removed": container.memory_guard.forget_all(resident_id)}
+
+    @app.post("/residents/{resident_id}/care", status_code=201)
+    def record_care(resident_id: str, body: CareIn) -> CareEntry:
+        require_resident(container, resident_id)
+        cs = container.care_signals
+        if body.kind in (EntryKind.MOOD, EntryKind.PAIN) and body.value is None:
+            raise RequestValidationError(
+                [{"loc": ("body", "value"), "msg": "value required", "type": "value_error"}]
+            )
+        if body.kind == EntryKind.MOOD:
+            return cs.record_mood(resident_id, body.value, body.call_id, body.note)  # type: ignore[arg-type]
+        if body.kind == EntryKind.PAIN:
+            return cs.record_pain(resident_id, body.value, body.call_id, body.note)  # type: ignore[arg-type]
+        if body.kind == EntryKind.DRINK:
+            return cs.record_drink(resident_id, body.call_id, body.note)
+        return cs.record_repeat_question(resident_id, body.call_id)
+
+    @app.get("/residents/{resident_id}/care/summary")
+    def care_summary(resident_id: str) -> dict[str, Any]:
+        require_resident(container, resident_id)
+        cs, now = container.care_signals, container.clock.now()
+        return {
+            "pain_streak_days": cs.pain_streak(resident_id, now).days,
+            "mood_lower_than_usual": cs.mood_changed_from_usual(resident_id, now).changed,
+            "drinks_today": cs.hydration_today(resident_id, now).drinks,
+            "repeat_questions_today": cs.repeat_question_count(resident_id, now).count,
+        }
+
+    @app.get("/flags")
+    def list_flags(resident_id: str | None = None, open_only: bool = True) -> list[Flag]:
+        return container.care_store.flags.list(resident_id, open_only)
+
+    @app.post("/flags/{flag_id}/resolve")
+    def resolve_flag(flag_id: str) -> Flag:
+        return container.care_signals.resolve_flag(flag_id)
+
+    @app.get("/residents/{resident_id}/preferences")
+    def get_preferences(resident_id: str) -> Preferences:
+        return container.preferences.get(require_resident(container, resident_id))
+
+    @app.put("/residents/{resident_id}/preferences")
+    def put_preferences(resident_id: str, body: PreferencesIn) -> Preferences:
+        require_resident(container, resident_id)
+        return container.preferences.update(resident_id, **body.model_dump(exclude_unset=True))
+
+    @app.get("/residents/{resident_id}/speech-settings")
+    def speech_settings(resident_id: str) -> dict[str, Any]:
+        return container.preferences.speech_settings(require_resident(container, resident_id))
+
+    @app.post("/residents/{resident_id}/family/messages", status_code=201)
+    def leave_voice_note(resident_id: str, body: TextIn) -> FamilyMessage:
+        return container.family.leave_voice_note(
+            require_resident(container, resident_id), body.text
+        )
+
+    @app.post("/residents/{resident_id}/family/replies", status_code=201)
+    def record_reply(resident_id: str, body: TextIn) -> FamilyMessage:
+        return container.family.record_reply(require_resident(container, resident_id), body.text)
+
+    @app.get("/residents/{resident_id}/family/messages")
+    def family_messages(resident_id: str) -> list[FamilyMessage]:
+        require_resident(container, resident_id)
+        return container.care_store.messages.list(resident_id)
+
+    @app.get("/residents/{resident_id}/postcard")
+    def postcard(resident_id: str) -> dict[str, list[str]]:
+        require_resident(container, resident_id)
+        return {"lines": container.family.daily_postcard(resident_id, container.clock.now())}
 
     @app.get("/robots")
     def list_robots() -> list[Robot]:

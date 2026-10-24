@@ -86,7 +86,16 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 | Memory call | Yash / Companion | `MemoryService.recall`, under 50 ms |
 
 ## HTTP API
-Also served by `api/app.py` beyond the WP-D list: `POST /calls/{id}/in-visit`, `GET /alerts` (newest first), `POST /alerts/{id}/ack {nurse_id}` (sets `acked_at`, moves the call to `nurse_acked`). `POST /calls/{id}/resolve` takes optional `{by_robot}`. Errors: unknown call/alert 404, invalid state transition 409, bad body (urgency outside 1..4) 422. CORS allows all origins. Run with `uv run uvicorn bellhop.api.main:app`.
+Also served by `api/app.py` beyond the WP-D list: `POST /calls/{id}/in-visit`, `GET /alerts` (newest first), `POST /alerts/{id}/ack {nurse_id}` (sets `acked_at`, moves the call to `nurse_acked`). `POST /calls/{id}/resolve` takes optional `{by_robot}`. Errors: unknown call/alert/resident/flag 404, invalid state transition 409, bad body (urgency outside 1..4) 422. CORS allows all origins. Run with `uv run uvicorn bellhop.api.main:app`.
+
+## Care, visit notes, family, memory guard, triage guard
+All wired in `container.py` (`care_store`, `care_signals`, `visit_notes`, `family`, `preferences`, `memory_guard`, `triage_guard`) and exposed by `api/app.py`; endpoints are in `contracts/README.md`.
+- **Care** (`domain/care.py`, `ports/care.py`, `adapters/care_store.py`, `services/care_signals.py`): mood/pain/drink/repeat-question entries, trends (pain streak, mood lower than usual, hydration) and flags. Three days of pain in a row raises one open PAIN flag with a reason. Observations only, no diagnosis.
+- **Visit notes** (`services/visit_notes.py`): one-line note per call built from care entries and urgency.
+- **Family** (`services/family.py`): voice notes to the resident, replies, and a daily postcard built only from positive entries (pain and urgency never appear).
+- **Preferences** (`services/preferences_service.py`): hearing, quiet, night mode, favourite drink; `speech_settings` derives rate, volume, captions, tone.
+- **Memory guard** (`services/memory_guard.py`, `adapters/deletable_memory.py`): `POST .../memory` goes through it. Rejects too short/long, clinical claims and duplicates; low-confidence non-staff facts wait in a pending queue for nurse approval. Forget one or all facts. It shares one `DeletableLocalMemoryIndex` with `MemoryService`; the Moss index wraps that local index, so with Moss on, a forgotten fact is removed locally only (Moss copy not deleted yet).
+- **Triage guard** (`services/triage_guard.py`): `POST /calls/{id}/score` computes the final urgency as max(model, keyword floor), with +1 for confidence under 0.6, then the existing ratchet applies. `POST /calls/{id}/triage-failed` is the explicit model-failure path (defaults to urgency 3). The reason is appended to the call summary when the guard raised urgency.
 
 ## Labelled calls pipeline (`src/bellhop/labelled/`)
 Stdlib-only package for checking and tuning triage against hand-labelled calls. It imports nothing from services or adapters.
