@@ -124,3 +124,15 @@ def test_unknown_call_id_raises_call_not_found(env, op):
     svc, _, _ = env
     with pytest.raises(CallNotFound):
         op(svc)
+
+
+def test_mark_in_visit_after_escalation_keeps_escalated_and_sets_first_response(env, clock):
+    svc, store, _ = env
+    call = svc.raise_call("12")
+    store.calls.save(_assigned(store, call.id, clock))
+    svc.score(call.id, Urgency.NURSE_SOON, "pain")
+    clock.advance(seconds=20)
+    svc.mark_in_visit(call.id)
+    saved = store.calls.get(call.id)
+    assert saved.status is CallStatus.ESCALATED
+    assert saved.first_response_at == clock.now()

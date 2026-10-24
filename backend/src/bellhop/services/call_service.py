@@ -96,7 +96,9 @@ class CallService:
 
     @_locked
     def mark_in_visit(self, call_id: str) -> None:
-        self._transition(call_id, CallStatus.IN_VISIT)
+        call = self._get(call_id)
+        call.start_visit(self._clock.now())
+        self._calls.save(call)
 
     @_locked
     def resolve(self, call_id: str, by_robot: bool = True) -> None:

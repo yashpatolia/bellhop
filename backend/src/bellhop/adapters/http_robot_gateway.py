@@ -6,7 +6,7 @@ import httpx
 
 
 class HttpRobotGateway:
-    """POST {base}/go_to {"room"} and POST {base}/led {"state"}; non-2xx or transport errors raise.
+    """POST {base}/go_to {"room"}, /led {"state"} and /stop; non-2xx or transport errors raise.
 
     The robot serves one robot per base URL, so `robot_id` is not sent. The caller
     (GuardedRobotGateway, Dispatcher) turns a raise into a nurse fallback.
@@ -23,6 +23,9 @@ class HttpRobotGateway:
 
     def set_led(self, robot_id: str, state: str) -> None:
         self._post("/led", {"state": state})
+
+    def stop(self, robot_id: str) -> None:
+        self._post("/stop", {})
 
     def _post(self, path: str, body: dict[str, str]) -> None:
         self._client.post(self._base + path, json=body).raise_for_status()

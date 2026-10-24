@@ -29,7 +29,7 @@ def test_call_end_to_end_on_custom_scenario(tmp_path):
     call = app.call_service.raise_call("302")
     stored = app.store.calls.get(call.id)
     assert stored.resident_id == "res_omar"
-    assert stored.status is CallStatus.ASSIGNED
+    assert stored.status is CallStatus.ROBOT_EN_ROUTE
     assert stored.robot_id in {"bot_a", "bot_b"}
     assert [c for c in app.gateway.commands if c[0] == "go_to"] == [
         ("go_to", stored.robot_id, "302")

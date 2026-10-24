@@ -46,3 +46,19 @@ def test_transport_error_raises():
 
     with pytest.raises(httpx.ConnectError):
         make(handler).set_led("robot_1", "idle")
+
+
+def test_stop_posts_empty_body_to_stop():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, str(request.url), request.read()))
+        return httpx.Response(200)
+
+    make(handler).stop("robot_1")
+    assert seen == [("POST", "http://pi.local:8080/stop", b"{}")]
+
+
+def test_stop_non_2xx_raises():
+    with pytest.raises(httpx.HTTPStatusError):
+        make(lambda r: httpx.Response(500)).stop("robot_1")

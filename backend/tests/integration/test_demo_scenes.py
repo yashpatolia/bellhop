@@ -14,7 +14,7 @@ def app():
 def test_scene1_lonely_resident_resolved_by_robot_without_nurse_alert(app):
     call = app.call_service.raise_call("12")
     stored = app.store.calls.get(call.id)
-    assert stored.status is CallStatus.ASSIGNED
+    assert stored.status is CallStatus.ROBOT_EN_ROUTE
     assert stored.robot_id == "robot_1"
     assert [c for c in app.gateway.commands if c[0] == "go_to"] == [("go_to", "robot_1", "12")]
 

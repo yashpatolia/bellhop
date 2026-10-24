@@ -14,3 +14,6 @@ class RecordingRobotGateway:
 
     def set_led(self, robot_id: str, state: str) -> None:
         self.commands.append(("set_led", robot_id, state))
+
+    def stop(self, robot_id: str) -> None:
+        self.commands.append(("stop", robot_id, ""))

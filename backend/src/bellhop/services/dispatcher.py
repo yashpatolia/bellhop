@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from bellhop.domain import Call, CallStatus, Nurse, Resident, Robot, RobotStatus
-from bellhop.domain.events import CallAssigned, CallRaised
+from bellhop.domain.events import CallAssigned, CallRaised, RobotUnreachable
 from bellhop.ports import (
     CallRepository,
     Clock,
@@ -84,23 +84,30 @@ class Dispatcher:
         if call is None or call.status is not CallStatus.RINGING:
             return  # idempotent: already handled
         resident = self._residents.get(call.resident_id) if call.resident_id else None
-        decision = self._policy.decide(
-            call, resident, self._robots.list_all(), self._nurses.list_on_shift()
-        )
+        nurses = self._nurses.list_on_shift()
+        decision = self._policy.decide(call, resident, self._robots.list_all(), nurses)
         now = self._clock.now()
         robot_id, nurse_id = decision.robot_id, decision.nurse_id
+        unreachable = None
         if robot_id and not self._send_robot(robot_id, call.room):
-            robot_id = None
+            # A robot that cannot be commanded never leaves a call without an owner: fall back
+            # to the policy's nurse choice with no robots, whatever the resident's risk flags.
+            unreachable, robot_id = robot_id, None
+            nurse_id = nurse_id or self._policy.decide(call, resident, [], nurses).nurse_id
         if robot_id is None and nurse_id is None:
             call.transition(CallStatus.ESCALATED, now)
             self._calls.save(call)
-            return
-        call.transition(CallStatus.ASSIGNED, now)
-        call.assigned_to = [i for i in (robot_id, nurse_id) if i]
-        call.robot_id = robot_id
-        self._charge_nurse(call, nurse_id)
-        self._calls.save(call)
-        self._bus.publish(CallAssigned(call_id=call.id, robot_id=robot_id, nurse_id=nurse_id))
+        else:
+            call.transition(CallStatus.ASSIGNED, now)
+            if robot_id:
+                call.transition(CallStatus.ROBOT_EN_ROUTE, now)
+            call.assigned_to = [i for i in (robot_id, nurse_id) if i]
+            call.robot_id = robot_id
+            self._charge_nurse(call, nurse_id)
+            self._calls.save(call)
+            self._bus.publish(CallAssigned(call_id=call.id, robot_id=robot_id, nurse_id=nurse_id))
+        if unreachable:
+            self._bus.publish(RobotUnreachable(call_id=call.id, robot_id=unreachable))
 
     def _charge_nurse(self, call: Call, nurse_id: str | None) -> None:
         nurse = self._nurses.get(nurse_id) if nurse_id else None
@@ -114,9 +121,17 @@ class Dispatcher:
             self._gateway.go_to(robot_id, room)
         except Exception:
             logger.exception("go_to failed for %s", robot_id)
+            self._stop_robot(robot_id)
             return False
         robot = self._robots.get(robot_id)
         if robot is not None:
             robot.status = RobotStatus.BUSY
             self._robots.save(robot)
         return True
+
+    def _stop_robot(self, robot_id: str) -> None:
+        """Best effort: a go_to that failed or timed out may still land on the Pi later."""
+        try:
+            self._gateway.stop(robot_id)
+        except Exception:
+            logger.exception("stop failed for %s", robot_id)

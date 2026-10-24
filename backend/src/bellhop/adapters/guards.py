@@ -104,17 +104,52 @@ class GuardedNotifier:
 
 
 class GuardedRobotGateway:
-    """Raises GuardTimeout on a hang so the Dispatcher falls back to a nurse."""
+    """Raises GuardTimeout on a hang so the Dispatcher falls back to a nurse.
 
-    def __init__(self, inner: RobotGateway, timeout: float = 2.0) -> None:
+    A go_to that times out may still reach the robot later (a ghost drive). Once the call has
+    fallen back to a nurse, one more stop is sent `restop_after` seconds later (default: one
+    more guard window) unless the robot got a newer go_to meanwhile. This is a heuristic; the
+    robot rejecting stale go_to requests is the real fix. `stop` is fire and forget: it never
+    blocks the bell request, never raises, and logs failures.
+    """
+
+    def __init__(
+        self, inner: RobotGateway, timeout: float = 2.0, restop_after: float | None = None
+    ) -> None:
         self._inner = inner
         self._timeout = timeout
+        self._restop_after = timeout if restop_after is None else restop_after
+        self._sent: dict[str, int] = {}
+        self._lock = threading.Lock()
 
     def go_to(self, robot_id: str, room: str) -> None:
-        call_with_timeout(self._inner.go_to, self._timeout, robot_id, room)
+        with self._lock:
+            self._sent[robot_id] = generation = self._sent.get(robot_id, 0) + 1
+        try:
+            call_with_timeout(self._inner.go_to, self._timeout, robot_id, room)
+        except GuardTimeout:
+            timer = threading.Timer(self._restop_after, self._restop, (robot_id, generation))
+            timer.daemon = True
+            timer.start()
+            raise
 
     def set_led(self, robot_id: str, state: str) -> None:
         call_with_timeout(self._inner.set_led, self._timeout, robot_id, state)
+
+    def stop(self, robot_id: str) -> None:
+        future: Future[Any] = _POOL.submit(self._inner.stop, robot_id)
+        future.add_done_callback(lambda done: self._log_stop(done, robot_id))
+
+    def _restop(self, robot_id: str, generation: int) -> None:
+        with self._lock:
+            if self._sent.get(robot_id) != generation:
+                return  # a newer go_to owns the robot now
+        self.stop(robot_id)
+
+    @staticmethod
+    def _log_stop(done: Future[Any], robot_id: str) -> None:
+        if not done.cancelled() and done.exception() is not None:
+            log.warning("stop failed for %s: %s", robot_id, done.exception())
 
 
 class GuardedMemoryIndex:

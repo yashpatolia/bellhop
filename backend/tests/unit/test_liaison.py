@@ -2,7 +2,7 @@ import pytest
 
 from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.domain import Call, Nurse, Urgency
-from bellhop.domain.events import AlertRaised, CallScored
+from bellhop.domain.events import AlertRaised, CallScored, RobotUnreachable
 from bellhop.services.liaison import Liaison
 from tests.unit.wpc_fakes import AlertRepo, DictRepo, SyncBus
 
@@ -111,4 +111,59 @@ def test_message_falls_back_to_last_resident_turns(world):
 
 def test_unknown_call_is_ignored(world):
     world.bus.publish(CallScored("nope", Urgency.EMERGENCY, "x"))
+    assert world.notifier.sent == []
+
+
+def test_unreachable_robot_pages_the_assigned_nurse(world):
+    call = world.calls.get("c1")
+    nurse = world.nurses.get("n1")  # the dispatcher already charged n1
+    call.charge(nurse)
+    world.nurses.save(nurse)
+    world.calls.save(call)
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    [alert] = world.notifier.sent
+    assert alert.nurse_id == "n1"
+    assert alert.level == Urgency.NURSE_SOON
+    assert "robot" in alert.message.lower() and "12" in alert.message
+    assert world.nurses.get("n1").open_tasks == 3  # charged once, not twice
+    assert world.alerts.for_call("c1") == [alert]
+    raised = [e for e in world.bus.published if isinstance(e, AlertRaised)]
+    assert [(e.call_id, e.level) for e in raised] == [("c1", Urgency.NURSE_SOON)]
+
+
+def test_unreachable_robot_with_no_nurse_assigned_claims_the_least_loaded(world):
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    [alert] = world.notifier.sent
+    assert alert.nurse_id == "n2"
+
+
+def test_unreachable_robot_does_not_change_call_urgency(world):
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    assert world.calls.get("c1").urgency is None
+
+
+def test_unreachable_robot_after_an_equal_alert_does_not_duplicate(world):
+    world.score(Urgency.NURSE_SOON)
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    assert len(world.notifier.sent) == 1
+
+
+def test_unreachable_robot_then_emergency_still_raises_the_emergency(world):
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    world.score(Urgency.EMERGENCY)
+    assert [a.level for a in world.notifier.sent] == [Urgency.NURSE_SOON, Urgency.EMERGENCY]
+
+
+def test_unreachable_robot_with_no_nurse_on_shift_broadcasts(world):
+    for nurse_id in ("n1", "n2"):
+        nurse = world.nurses.get(nurse_id)
+        nurse.on_shift = False
+        world.nurses.save(nurse)
+    world.bus.publish(RobotUnreachable("c1", "robot_1"))
+    [alert] = world.notifier.sent
+    assert alert.nurse_id is None
+
+
+def test_unreachable_robot_for_unknown_call_is_ignored(world):
+    world.bus.publish(RobotUnreachable("ghost", "robot_1"))
     assert world.notifier.sent == []

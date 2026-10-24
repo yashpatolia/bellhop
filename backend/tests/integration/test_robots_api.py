@@ -1,3 +1,5 @@
+import time
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -85,6 +87,31 @@ def test_failing_robot_http_falls_back_to_nurse_and_never_leaks():
     )
     call = TestClient(create_app(c)).post("/calls", json={"room": "12"}).json()
     assert call["robot_id"] is None and call["status"] == "assigned"
+
+
+def test_failing_go_to_pages_a_nurse_and_stops_the_robot_for_a_resident_without_risk_flags():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        return httpx.Response(503 if request.url.path == "/go_to" else 200)
+
+    c = build_container(Settings(seed_demo=True, robot_url="http://pi.local:8080"))
+    c.guarded_gateway._inner._client = httpx.Client(transport=httpx.MockTransport(handler))
+    client = TestClient(create_app(c))
+    resident = next(r for r in client.get("/residents").json() if r["room"] == "14")
+    assert resident["risk_flags"] == []
+    call = client.post("/calls", json={"room": "14"}).json()
+    assert call["robot_id"] is None and len(call["assigned_to"]) == 1
+    assert call["urgency"] is None
+    [alert] = client.get("/alerts").json()
+    assert alert["call_id"] == call["id"] and alert["nurse_id"] == call["assigned_to"][0]
+    assert alert["level"] == 3 and "robot" in alert["message"].lower()
+    deadline = time.monotonic() + 2.0
+    while "/stop" not in seen and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert seen[0] == "/go_to" and "/stop" in seen
+    assert client.get("/robots").json()[0]["status"] == "idle"
 
 
 def test_settings_from_env_reads_robot_url(monkeypatch):
