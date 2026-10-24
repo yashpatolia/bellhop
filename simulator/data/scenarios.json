@@ -1,0 +1,322 @@
+[
+  {
+    "category": "chat",
+    "urgency": 1,
+    "handled_by": "robot",
+    "summary": "Wanted company. Chatted about family and garden.",
+    "turns": [
+      [
+        "resident",
+        "Could we just talk for a bit? It is quiet today."
+      ],
+      [
+        "robot",
+        "Of course. Last time you told me about your garden. Did the roses come back?"
+      ],
+      [
+        "resident",
+        "Yes, they did. The red ones are blooming."
+      ],
+      [
+        "robot",
+        "That is lovely. Tell me more about them."
+      ],
+      [
+        "resident",
+        "My late husband planted them. I should get back to my show now."
+      ],
+      [
+        "robot",
+        "Of course. Ring whenever you want to chat again. Take care."
+      ]
+    ]
+  },
+  {
+    "category": "comfort item",
+    "urgency": 1,
+    "handled_by": "kitchen",
+    "summary": "Asked for tea. Task sent to the kitchen.",
+    "turns": [
+      [
+        "resident",
+        "Could I have a cup of tea, please?"
+      ],
+      [
+        "robot",
+        "Absolutely. I will ask the kitchen right now. Your usual?"
+      ],
+      [
+        "resident",
+        "Yes, my usual please."
+      ],
+      [
+        "robot",
+        "Done. The kitchen will bring it in about ten minutes."
+      ],
+      [
+        "resident",
+        "Thank you, dear."
+      ],
+      [
+        "robot",
+        "You are welcome. Ring any time if you need anything else."
+      ]
+    ]
+  },
+  {
+    "category": "comfort item",
+    "urgency": 1,
+    "handled_by": "aide",
+    "summary": "Cold. Extra blanket task sent to an aide.",
+    "turns": [
+      [
+        "resident",
+        "I am cold. Could I have another blanket?"
+      ],
+      [
+        "robot",
+        "Let me get someone to bring you a blanket. Are you comfortable otherwise?"
+      ],
+      [
+        "resident",
+        "My feet are cold too."
+      ],
+      [
+        "robot",
+        "I will mention it. An aide is bringing a blanket and warm socks."
+      ],
+      [
+        "resident",
+        "That would be wonderful, thank you."
+      ],
+      [
+        "robot",
+        "Glad to help. Ring if you need anything else."
+      ]
+    ]
+  },
+  {
+    "category": "toileting",
+    "urgency": 2,
+    "handled_by": "aide",
+    "summary": "Needs help to the bathroom. Aide requested.",
+    "turns": [
+      [
+        "resident",
+        "I need the bathroom, but I do not want to walk alone."
+      ],
+      [
+        "robot",
+        "Stay seated, I will get an aide to walk with you. I am right here."
+      ],
+      [
+        "resident",
+        "Yes please, I will wait here."
+      ],
+      [
+        "robot",
+        "An aide is on the way. It should be about two minutes."
+      ],
+      [
+        "resident",
+        "All right, thank you for staying."
+      ],
+      [
+        "robot",
+        "Of course. The aide is here now, so I will step aside."
+      ]
+    ]
+  },
+  {
+    "category": "confusion",
+    "urgency": 2,
+    "handled_by": "aide",
+    "summary": "Confused about location. Calmed with conversation.",
+    "turns": [
+      [
+        "resident",
+        "Where is my husband? He should be home by now."
+      ],
+      [
+        "robot",
+        "You are safe here. Would you like to tell me about him while we wait together?"
+      ],
+      [
+        "resident",
+        "He always comes home at six."
+      ],
+      [
+        "robot",
+        "That sounds like a good routine. What does he like for dinner?"
+      ],
+      [
+        "resident",
+        "Stew, always stew. I feel better talking about it."
+      ],
+      [
+        "robot",
+        "I am glad. An aide is coming to sit with you for a while."
+      ]
+    ]
+  },
+  {
+    "category": "pain",
+    "urgency": 3,
+    "handled_by": "nurse",
+    "summary": "Hip pain, 6 out of 10, since last night.",
+    "turns": [
+      [
+        "resident",
+        "My hip has been aching since last night."
+      ],
+      [
+        "robot",
+        "I am sorry. Where exactly, and how bad is it from one to ten?"
+      ],
+      [
+        "resident",
+        "The right side. About a six. It is worse when I stand."
+      ],
+      [
+        "robot",
+        "Thank you. I am telling your nurse so they can check and consider pain relief."
+      ],
+      [
+        "resident",
+        "Will it take long?"
+      ],
+      [
+        "robot",
+        "A nurse is on the way. I will stay with you until they arrive."
+      ]
+    ]
+  },
+  {
+    "category": "medication",
+    "urgency": 3,
+    "handled_by": "nurse",
+    "summary": "Unsure whether morning medication was taken.",
+    "turns": [
+      [
+        "resident",
+        "I think I missed my morning pills. Should I take them now?"
+      ],
+      [
+        "robot",
+        "Good question. I will ask your nurse to check. Please do not take anything yet."
+      ],
+      [
+        "resident",
+        "I always take them after breakfast."
+      ],
+      [
+        "robot",
+        "Understood. Please wait. Your nurse will check the chart and tell you."
+      ],
+      [
+        "resident",
+        "All right, I will wait."
+      ],
+      [
+        "robot",
+        "The nurse has checked the chart. Thank you for waiting."
+      ]
+    ]
+  },
+  {
+    "category": "pain",
+    "urgency": 3,
+    "handled_by": "nurse",
+    "summary": "Chest tightness on standing. Escalated to nurse.",
+    "turns": [
+      [
+        "resident",
+        "My chest feels tight when I climb out of bed."
+      ],
+      [
+        "robot",
+        "I am staying with you. I am telling your nurse now. Please sit still and breathe slowly."
+      ],
+      [
+        "resident",
+        "It started when I stood up. It is a little better sitting."
+      ],
+      [
+        "robot",
+        "Please stay seated. Your nurse is on the way and I am staying with you."
+      ],
+      [
+        "resident",
+        "Okay. I am a bit scared."
+      ],
+      [
+        "robot",
+        "I know. I am right here. The nurse will be with you very soon."
+      ]
+    ]
+  },
+  {
+    "category": "fall",
+    "urgency": 4,
+    "handled_by": "nurse",
+    "summary": "Resident has fallen and cannot get up.",
+    "turns": [
+      [
+        "resident",
+        "I have fallen and I cannot get up."
+      ],
+      [
+        "robot",
+        "Help is coming right now. Do not try to move. I am staying right here with you."
+      ],
+      [
+        "resident",
+        "My leg hurts and I am on the floor by the bed."
+      ],
+      [
+        "robot",
+        "Do not move. A nurse has been alerted and is coming now."
+      ],
+      [
+        "resident",
+        "Please hurry."
+      ],
+      [
+        "robot",
+        "They are coming. I am staying right here with you."
+      ]
+    ]
+  },
+  {
+    "category": "breathing",
+    "urgency": 4,
+    "handled_by": "nurse",
+    "summary": "Struggling to breathe. Emergency alert sent.",
+    "turns": [
+      [
+        "resident",
+        "I cannot catch my breath."
+      ],
+      [
+        "robot",
+        "I am alerting your nurse right now. Breathe slowly with me. I am not leaving."
+      ],
+      [
+        "resident",
+        "It is hard to talk."
+      ],
+      [
+        "robot",
+        "Do not talk, just breathe slowly with me. In through the nose, out through the mouth."
+      ],
+      [
+        "resident",
+        "A little better. Is someone coming?"
+      ],
+      [
+        "robot",
+        "Yes, the nurse has been alerted and is on the way. I am here."
+      ]
+    ]
+  }
+]
