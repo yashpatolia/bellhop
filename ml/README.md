@@ -61,10 +61,10 @@ Then, in two more terminals from `ml/pi/`:
 
 ## Copy to the Pi
 
-Needs Raspberry Pi OS **Bookworm 64-bit** (Python 3.11), the camera connected, SSH and internet. The current default image is Trixie (Python 3.13), which `setup_pi.sh` rejects: in Raspberry Pi Imager pick **Raspberry Pi OS (Legacy, 64-bit)**, and check with `python3 --version` on the Pi. Only `ml/pi/` is sent; it lands as `~/ml` on the Pi. From `calhacks-13/`:
+Needs 64-bit Raspberry Pi OS: **Trixie** (Python 3.13, the current default image) or **Bookworm** (Python 3.11), the camera connected, SSH and internet. Check with `python3 --version` on the Pi; `setup_pi.sh` stops on any other version. The Pi venv always uses the system Python (apt's picamera2 only works with it). On 3.13 the lock installs numpy 2.x, on 3.11 numpy 1.x (the pyproject markers choose). A 2 GB Pi is tight: see the memory note below. Only `ml/pi/` is sent; it lands as `~/ml` on the Pi. From `calhacks-13/`:
 
 ```
-(Mac) rsync -av --exclude .venv --exclude runs --exclude __pycache__ --exclude .env ml/pi/ pi@<pi-host>:~/ml/
+(Mac) rsync -av --exclude .venv --exclude .python-version --exclude runs --exclude __pycache__ --exclude .env ml/pi/ pi@<pi-host>:~/ml/
 (Pi)  cd ~/ml && bash scripts/setup_pi.sh
 ```
 
@@ -72,13 +72,18 @@ Needs Raspberry Pi OS **Bookworm 64-bit** (Python 3.11), the camera connected, S
 - `scp -r ml/pi pi@<pi-host>:~/ml` works too (when `~/ml` doesn't exist yet), but it copies the Mac's `.venv` (large, useless on the Pi; setup rebuilds it) and the Mac's `.env`.
 - Re-run the same `rsync` after every code change. `.env` is excluded so the Pi keeps its own.
 - Replace `pi` with your Pi's username.
+- `.python-version` is excluded because setup writes the Pi's system Python into it (the Mac's says 3.11). If it was overwritten, a bare `uv run` on a Trixie Pi rebuilds `.venv` without apt's picamera2: re-run `setup_pi.sh`, or use `uv run --python .venv/bin/python ...`. (`deploy/push.sh` has the same issue: add `--exclude '.python-version'` to its rsync.)
+- Manual equivalent of steps 4 to 6 on the Pi: `uv venv --system-site-packages --python /usr/bin/python3 .venv && uv sync --frozen --python .venv/bin/python`. `uv sync` keeps `include-system-site-packages = true` on an existing venv. Without curl, `setup_pi.sh` installs uv with `python3 -m venv ~/.uvtool && ~/.uvtool/bin/pip install uv` and links it into `~/.local/bin`.
+- Memory: setup warns when total RAM is under 3 GB. On a 2 GB Pi run `rover.drive` always, and start `rover.vision` and `rover.speech` one at a time (separate terminals), watching `free -m`; add swap if `uv sync` is killed.
+- numpy: the venv's numpy shadows apt's (venv comes first on `sys.path`), so picamera2 runs against the numpy in `.venv`. On 3.13 that is numpy 2.x, which apt's Trixie picamera2 is built for; on 3.11 it is numpy 1.x, which Bookworm's picamera2 needs.
+- GPIO: setup adds `GPIOZERO_PIN_FACTORY=lgpio` to `.env` (Pi 5). The systemd units read `/etc/bellhop/env`; put the same line there.
 
 `setup_pi.sh` is safe to re-run. What it does and what success looks like:
 
 | Step | What it does | Success looks like |
 | --- | --- | --- |
-| 1 | Checks the Pi is aarch64 with Python 3.11 | `ok: aarch64, system Python 3.11` |
-| 2 | `apt-get install python3-picamera2 libportaudio2 libgl1 libglib2.0-0` | no errors |
+| 1 | Checks the Pi is aarch64 with Python 3.11 or 3.13, pins `.python-version`, warns if RAM is under 3 GB | `ok: aarch64, system Python 3.13` |
+| 2 | `apt-get install python3-picamera2 libportaudio2 libgl1 libglib2.0-0t64` (or `libglib2.0-0` on Bookworm), plus smbus, lgpio, gpiozero, spidev | no errors |
 | 3 | Installs `uv` if missing | `success: uv 0.x` |
 | 4 | Makes `.venv` with `--system-site-packages` (sees apt's picamera2) | `.venv/pyvenv.cfg` has `include-system-site-packages = true` |
 | 5 | `uv sync --frozen` (CPU-only torch from the lock) | no errors |
@@ -133,9 +138,12 @@ On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:
 - Treat no message for 2 s (`VISION_STALE_S`) as "no vision": stop, don't guess.
 - Read it: `sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); sock.bind(("127.0.0.1", 5006)); json.loads(sock.recv(65535))`.
 
-**Robot server (`rover.drive` on the Pi, in progress).**
+**Robot server (`rover.drive` on the Pi).**
 - `POST /go_to {"room"}` must return 2xx at once and drive in the background. The backend waits 2 s; slower or non-2xx gives the call to a nurse only and the robot never sees it.
 - `POST /led {"state"}` (`idle`, `listening`, `nurse_on_way`, `emergency`), `POST /stop`.
+- A lit LED that no `/led` has refreshed for `LED_HOLD_S` (120 s) returns to `idle`; the speech process re-sends it while a visit is live and sets it idle (plus `/stop` if it died) when the visit ends. Only the backend sends `idle` otherwise, so this is what un-sticks the LED if the backend dies mid-visit.
+- `GET /snapshot` also returns `power` (Pi throttle flags, `null` off the Pi) and `wifi_rssi_dbm`. Undervoltage now makes the status heartbeat report `fault`; earlier flags only warn in the log (`status.power`). `PUT /robots/{id}` still sends only `status`, `battery`, `room`.
+- SIGTERM/SIGINT/SIGHUP on `rover.drive` stop the wheels, set the LED idle and exit 0 (`rover.safety`).
 - `GET /snapshot` serves `~/ml/runs/latest.jpg`, which vision rewrites about once a second (atomic rename, never half a file).
 
 **Rooms.** Printed markers are ids 201-210 (`DICT_4X4_250`, 15 cm). `config.MARKER_ROOMS` maps marker id to the backend's room string: 201 = `"12"` (Margaret), 202 = `"14"` (Arthur), 203 = `"lobby"` (home/start). If rooms change, update `MARKER_ROOMS`, the bell button and the backend residents together.
@@ -149,7 +157,7 @@ On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:
 **Triage contract.** `POST /calls/{id}/score {"urgency": 1-4, "category", "summary", "confidence": 0-1}`; 1 chat, 2 routine, 3 nurse soon, 4 emergency. Confidence below 0.6 bumps urgency up one level; a keyword floor can only raise it; urgency never goes down on a call. If the models fail: `POST /calls/{id}/triage-failed` (backend defaults to 3). The summary is one plain line for the nurse, no diagnosis. Evaluate against the labelled set (under-escalations are what matter):
 
 ```
-(Mac) uv run python ../dev/eval_triage.py     # default: the backend's labelled set + dev/hard_cases.jsonl
+(Mac) uv run python ../dev/eval_triage.py     # default: GET /labelled-examples (BELLHOP_API, BELLHOP_API_KEY) + dev/hard_cases.jsonl; pass JSONL files to use those instead; --mock runs offline with a fake triager (CI)
 ```
 
 Full API: `calhacks-13-backend/contracts/README.md` and `contracts/openapi.json`.
@@ -171,10 +179,46 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `EOT_THRESHOLD`, `EAGER_EOT_THRESHOLD`, `EOT_TIMEOUT_MS` | 0.8, 0.5, 3000 | Flux end-of-turn settings |
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
-| `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 3.0 | Fallback line / triage give-up times |
+| `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
 | `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only Jev answers (bumps urgency one level) |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
+
+## Local triage scorer (optional, offline, raise only)
+
+`pi/src/rover/triage/local.py` embeds each resident line with a small ONNX model (fastembed,
+`BAAI/bge-small-en-v1.5`, about 6 ms per visit on a laptop CPU) and scores it with a 6.5 KB linear
+head (`pi/src/rover/triage/local_head.npz`, numpy only, committed). `triage()` lets it only RAISE
+the urgency (never lower it), and only when its confidence is at least `LOCAL_MIN_CONFIDENCE`
+(0.5). If the head or the embedding model is missing it returns None and nothing changes.
+
+It is OFF by default (`LOCAL_TRIAGE=1` turns it on). See the numbers below for why.
+
+```
+(Pi or Mac) cd ml/pi && uv run python -m rover.triage.local     # one-time: fetch the embedding model into pi/models/embed
+(Pi)        LOCAL_TRIAGE=1 uv run python -m rover.speech
+```
+
+Training is dev only and never shipped (extra deps live in the `train` uv group):
+
+```
+(Mac) cd ml/pi && uv sync --group train
+(Mac) uv run python ../dev/train/collect.py hf            # Apache-2.0 chat sentences (empathetic_dialogues_llm)
+(Mac) uv run python ../dev/train/collect.py apify         # public subreddit posts, about $2 (APIFY_TOKEN in dev/.env)
+(Mac) uv run python ../dev/train/prepare.py sample --source reddit --n 200 --kind health --out r5
+(Mac) uv run python ../dev/train/prepare.py label-claude --batch r5   # needs ANTHROPIC_API_KEY; or write data/labels/r5.txt by hand ("id 1-4" per line)
+(Mac) uv run python ../dev/train/prepare.py build         # data/train.jsonl and the held-out data/eval.jsonl
+(Mac) uv run python ../dev/train/train.py --compare       # out-of-fold comparison of embedding models
+(Mac) uv run python ../dev/train/train.py --model BAAI/bge-small-en-v1.5 --c 4   # writes local_head.npz
+(Mac) uv run python ../dev/train/evaluate.py [--claude] [--min-confidence 0.6]
+```
+
+`dev/train/data/` (collected text, labels, embedding cache) is git-ignored. The eval set is
+`hard_cases.jsonl`, the backend labelled cases and a 100 line hand-verified sample (`labels/verify.txt`);
+`build` removes any training text that equals or nearly equals an eval text, and `train.py` never reads
+the eval file. The logit shifts that favour urgency 3 and 4 are tuned on out-of-fold predictions of the
+training data, not on the eval set. `dev/train/synthetic_utterances.tsv` holds the hand-written spoken-style
+training lines. Results of the latest run: see `dev/train/RESULTS.txt`.
 
 ## Tests
 
@@ -189,9 +233,9 @@ Work from the bottom layer up.
 
 | Layer | Symptom | Check | Fix |
 | --- | --- | --- | --- |
-| Pi/Python | `setup_pi.sh` stops at step 1 | `/usr/bin/python3 --version` | Flash Raspberry Pi OS (Legacy, 64-bit), which is Bookworm with Python 3.11 |
+| Pi/Python | `setup_pi.sh` stops at step 1 | `/usr/bin/python3 --version` | Flash 64-bit Raspberry Pi OS (Trixie, Python 3.13, or Bookworm, Python 3.11) |
 | Pi/Python | `externally-managed-environment` | Did you run plain `pip`? | Use `uv run ...`; never pip |
-| Pi/Python | `ValueError: numpy.dtype size changed` on `import picamera2` | numpy line in `scripts/smoke.py` | Must be 1.x: `uv sync --frozen` |
+| Pi/Python | `ValueError: numpy.dtype size changed` on `import picamera2` | numpy line in `scripts/smoke.py` | numpy 1.x on Python 3.11 (Bookworm); on 3.13 it must be 2.x. Fix: `uv sync --frozen --python .venv/bin/python` |
 | Pi/Python | `Killed` in the terminal | `free -m`, swap used in `smoke.py` | Out of memory: close other programs; one vision and one voice process only |
 | Pi/Python | Low fps, `throttled` not `0x0` | `vcgencmd get_throttled`, `vcgencmd measure_temp` | Official PSU or stronger battery; airflow |
 | Pi/Python | Low fps, `throttled` is `0x0` | First vision line prints `OMP_NUM_THREADS=` | Try 1-3 via `config.VISION_OMP_THREADS` (or `OMP_NUM_THREADS=` before `uv run`) |

@@ -12,21 +12,41 @@ from rover.agent.brain import Brain, SentenceSplitter, split_tone
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
 from rover.agent.tools import ToolContext, run_tool
 
-MARGARET = {"id": "res_margaret", "name": "Margaret", "room": "12", "risk_flags": ["falls"],
-            "birth_year": 1938}
-PREFS = {"hard_of_hearing": True, "quiet_mode": False, "night_mode": False,
-         "favourite_drink": "tea"}
+MARGARET = {
+    "id": "res_margaret",
+    "name": "Margaret",
+    "room": "12",
+    "risk_flags": ["falls"],
+    "birth_year": 1938,
+}
+PREFS = {
+    "hard_of_hearing": True,
+    "quiet_mode": False,
+    "night_mode": False,
+    "favourite_drink": "tea",
+}
 NOW = datetime(2026, 10, 24, 15, 30)
 
 
 def test_prompt_has_resident_facts_activity_and_time():
     memories = [{"text": "Takes her tea with two sugars"}, {"text": "Grandson is called Tom"}]
-    prompt = build_system_prompt(MARGARET, PREFS, memories, "One person, facing you.",
-                                 "pain_check", NOW)
-    for expected in ("Margaret", "Room: 12", "falls", "1938", "hard of hearing",
-                     "favourite drink: tea", "Takes her tea with two sugars",
-                     "One person, facing you.", "pain check", "Saturday 24 October 2026", "15:30",
-                     config.ROBOT_NAME):
+    prompt = build_system_prompt(
+        MARGARET, PREFS, memories, "One person, facing you.", "pain_check", NOW
+    )
+    for expected in (
+        "Margaret",
+        "Room: 12",
+        "falls",
+        "1938",
+        "hard of hearing",
+        "favourite drink: tea",
+        "Takes her tea with two sugars",
+        "One person, facing you.",
+        "pain check",
+        "Saturday 24 October 2026",
+        "15:30",
+        config.ROBOT_NAME,
+    ):
         assert expected in prompt
     assert "{robot_name}" not in prompt
     assert "quiet mode" not in prompt
@@ -148,11 +168,13 @@ def wants_tool(name, args):
 
 
 def test_brain_streams_sentences_with_one_tone_and_no_tags():
-    client = FakeClient(FakeStream(["[calm] Hello", " there. How are", " you? [gentle]I am",
-                                    " here"], done()))
+    client = FakeClient(
+        FakeStream(["[calm] Hello", " there. How are", " you? [gentle]I am", " here"], done())
+    )
     said = []
-    text, wanted_tool = Brain(client).reply("sys", [{"role": "user", "content": "hi"}],
-                                            lambda tone, s: said.append((tone, s)), None)
+    text, wanted_tool = Brain(client).reply(
+        "sys", [{"role": "user", "content": "hi"}], lambda tone, s: said.append((tone, s)), None
+    )
     assert said == [("calm", "Hello there."), ("calm", "How are you?"), ("calm", "I am here")]
     assert (text, wanted_tool) == ("Hello there. How are you? I am here", False)
     request = client.requests[0]
@@ -162,7 +184,8 @@ def test_brain_streams_sentences_with_one_tone_and_no_tags():
 def test_brain_returns_wait_without_speaking():
     said = []
     result = Brain(FakeClient(FakeStream(["WAIT"], done()))).reply(
-        "sys", [], lambda tone, s: said.append(s), None)
+        "sys", [], lambda tone, s: said.append(s), None
+    )
     assert result == ("WAIT", False) and said == []
 
 
@@ -177,24 +200,33 @@ class FakeBackend:
 
 def test_brain_runs_a_tool_then_continues():
     backend = FakeBackend()
-    client = FakeClient(FakeStream([], wants_tool("request_staff", {"reason": "Wants a nurse"})),
-                        FakeStream(["[calm] A nurse is on the way."], done()))
+    client = FakeClient(
+        FakeStream([], wants_tool("request_staff", {"reason": "Wants a nurse"})),
+        FakeStream(["[calm] A nurse is on the way."], done()),
+    )
     said = []
-    text, wanted_tool = Brain(client).reply("sys", [{"role": "user", "content": "nurse please"}],
-                                            lambda tone, s: said.append(s),
-                                            ToolContext(backend, "c1"))
+    text, wanted_tool = Brain(client).reply(
+        "sys",
+        [{"role": "user", "content": "nurse please"}],
+        lambda tone, s: said.append(s),
+        ToolContext(backend, "c1"),
+    )
     assert backend.scores == [("c1", 3, "asks_for_nurse", "Wants a nurse", 1.0)]
     assert said == ["A nurse is on the way."] and wanted_tool is False
     tool_result = client.requests[1]["messages"][-1]["content"][0]
-    assert tool_result == {"type": "tool_result", "tool_use_id": "tool_1",
-                           "content": "staff notified"}
+    assert tool_result == {
+        "type": "tool_result",
+        "tool_use_id": "tool_1",
+        "content": "staff notified",
+    }
 
 
 def test_brain_draft_reports_a_wanted_tool_without_running_it():
     backend = FakeBackend()
     client = FakeClient(FakeStream(["Let me check."], wants_tool("request_staff", {"reason": "x"})))
-    _, wanted_tool = Brain(client).reply("sys", [], lambda tone, s: None,
-                                         ToolContext(backend, "c1"), allow_tools=False)
+    _, wanted_tool = Brain(client).reply(
+        "sys", [], lambda tone, s: None, ToolContext(backend, "c1"), allow_tools=False
+    )
     assert wanted_tool is True and backend.scores == []
 
 
@@ -211,7 +243,8 @@ def test_brain_cancel_stops_speaking():
     cancel.set()
     said = []
     Brain(FakeClient(FakeStream(["Hello. There."], done()))).reply(
-        "sys", [], lambda tone, s: said.append(s), None, cancel=cancel)
+        "sys", [], lambda tone, s: said.append(s), None, cancel=cancel
+    )
     assert said == []
 
 
@@ -230,9 +263,16 @@ def test_look_returns_a_fresh_image_only(tmp_path, monkeypatch):
 
 def test_request_staff_without_call_reports_failure():
     assert run_tool("request_staff", {"reason": "x"}, ToolContext(FakeBackend(), None)).startswith(
-        "could not notify staff")
+        "could not notify staff"
+    )
     assert [tool["name"] for tool in tools.TOOLS] == [
-        "look", "request_staff", "stop", "go_to_room", "follow_patient", "face_patient"]
+        "look",
+        "request_staff",
+        "stop",
+        "go_to_room",
+        "follow_patient",
+        "face_patient",
+    ]
 
 
 class FakePost:
@@ -255,8 +295,12 @@ def test_moving_tools_post_to_the_drive_server(monkeypatch):
     assert run_tool("face_patient", {}, ctx) == "turning to face the resident"
     assert run_tool("stop", {}, ctx) == "stopped"
     url = config.PI_SERVER_URL
-    assert post.sent == [(f"{url}/go_to", {"room": "12"}), (f"{url}/follow", {}),
-                         (f"{url}/face", {}), (f"{url}/stop", {})]
+    assert post.sent == [
+        (f"{url}/go_to", {"room": "12"}),
+        (f"{url}/follow", {}),
+        (f"{url}/face", {}),
+        (f"{url}/stop", {}),
+    ]
 
 
 def test_go_to_room_refuses_unknown_rooms_without_posting(monkeypatch):
@@ -286,6 +330,7 @@ class BrokenStream(FakeStream):
 def test_brain_survives_a_stream_error_mid_reply(capsys):
     said = []
     text, wanted_tool = Brain(FakeClient(BrokenStream([], done()))).reply(
-        "sys", [], lambda tone, s: said.append(s), None)
+        "sys", [], lambda tone, s: said.append(s), None
+    )
     assert said == ["Hello there."] and (text, wanted_tool) == ("Hello there.", False)
     assert "fallback: Claude stream failed" in capsys.readouterr().out
