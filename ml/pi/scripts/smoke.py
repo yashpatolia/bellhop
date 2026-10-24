@@ -32,12 +32,11 @@ IMPORTS = {  # import name -> distribution name (for the version)
     "piper": "piper-tts",
     "sounddevice": "sounddevice",
     "anthropic": "anthropic",
-    "typesafe_sdk": "typesafe-sdk",
     "httpx": "httpx",
 }
 CAR_IMPORTS = {"smbus": "smbus", "gpiozero": "gpiozero", "spidev": "spidev"}  # apt, on the Pi
 FREENOVE_FILES = ("motor.py", "servo.py", "pca9685.py", "ultrasonic.py", "spi_ledpixel.py")
-KEYS = ("DEEPGRAM_API_KEY", "ANTHROPIC_API_KEY", "TYPESAFE_API_KEY")
+KEYS = ("DEEPGRAM_API_KEY", "ANTHROPIC_API_KEY")
 
 failures: list[str] = []
 

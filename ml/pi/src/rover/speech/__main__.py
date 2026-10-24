@@ -23,7 +23,6 @@ import numpy as np
 from rover import config, obslog, safety
 from rover.agent.brain import WAIT, Brain
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
-from rover.agent.tone import AskTone, TonePick, ask_jev_tone
 from rover.agent.tools import ToolContext, post_pi
 from rover.backend import Backend
 from rover.eyes import Eyes
@@ -109,8 +108,6 @@ class Visit:
         self.gates = gates if gates is not None else Gates()
         self.triage_fn = triage_fn  # None = the real triage_and_post (looked up when used)
         self.eyes = eyes if eyes is not None else Eyes()  # Eyes() alone draws nothing
-        self.ask_tone: AskTone | None = ask_jev_tone  # None: Claude's tone tag only
-        self.tone_pick: TonePick | None = None  # Jev's tone for the reply being spoken
         self.mic = Mic()
         self.flux: FluxStream | None = None
         self.flux_ok = False
@@ -384,13 +381,10 @@ class Visit:
             return
         self.first_text_at = self.first_sound_at = None
         self.eyes.base = "thinking"  # until the first sentence brings the reply's tone
-        if self.ask_tone is not None:
-            self.tone_pick = TonePick(self.history.transcript(), self.ask_tone)
         try:
             full = self.reply_to(text, draft)
         finally:
             self.eyes.base = "listening"
-            self.tone_pick = None
         self.record_robot(full)
 
         def since(at: float | None) -> float | None:
@@ -440,8 +434,6 @@ class Visit:
     def speak(self, tone: str, sentence: str) -> None:
         if self.first_text_at is None:
             self.first_text_at = time.monotonic()
-        if self.tone_pick is not None:
-            tone = self.tone_pick.choose(tone)  # Jev's when it is sure, else Claude's tag
         mood = effective_tone(tone, getattr(self.voice, "settings", None))
         self.eyes.feel(mood)
         self.mic.set_speaking(True)

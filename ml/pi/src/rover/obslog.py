@@ -23,7 +23,6 @@ LOGGER_NAME = "rover.obs"
 SECRET_ENV = (
     "DEEPGRAM_API_KEY",
     "ANTHROPIC_API_KEY",
-    "TYPESAFE_API_KEY",
     "BELLHOP_API_KEY",
 )
 SECRET_FIELD = re.compile(r"key|token|secret|password|authorization", re.IGNORECASE)

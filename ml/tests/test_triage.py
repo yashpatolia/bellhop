@@ -1,62 +1,31 @@
 import threading
-import time
 
 from rover import config
 from rover.triage import triage as triage_module
-from rover.triage.triage import TriageResult, format_visit, jev_urgency, triage, triage_and_post
+from rover.triage.triage import TriageResult, format_visit, triage, triage_and_post
 
 TRANSCRIPT = [
     ("resident", "Hello."),
     ("robot", "Hi! How can I help?"),
     ("resident", "  I went down by the bed and can't get up.  "),
 ]
+CLAUDE = TriageResult(3, "mobility", "Says she went down by the bed.", 0.8, "claude")
 
 
 def answer(result):
     return lambda transcript, risk_flags: result
 
 
-JEV = TriageResult(4, "fall", "", 0.9, "jev")  # sure
-UNSURE_JEV = TriageResult(4, "fall", "", 0.5, "jev")
-CLAUDE = TriageResult(3, "mobility", "Says she went down by the bed.", 0.8, "claude")
-QUOTE = 'Resident said: "I went down by the bed and can\'t get up."'
-
-
-def test_a_sure_jev_is_used_without_asking_claude():
-    claude = Flaky()  # no outcomes: any call would fail the test
-    result = triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=claude)
-    assert result == TriageResult(4, "fall", QUOTE, 0.9, "jev") and claude.calls == 0
-
-
-def test_an_unsure_jev_asks_claude_and_the_higher_urgency_wins():
-    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=answer(CLAUDE))
-    assert result == TriageResult(4, "fall", "Says she went down by the bed.", 0.8, "jev+claude")
-
-
-def test_tie_keeps_claudes_category():
-    jev = TriageResult(3, "pain", "", 0.5, "jev")
-    result = triage(TRANSCRIPT, [], ask_jev=answer(jev), ask_claude=answer(CLAUDE))
-    assert (result.urgency, result.category) == (3, "mobility")
-
-
-def test_claude_only_is_used_as_is():
-    assert triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=answer(CLAUDE)) == CLAUDE
-
-
-def test_unsure_jev_only_gets_low_confidence_and_quotes_the_resident():
-    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=answer(None))
-    assert result.confidence == config.JEV_ONLY_CONFIDENCE
-    assert result.summary == QUOTE
-    assert (result.urgency, result.category, result.source) == (4, "fall", "jev")
+def test_claude_result_is_used_as_is():
+    assert triage(TRANSCRIPT, [], ask_claude=answer(CLAUDE)) == CLAUDE
 
 
 def test_no_answer_is_none():
-    assert triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=answer(None)) is None
+    assert triage(TRANSCRIPT, [], ask_claude=answer(None)) is None
 
 
-def test_slow_and_crashing_models_are_dropped(monkeypatch):
+def test_slow_and_crashing_claude_are_dropped(monkeypatch):
     monkeypatch.setattr(config, "TRIAGE_TIMEOUT_S", 0.1)
-    monkeypatch.setattr(config, "JEV_TIMEOUT_S", 0.1)
     release = threading.Event()
 
     def slow(transcript, risk_flags):
@@ -67,23 +36,10 @@ def test_slow_and_crashing_models_are_dropped(monkeypatch):
         raise RuntimeError("bug")
 
     try:
-        assert triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=slow).source == "jev"
-        assert triage(TRANSCRIPT, [], ask_jev=crash, ask_claude=answer(CLAUDE)) == CLAUDE
+        assert triage(TRANSCRIPT, [], ask_claude=slow) is None
+        assert triage(TRANSCRIPT, [], ask_claude=crash) is None
     finally:
         release.set()
-
-
-def test_jev_urgency_rounds_half_up_and_stays_in_range():
-    assert [jev_urgency(s) for s in (0.0, 0.49, 0.5, 1.7, 2.5, 3.0, 9.0, -1.0)] == [
-        1,
-        1,
-        2,
-        3,
-        4,
-        4,
-        4,
-        1,
-    ]
 
 
 def test_models_see_labelled_speakers_and_risk_flags():
@@ -141,54 +97,23 @@ class Flaky:
 
 def test_claude_is_retried_once_after_a_failure():
     flaky = Flaky(None, CLAUDE)
-    result = triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=flaky)
+    result = triage(TRANSCRIPT, [], ask_claude=flaky)
     assert result == CLAUDE and flaky.calls == 2
 
 
 def test_claude_is_retried_once_after_a_crash():
     flaky = Flaky(RuntimeError("boom"), CLAUDE)
-    assert triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=flaky) == CLAUDE
+    assert triage(TRANSCRIPT, [], ask_claude=flaky) == CLAUDE
 
 
 def test_claude_gets_only_one_retry():
     flaky = Flaky(None, None, CLAUDE)
-    assert triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=flaky) is None
+    assert triage(TRANSCRIPT, [], ask_claude=flaky) is None
     assert flaky.calls == 2
 
 
 def test_no_retry_when_the_budget_is_spent():
-    now = iter([0.0, 100.0, 100.0, 100.0])  # the first attempt "takes" 100 s
+    now = iter([0.0, 100.0, 100.0, 100.0])
     flaky = Flaky(None, CLAUDE)
-    result = triage(
-        TRANSCRIPT, [], ask_jev=answer(None), ask_claude=flaky, clock=lambda: next(now, 100.0)
-    )
+    result = triage(TRANSCRIPT, [], ask_claude=flaky, clock=lambda: next(now, 100.0))
     assert result is None and flaky.calls == 1
-
-
-def test_failed_claude_falls_back_to_an_unsure_jev_after_retry():
-    flaky = Flaky(None, None)
-    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=flaky)
-    assert result.source == "jev" and result.urgency == 4
-
-
-def test_hung_jev_hands_over_to_claude_after_its_timeout(monkeypatch):
-    monkeypatch.setattr(config, "TRIAGE_TIMEOUT_S", 5.0)
-    monkeypatch.setattr(config, "JEV_TIMEOUT_S", 0.1)
-    release = threading.Event()
-
-    def hung(transcript, risk_flags):
-        release.wait(3)
-        return JEV
-
-    try:
-        started = time.monotonic()
-        assert triage(TRANSCRIPT, [], ask_jev=hung, ask_claude=answer(CLAUDE)) == CLAUDE
-        assert time.monotonic() - started < 2
-    finally:
-        release.set()
-
-
-def test_an_unsure_jev_never_lowers_claudes_result():
-    low = TriageResult(1, "social", "", 0.5, "jev")
-    high = TriageResult(4, "fall", "Fell.", 0.9, "claude")
-    assert triage(TRANSCRIPT, [], ask_jev=answer(low), ask_claude=answer(high)).urgency == 4

@@ -28,7 +28,6 @@ flowchart LR
   voice -->|"/calls/{id}/in-visit, /turns, /score, /resolve"| backend
   voice <-->|audio, text| flux["Deepgram Flux (cloud)"]
   voice <-->|replies, triage| claude["Claude (cloud)"]
-  voice <-->|triage| jev["Jev / TypeSafe (cloud)"]
 ```
 
 ## Quick start on the Mac
@@ -114,7 +113,7 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 | `BELLHOP_API` | `http://127.0.0.1:8000` | `http://<laptop-tailscale-ip>:8000` |
 | `PI_SERVER_URL` | unused | `http://127.0.0.1:<robot server port>` |
 | `ROBOT_ID` | `robot_1` | `robot_1` |
-| `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, `TYPESAFE_API_KEY` | same keys | same keys |
+| `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY` | same keys | same keys |
 | `MIC_NAME`, `SPEAKER_NAME` | empty (default device) | part of the USB device names (required: the default is HDMI) |
 | `BELLHOP_API_KEY` | only if the backend sets one | same |
 
@@ -180,8 +179,7 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
 | `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
-| `JEV_MIN_CONFIDENCE`, `JEV_TIMEOUT_S` | 0.7, 1.5 | Jev goes first for triage and for each reply's tone tag (so the voice and OLED eyes). At or above 0.7 it decides alone; below it, slow (1.5 s), failing or with no `TYPESAFE_API_KEY`, Claude decides (triage: higher urgency wins) |
-| `JEV_ONLY_CONFIDENCE` | 0.5 | Confidence sent when only an unsure Jev answers (Claude failed): bumps urgency one level |
+| `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
 | `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
@@ -279,4 +277,4 @@ Work from the bottom layer up.
 | Silero VAD via `pysilero-vad` | MIT |
 | Freenove 4WD car drivers (if used) | CC BY-NC-SA 3.0 |
 
-Cloud services: Deepgram Flux, Claude (Anthropic), Jev (TypeSafe). Prototype only: no diagnosis, no real patient data.
+Cloud services: Deepgram Flux and Claude (Anthropic). Prototype only: no diagnosis, no real patient data.
