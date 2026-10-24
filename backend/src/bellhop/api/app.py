@@ -85,6 +85,11 @@ class RobotReport(BaseModel):
     room: str | None = Field(default=None, max_length=32)
 
 
+class DispatchIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    room: str = Field(min_length=1, max_length=32)
+
+
 class AckIn(BaseModel):
     nurse_id: str = Field(max_length=64)
 
@@ -686,6 +691,12 @@ def create_app(container: Container) -> FastAPI:
         robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
         return robot
+
+    @api.post("/robots/{robot_id}/dispatch", status_code=201)
+    def dispatch_robot(robot_id: str, body: DispatchIn) -> Call:
+        """Send this robot to a room by hand. It is the bell for that room with the robot chosen:
+        409 when the robot is not idle or low on charge, or the room already has an open call."""
+        return container.manual_dispatch.send(robot_id, body.room)
 
     @api.get("/metrics")
     def metrics() -> dict[str, Any]:

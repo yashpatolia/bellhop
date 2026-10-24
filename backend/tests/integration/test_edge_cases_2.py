@@ -862,6 +862,7 @@ _VALID = {
     "/residents/{resident_id}/family/messages": {"text": "hi"},
     "/residents/{resident_id}/family/replies": {"text": "hi"},
     "/robots/{robot_id}": {"status": "idle", "battery": 0.5},
+    "/robots/{robot_id}/dispatch": {"room": "12"},
     "/residents/{resident_id}/medical": {},
     "/residents/{resident_id}/medical/entries": {"category": "allergy", "text": "Penicillin"},
     "/residents/{resident_id}/notes/refine": {"category": "like", "text": "likes tea"},

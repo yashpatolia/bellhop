@@ -11,6 +11,7 @@ from .models import Urgency
 class CallRaised:
     call_id: str
     room: str
+    robot_id: str | None = None  # set when staff chose the robot; the dispatcher honours it
 
 
 @dataclass(frozen=True)

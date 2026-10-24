@@ -3,10 +3,11 @@
     "id": 1,
     "event": "call.raised",
     "data": {
-      "call_id": "call_b6884f1e",
+      "call_id": "call_758532ca",
       "room": "12",
+      "robot_id": null,
       "call": {
-        "id": "call_b6884f1e",
+        "id": "call_758532ca",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -20,10 +21,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T21:42:43.068912Z",
-        "assigned_at": "2026-10-24T21:42:43.069041Z",
+        "created_at": "2026-10-24T22:31:18.181701Z",
+        "assigned_at": "2026-10-24T22:31:18.181809Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T21:42:43.072047Z",
+        "resolved_at": "2026-10-24T22:31:18.185302Z",
         "resolved_by_robot": true
       }
     }
@@ -32,11 +33,11 @@
     "id": 2,
     "event": "call.assigned",
     "data": {
-      "call_id": "call_b6884f1e",
+      "call_id": "call_758532ca",
       "robot_id": "robot_1",
       "nurse_id": "nurse_priya",
       "call": {
-        "id": "call_b6884f1e",
+        "id": "call_758532ca",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -50,10 +51,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T21:42:43.068912Z",
-        "assigned_at": "2026-10-24T21:42:43.069041Z",
+        "created_at": "2026-10-24T22:31:18.181701Z",
+        "assigned_at": "2026-10-24T22:31:18.181809Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T21:42:43.072047Z",
+        "resolved_at": "2026-10-24T22:31:18.185302Z",
         "resolved_by_robot": true
       }
     }
@@ -62,11 +63,11 @@
     "id": 3,
     "event": "call.scored",
     "data": {
-      "call_id": "call_b6884f1e",
+      "call_id": "call_758532ca",
       "urgency": 1,
       "category": "social",
       "call": {
-        "id": "call_b6884f1e",
+        "id": "call_758532ca",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -80,10 +81,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T21:42:43.068912Z",
-        "assigned_at": "2026-10-24T21:42:43.069041Z",
+        "created_at": "2026-10-24T22:31:18.181701Z",
+        "assigned_at": "2026-10-24T22:31:18.181809Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T21:42:43.072047Z",
+        "resolved_at": "2026-10-24T22:31:18.185302Z",
         "resolved_by_robot": true
       }
     }
@@ -92,10 +93,10 @@
     "id": 4,
     "event": "call.resolved",
     "data": {
-      "call_id": "call_b6884f1e",
+      "call_id": "call_758532ca",
       "by_robot": true,
       "call": {
-        "id": "call_b6884f1e",
+        "id": "call_758532ca",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -109,10 +110,10 @@
         ],
         "robot_id": "robot_1",
         "nurse_tasks": [],
-        "created_at": "2026-10-24T21:42:43.068912Z",
-        "assigned_at": "2026-10-24T21:42:43.069041Z",
+        "created_at": "2026-10-24T22:31:18.181701Z",
+        "assigned_at": "2026-10-24T22:31:18.181809Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T21:42:43.072047Z",
+        "resolved_at": "2026-10-24T22:31:18.185302Z",
         "resolved_by_robot": true
       }
     }
@@ -121,16 +122,16 @@
     "id": 8,
     "event": "alert.raised",
     "data": {
-      "alert_id": "alert_edd0d7eb",
-      "call_id": "call_077a0af0",
+      "alert_id": "alert_743217ae",
+      "call_id": "call_f1aecfd7",
       "level": 3,
       "alert": {
-        "id": "alert_edd0d7eb",
-        "call_id": "call_077a0af0",
+        "id": "alert_743217ae",
+        "call_id": "call_f1aecfd7",
         "nurse_id": "nurse_priya",
         "level": 3,
         "message": "Hip pain since last night",
-        "created_at": "2026-10-24T21:42:43.077090Z",
+        "created_at": "2026-10-24T22:31:18.190736Z",
         "acked_at": null
       }
     }

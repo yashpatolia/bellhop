@@ -85,7 +85,10 @@ class Dispatcher:
             return  # idempotent: already handled
         resident = self._residents.get(call.resident_id) if call.resident_id else None
         nurses = self._nurses.list_on_shift()
-        decision = self._policy.decide(call, resident, self._robots.list_all(), nurses)
+        robots = self._robots.list_all()
+        if event.robot_id:  # staff picked the robot: the policy may only choose from it
+            robots = [r for r in robots if r.id == event.robot_id]
+        decision = self._policy.decide(call, resident, robots, nurses)
         now = self._clock.now()
         robot_id, nurse_id = decision.robot_id, decision.nurse_id
         unreachable = None

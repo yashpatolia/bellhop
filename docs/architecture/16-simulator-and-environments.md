@@ -24,7 +24,7 @@ The dashboard reads only the backend. Whatever writes to the backend, the simula
 
 ## Sending a robot by hand
 
-The dashboard's Dispatch tab rings the bell for a room (`POST /calls {room}`), so the backend's own dispatcher picks the nearest free robot, as for a resident's bell. Choosing a specific robot is not possible yet: it needs a backend route. In the mock environment the simulator plays the visit for that robot.
+The dashboard's Dispatch tab sends a chosen robot to a room with `POST /robots/{id}/dispatch {room}` (`ManualDispatch` in the backend). It is the bell for that room with the robot picked: `CallRaised` carries the robot id and the dispatcher may only choose from it, so the usual call, visit and alert flow follows. The backend refuses (409) a robot that is not idle or is under 20% charge, and a room that already has an open call. In the mock environment the simulator plays the visit for that robot.
 
 ## Adding a home by hand (empty environment)
 

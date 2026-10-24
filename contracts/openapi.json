@@ -2549,6 +2549,61 @@
         }
       }
     },
+    "/robots/{robot_id}/dispatch": {
+      "post": {
+        "summary": "Dispatch Robot",
+        "description": "Send this robot to a room by hand. It is the bell for that room with the robot chosen:\n409 when the robot is not idle or low on charge, or the room already has an open call.",
+        "operationId": "dispatch_robot_robots__robot_id__dispatch_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "robot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Robot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Call"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "summary": "Metrics",
@@ -3098,6 +3153,22 @@
           "blurb"
         ],
         "title": "ContentItem"
+      },
+      "DispatchIn": {
+        "properties": {
+          "room": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Room"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room"
+        ],
+        "title": "DispatchIn"
       },
       "EntryKind": {
         "type": "string",
