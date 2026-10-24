@@ -1,0 +1,147 @@
+{
+  "call.raised": {
+    "id": 1,
+    "event": "call.raised",
+    "data": {
+      "call_id": "call_706b6a04",
+      "room": "12",
+      "call": {
+        "id": "call_706b6a04",
+        "room": "12",
+        "resident_id": "res_margaret",
+        "urgency": 1,
+        "category": "social",
+        "status": "resolved",
+        "transcript": [],
+        "summary": null,
+        "assigned_to": [
+          "robot_1",
+          "nurse_priya"
+        ],
+        "robot_id": "robot_1",
+        "nurse_tasks": [],
+        "created_at": "2026-10-24T03:48:59.859636Z",
+        "assigned_at": "2026-10-24T03:48:59.859870Z",
+        "first_response_at": null,
+        "resolved_at": "2026-10-24T03:48:59.871173Z"
+      }
+    }
+  },
+  "call.assigned": {
+    "id": 2,
+    "event": "call.assigned",
+    "data": {
+      "call_id": "call_706b6a04",
+      "robot_id": "robot_1",
+      "nurse_id": "nurse_priya",
+      "call": {
+        "id": "call_706b6a04",
+        "room": "12",
+        "resident_id": "res_margaret",
+        "urgency": 1,
+        "category": "social",
+        "status": "resolved",
+        "transcript": [],
+        "summary": null,
+        "assigned_to": [
+          "robot_1",
+          "nurse_priya"
+        ],
+        "robot_id": "robot_1",
+        "nurse_tasks": [],
+        "created_at": "2026-10-24T03:48:59.859636Z",
+        "assigned_at": "2026-10-24T03:48:59.859870Z",
+        "first_response_at": null,
+        "resolved_at": "2026-10-24T03:48:59.871173Z"
+      }
+    }
+  },
+  "call.scored": {
+    "id": 3,
+    "event": "call.scored",
+    "data": {
+      "call_id": "call_706b6a04",
+      "urgency": 1,
+      "category": "social",
+      "call": {
+        "id": "call_706b6a04",
+        "room": "12",
+        "resident_id": "res_margaret",
+        "urgency": 1,
+        "category": "social",
+        "status": "resolved",
+        "transcript": [],
+        "summary": null,
+        "assigned_to": [
+          "robot_1",
+          "nurse_priya"
+        ],
+        "robot_id": "robot_1",
+        "nurse_tasks": [],
+        "created_at": "2026-10-24T03:48:59.859636Z",
+        "assigned_at": "2026-10-24T03:48:59.859870Z",
+        "first_response_at": null,
+        "resolved_at": "2026-10-24T03:48:59.871173Z"
+      }
+    }
+  },
+  "call.resolved": {
+    "id": 4,
+    "event": "call.resolved",
+    "data": {
+      "call_id": "call_706b6a04",
+      "by_robot": true,
+      "call": {
+        "id": "call_706b6a04",
+        "room": "12",
+        "resident_id": "res_margaret",
+        "urgency": 1,
+        "category": "social",
+        "status": "resolved",
+        "transcript": [],
+        "summary": null,
+        "assigned_to": [
+          "robot_1",
+          "nurse_priya"
+        ],
+        "robot_id": "robot_1",
+        "nurse_tasks": [],
+        "created_at": "2026-10-24T03:48:59.859636Z",
+        "assigned_at": "2026-10-24T03:48:59.859870Z",
+        "first_response_at": null,
+        "resolved_at": "2026-10-24T03:48:59.871173Z"
+      }
+    }
+  },
+  "alert.raised": {
+    "id": 8,
+    "event": "alert.raised",
+    "data": {
+      "alert_id": "alert_2f743508",
+      "call_id": "call_aee8b4f3",
+      "level": 3,
+      "alert": {
+        "id": "alert_2f743508",
+        "call_id": "call_aee8b4f3",
+        "nurse_id": "nurse_priya",
+        "level": 3,
+        "message": "Hip pain since last night",
+        "created_at": "2026-10-24T03:48:59.892093Z",
+        "acked_at": null
+      }
+    }
+  },
+  "robot.updated": {
+    "id": 13,
+    "event": "robot.updated",
+    "data": {
+      "robot_id": "robot_1",
+      "robot": {
+        "id": "robot_1",
+        "status": "busy",
+        "battery": 0.9,
+        "room": "12"
+      }
+    }
+  }
+}
