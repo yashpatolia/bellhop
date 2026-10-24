@@ -117,6 +117,23 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 | `MIC_NAME`, `SPEAKER_NAME` | empty (default device) | part of the USB device names (required: the default is HDMI) |
 | `BELLHOP_API_KEY` | only if the backend sets one | same |
 
+### Optional Jev assessment and tone
+
+Jev is deliberately off by default. Moonshine, Claude, Piper, the local urgency floor, marker
+navigation and the manual controller all work without it. To enable its advisory triage and reply
+tone choices on the Pi, add the sandbox key only to `~/ml/.env` (never commit it):
+
+```bash
+TYPESAFE_API_KEY=<your-key>
+```
+
+The adapter uses the existing HTTP client—there is no SDK or model download. `JEV_TIMEOUT_S`
+(default `1.5`) bounds an individual request. The first spoken reply never waits for Jev's optional
+tone; it uses Claude's tag when the background decision is not already ready. Network/API errors
+and malformed answers are ignored. Claude remains the primary triage narrative; Jev can only add
+an urgency escalation.
+Set `TYPESAFE_API_KEY=` or remove it to disable Jev immediately.
+
 On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:<robot server port>`.
 
 ### Safe stationary conversation test
