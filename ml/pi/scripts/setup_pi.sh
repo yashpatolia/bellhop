@@ -95,8 +95,8 @@ if command -v uv >/dev/null 2>&1; then
   fi
 elif command -v curl >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  # shellcheck disable=SC1091
-  source "$HOME/.local/bin/env"
+  # newer installers write no ~/.local/bin/env, so put the install dir on PATH directly
+  export PATH="$HOME/.local/bin:$PATH"
 else
   echo "curl not found: installing uv from PyPI into $uvtool"
   [[ -x "$uvtool/bin/pip" ]] || { rm -rf "$uvtool"; /usr/bin/python3 -m venv "$uvtool"; }
