@@ -1,4 +1,4 @@
-import type { EntryCategory, EntryDraft, FactKind, RefinedEntry, Resident } from './types'
+import type { EntryCategory, EntryDraft, FactKind, RefinedEntry, Resident, ReviewDecision } from './types'
 
 // Staff add notes in their own words. A tidy step (a stand-in for Claude on the backend) rewrites
 // the text cleanly and says what it changed, then staff review it before it is saved.
@@ -102,6 +102,15 @@ const KIND: Partial<Record<EntryCategory, FactKind>> = { like: 'like', dislike: 
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 const EMPTY = /^none (?:known|recorded)$/i
+
+/** Approve makes a pending fact active (confirmed now by a nurse); reject removes it. Other facts are untouched. */
+export function applyReview(resident: Resident, factId: string, decision: ReviewDecision, now: number): Resident {
+  const learned =
+    decision === 'reject'
+      ? resident.learned.filter((f) => f.id !== factId || f.status !== 'pending')
+      : resident.learned.map((f) => (f.id === factId && f.status === 'pending' ? { ...f, status: 'active' as const, lastConfirmed: now } : f))
+  return { ...resident, learned }
+}
 
 /** Returns a new resident with the entry added. Staff entries are trusted, so facts start active at full confidence. */
 export function applyEntry(resident: Resident, entry: RefinedEntry, now: number): Resident {

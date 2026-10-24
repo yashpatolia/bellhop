@@ -1,7 +1,7 @@
 import type { Alert, Call, Metrics, Robot, Snapshot, Urgency } from './types'
 import type { DataSource } from './source'
 import { staticSnapshot } from './mock'
-import { applyEntry, refineLocally } from './staffEntries'
+import { applyEntry, applyReview, refineLocally } from './staffEntries'
 
 // Live source for the Bellhop backend: REST for initial state, one SSE
 // stream for updates, refetch as the recovery path. The backend does not own
@@ -243,6 +243,8 @@ export function createLiveSource(): DataSource {
       refineEntry: refineLocally,
       addEntry: (residentId, entry) =>
         patch({ residents: snapshot.residents.map(r => (r.id === residentId ? applyEntry(r, entry, Date.now()) : r)) }),
+      reviewFact: (residentId, factId, decision) =>
+        patch({ residents: snapshot.residents.map(r => (r.id === residentId ? applyReview(r, factId, decision, Date.now()) : r)) }),
     },
     start: () => {
       stopped = false

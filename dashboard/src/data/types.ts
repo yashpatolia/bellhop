@@ -157,6 +157,8 @@ export interface Snapshot {
   pastCalls: Call[] // calls from before today, for history and tendencies
 }
 
+export type ReviewDecision = 'approve' | 'reject'
+
 export interface Actions {
   nurseOnMyWay: (callId: string) => void
   resolve: (callId: string) => void
@@ -164,6 +166,8 @@ export interface Actions {
   refineEntry: (draft: EntryDraft) => Promise<RefinedEntry>
   /** Save a reviewed entry to the resident's profile. */
   addEntry: (residentId: string, entry: RefinedEntry) => void
+  /** A nurse approves (Bellhop starts using the fact) or rejects (it is forgotten) a pending fact. */
+  reviewFact: (residentId: string, factId: string, decision: ReviewDecision) => void
 }
 
 export interface BellhopData extends Snapshot {

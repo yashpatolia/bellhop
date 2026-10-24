@@ -1,6 +1,7 @@
 import type {
   Alert,
   RefinedEntry,
+  ReviewDecision,
   Call,
   Category,
   CallStatus,
@@ -14,7 +15,7 @@ import type {
 import { DOCK_POINT, FLOOR, ROOMS, roomByNumber } from './layout'
 import { profileFor } from './profiles'
 import { buildPastCalls } from './history'
-import { applyEntry, refineLocally } from './staffEntries'
+import { applyEntry, applyReview, refineLocally } from './staffEntries'
 
 // Everything in this file is dummy data. It is replaced by the real store
 // (SpacetimeDB) by swapping the source in source.ts.
@@ -241,6 +242,13 @@ export class Simulator {
     const current = this.overrides.get(residentId) ?? RESIDENTS.find((r) => r.id === residentId)
     if (!current) return
     this.overrides.set(residentId, applyEntry(current, entry, Date.now()))
+    this.rebuild()
+  }
+
+  reviewFact = (residentId: string, factId: string, decision: ReviewDecision) => {
+    const current = this.overrides.get(residentId) ?? RESIDENTS.find((r) => r.id === residentId)
+    if (!current) return
+    this.overrides.set(residentId, applyReview(current, factId, decision, Date.now()))
     this.rebuild()
   }
 
