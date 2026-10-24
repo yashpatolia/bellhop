@@ -7,6 +7,8 @@ export interface LayoutProps {
   view: View
   theme: string
   preview: boolean
+  residentId?: string // set on #/residents/<id>
+  callId?: string // set on #/residents/<id>/<callId>
 }
 
 // Each theme can ship its own layout: src/layouts/<theme id>/Layout.tsx with a default export.
