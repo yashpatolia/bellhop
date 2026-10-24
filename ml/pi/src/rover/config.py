@@ -156,7 +156,13 @@ BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before givi
 TRIAGE_TIMEOUT_S = 6.0  # overall budget for both models, retry included
 TRIAGE_ATTEMPT_S = 3.0  # one Claude call; a failure inside the budget gets one retry
 TRIAGE_RETRY_MIN_S = 1.0  # no retry unless at least this much budget is left
-JEV_GRACE_S = 1.0  # once Claude has answered, wait this long at most for Jev
+JEV_TIMEOUT_S = 1.5  # Jev answers in ~0.1-0.5 s; the rest of TRIAGE_TIMEOUT_S is Claude's
+# Jev first, for triage and for each reply's tone tag: at or above this it decides alone, below it
+# (or slow, failing, no key) Claude decides. Keep it above the backend's 0.6 low-confidence bump.
+JEV_MIN_CONFIDENCE = 0.7
+JEV_TONE_WAIT_S = (
+    0.2  # the first sentence waits at most this long for Jev's tone, then Claude's tag
+)
 JEV_MODEL = "jev-latest"
 JEV_ONLY_CONFIDENCE = 0.5  # below the backend's 0.6, so it bumps urgency one level
 # Local scorer (ONNX embedding + linear head, raise-only). Needs rover/triage/local_head.npz and
@@ -191,4 +197,17 @@ TONES = {
 }
 DEFAULT_TONE = "cheerful"
 SLOW_LENGTH_BONUS = 0.1  # added to length_scale when speech-settings say rate "slow"
+
+# OLED eyes: a 128x64 I2C screen. SSD1306 (0.96 inch) by default; a 1.3 inch SH1106 needs offset 2
+OLED_ADDRESS = int(os.environ.get("OLED_ADDRESS", "0x3C"), 16)
+OLED_COLUMN_OFFSET = int(os.environ.get("OLED_COLUMN_OFFSET", "0"))
+OLED_FLIP = os.environ.get("OLED_FLIP", "0") == "1"  # screen mounted upside down
+EYES_FPS = 10  # each changed 8-row page costs ~12 ms of the I2C bus shared with the motor board
+EYES_MOOD_HOLD_S = 3.0  # a reply's tone stays on the face this long after its last sentence
+EYES_BLINK_EVERY_S = (3.0, 6.0)  # random gap between blinks
+EYES_BLINK_S = 0.15
+EYES_SLOW_BLINK_S = 0.4  # calm
+EYES_GLANCE_EVERY_S = (3.0, 6.0)  # idle and listening glance aside now and then
+EYES_GLANCE_S = 0.8
+EYES_GLANCE_PX = 8
 LOUD_GAIN = 1.5  # speech-settings volume "loud"; clipped to full scale

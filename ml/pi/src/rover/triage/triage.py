@@ -1,8 +1,10 @@
-"""Triage a visit with Jev (TypeSafe) and Claude at the same time, then post the result.
+"""Triage a visit with Jev (TypeSafe) first and Claude as the backup, then post the result.
 
-Merge: both answer -> higher urgency (and its category) with Claude's summary and confidence.
-Only Claude -> as is. Only Jev -> confidence JEV_ONLY_CONFIDENCE so the backend bumps urgency one
-level, and the resident's last words as the summary. Neither -> None, posted as triage-failed.
+A confident Jev (JEV_MIN_CONFIDENCE or more) is posted as is, with the resident's last words as the
+summary (Jev gives no reasons). An unsure, slow or failed Jev hands over to Claude, then:
+both answer -> higher urgency (and its category) with Claude's summary and confidence.
+Only Claude -> as is. Only an unsure Jev -> confidence JEV_ONLY_CONFIDENCE so the backend bumps
+urgency one level. Neither -> None, posted as triage-failed.
 """
 
 from __future__ import annotations
@@ -140,7 +142,7 @@ def ask_jev(transcript: Transcript, risk_flags: list[str]) -> TriageResult | Non
     try:
         with TypeSafeClient(
             model=config.JEV_MODEL,
-            timeout=config.TRIAGE_TIMEOUT_S,
+            timeout=config.JEV_TIMEOUT_S,
             retry=RetryPolicy(max_retries=0),
         ) as client:
             result = client.system_one(
@@ -260,41 +262,38 @@ def triage(
     claude_retries: int = 1,
     ask_local: Callable[[Transcript], tuple[int, float] | None] | None = None,
 ) -> TriageResult | None:
-    """Ask both models at once. Claude gets one retry inside the budget; Jev is a bonus that is
-    waited for only JEV_GRACE_S after Claude has answered, and it can only raise the urgency.
+    """Jev first, waited for up to JEV_TIMEOUT_S. A confident Jev is the answer; otherwise Claude
+    gets the rest of the budget with one retry, and an unsure Jev can only raise its urgency.
     The local scorer (offline, milliseconds) is applied last and can only raise it too."""
     started = clock()
-    wall = time.monotonic()
-    budget_end = wall + config.TRIAGE_TIMEOUT_S
-    claude_ask = with_retry(
-        ask_claude or _real_ask_claude, started + config.TRIAGE_TIMEOUT_S, clock, claude_retries
-    )
+    budget_end = time.monotonic() + config.TRIAGE_TIMEOUT_S
     pool = ThreadPoolExecutor(max_workers=3)
-    futures = {
-        "jev": pool.submit(ask_jev or _real_ask_jev, transcript, risk_flags),
-        "claude": pool.submit(claude_ask, transcript, risk_flags),
-        "local": pool.submit(ask_local or _real_ask_local, transcript),
-    }
-    # Claude first: it owns the budget. Then Jev gets only a short grace if Claude answered.
-    wait([futures["claude"]], timeout=max(0.0, budget_end - time.monotonic()))
-    claude_answered = futures["claude"].done() and _answer(futures["claude"]) is not None
-    jev_end = time.monotonic() + config.JEV_GRACE_S if claude_answered else budget_end
-    wait(
-        [futures["jev"], futures["local"]],
-        timeout=max(0.0, min(budget_end, jev_end) - time.monotonic()),
-    )
+    jev_future = pool.submit(ask_jev or _real_ask_jev, transcript, risk_flags)
+    local_future = pool.submit(ask_local or _real_ask_local, transcript)
+    wait([jev_future], timeout=config.JEV_TIMEOUT_S)
+    jev = _answer_in_time(jev_future, "jev")
+    quote = SUMMARY_QUOTE.format(_last_resident_line(transcript))
+    if jev is not None and jev.confidence >= config.JEV_MIN_CONFIDENCE:
+        merged = replace(jev, summary=quote)
+    else:
+        if jev is not None:
+            print(f"triage: Jev unsure (confidence {jev.confidence:.2f}), asking Claude")
+        claude_ask = with_retry(
+            ask_claude or _real_ask_claude, started + config.TRIAGE_TIMEOUT_S, clock, claude_retries
+        )
+        claude_future = pool.submit(claude_ask, transcript, risk_flags)
+        wait([claude_future], timeout=max(0.0, budget_end - time.monotonic()))
+        merged = merge(jev, _answer_in_time(claude_future, "claude"), transcript)
+    wait([local_future], timeout=max(0.0, budget_end - time.monotonic()))
     pool.shutdown(wait=False, cancel_futures=True)  # never wait on a hung model
-    results: dict[str, TriageResult | None] = {}
-    for name, future in futures.items():
-        if name == "local":
-            continue
-        if not future.done():
-            print(f"triage: {name} did not answer in time, ignored")
-            continue
-        results[name] = _answer(future, name)
-    merged = merge(results.get("jev"), results.get("claude"), transcript)
-    score = _answer(futures["local"], "local") if futures["local"].done() else None
-    return raise_urgency(merged, score, SUMMARY_QUOTE.format(_last_resident_line(transcript)))
+    return raise_urgency(merged, _answer_in_time(local_future, "local"), quote)
+
+
+def _answer_in_time(future, name: str):
+    if not future.done():
+        print(f"triage: {name} did not answer in time, ignored")
+        return None
+    return _answer(future, name)
 
 
 def _answer(future, name: str = "model") -> TriageResult | None:

@@ -1,11 +1,11 @@
 import type { LayoutProps } from '../registry'
 import { InsightsView } from '../../views/InsightsView'
-import { ResidentsView } from '../../views/ResidentsView'
 import { clock } from '../../lib'
-import { Activity, Detail, Earlier, Nav, Numbers, Robots, Staff, Summary, useBoard } from '../shared'
+import { Activity, Detail, Earlier, Nav, Numbers, Robots, Summary, useBoard } from '../shared'
+import { ResidentsPage } from './ResidentsPage'
 import './layout.css'
 
-export default function Layout({ data, view, preview }: LayoutProps) {
+export default function Layout({ data, view, preview, residentId, callId }: LayoutProps) {
   const { selected, pick } = useBoard(data)
   return (
     <div className={'lx lx-sumi' + (preview ? ' screen' : '')} data-theme="sumi">
@@ -15,7 +15,6 @@ export default function Layout({ data, view, preview }: LayoutProps) {
             Bellhop<small>Maple Court, East Wing</small>
           </a>
           <Nav view={view} />
-          <Staff data={data} />
           <span className="sm-clock">{clock(data.now)}</span>
         </header>
         {view === 'live' ? (
@@ -46,7 +45,7 @@ export default function Layout({ data, view, preview }: LayoutProps) {
             </section>
           </>
         ) : (
-          <div className="sm-plain">{view === 'insights' ? <InsightsView data={data} /> : <ResidentsView data={data} />}</div>
+          <div className="sm-plain">{view === 'insights' ? <InsightsView data={data} /> : <ResidentsPage data={data} residentId={residentId} callId={callId} />}</div>
         )}
       </div>
     </div>

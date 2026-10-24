@@ -1,13 +1,14 @@
-/* Ink & Rust: muted, earthy, professional. Every component reads only these tokens.
+/* Slate & Coral: calm, professional. Every component reads only these tokens.
    Urgency colours: u1 calm, u2 info, u3 needs a nurse, u4 emergency. Chips always carry words too. */
 
 [data-theme='sumi'] {
-  /* Ink & Rust */
-  --bg: #e7e5e0; --surface: #f5f3ee; --surface-2: #edebe5;
-  --ink: #1a1a1a; --ink-2: #4f4e4a; --ink-3: #82807a; --line: #bfbbb2;
-  --accent: #1f1f1f; --accent-ink: #f5f3ee; --accent-tint: #dedbd3;
-  --u1: #55705f; --u2: #566879; --u3: #8f5238; --u4: #a02c24;
-  --radius: 6px; --radius-sm: 4px; --border: 1px; --shadow: 0 1px 2px rgba(30, 25, 20, 0.08);
+  /* Slate & Coral: slate blue #43597d, steel #a0c0d7, pale cyan #e5fafc (page is a softer #e7eff3), coral #de7456, navy #2b3240.
+     Coral is too light for text, so urgency text uses darker coral shades (4.5:1 or better). */
+  --bg: #e7eff3; --surface: #ffffff; --surface-2: #d8e5ec;
+  --ink: #2b3240; --ink-2: #43597d; --ink-3: #51658a; --line: #a0c0d7;
+  --accent: #43597d; --accent-ink: #ffffff; --accent-tint: #dcebf3;
+  --u1: #2f7471; --u2: #43597d; --u3: #a8461f; --u4: #a8321c;
+  --radius: 6px; --radius-sm: 4px; --border: 1px; --shadow: 0 1px 2px rgba(43, 50, 64, 0.1);
   --f-display: 'Zen Maru Gothic', sans-serif; --f-body: 'Zen Maru Gothic', sans-serif; --f-mono: 'DM Mono', monospace;
   --d-weight: 700; --d-track: 0;
   --bg-image: none;

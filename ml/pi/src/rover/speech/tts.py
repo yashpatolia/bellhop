@@ -7,12 +7,17 @@ from rover import config
 from rover.speech.mic import find_device
 
 
+def effective_tone(tone: str, settings: dict | None) -> str:
+    """The tag the voice and the eyes use: speech-settings "always calm" wins over Claude's tag."""
+    if (settings or {}).get("tone") == "calm":
+        return "calm"
+    return tone if tone in config.TONES else config.DEFAULT_TONE
+
+
 def tone_params(tone: str, settings: dict | None) -> tuple[float, float, float]:
     """(length_scale, pitch, noise_scale) for a tone tag, adjusted by backend speech-settings."""
+    length, pitch, noise = config.TONES[effective_tone(tone, settings)]
     settings = settings or {}
-    if settings.get("tone") == "calm":
-        tone = "calm"
-    length, pitch, noise = config.TONES.get(tone, config.TONES[config.DEFAULT_TONE])
     slow = settings.get("rate") == "slow"
     if slow:
         length += config.SLOW_LENGTH_BONUS

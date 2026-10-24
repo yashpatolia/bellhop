@@ -11,6 +11,7 @@ import httpx
 
 from bellhop.adapters.apify_content import ApifyContentFeed
 from bellhop.adapters.care_store import InMemoryCareStore
+from bellhop.adapters.claude_extractor import ClaudeFactExtractor
 from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
 from bellhop.adapters.event_bus import InMemoryEventBus
 from bellhop.adapters.guards import (
@@ -25,12 +26,14 @@ from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.adapters.moss_memory import MossMemoryIndex
 from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.adapters.robot_gateway import RecordingRobotGateway
+from bellhop.adapters.rule_extractor import RuleFactExtractor
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
 from bellhop.adapters.wikipedia_content import WikipediaContentFeed
 from bellhop.api.events import EventStream
 from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
 from bellhop.ports.content import ContentFeed
+from bellhop.ports.learning import FactExtractor
 from bellhop.scenarios import apply_scenario, load_scenario
 from bellhop.seed import seed_demo
 from bellhop.services.admin import AdminService
@@ -40,8 +43,10 @@ from bellhop.services.care_signals import CareSignals
 from bellhop.services.dispatcher import DefaultPolicy, Dispatcher
 from bellhop.services.family import FamilyService
 from bellhop.services.feedback import FeedbackService
+from bellhop.services.learn_on_resolve import LearnOnResolve
 from bellhop.services.liaison import Liaison
 from bellhop.services.memory_guard import MemoryGuard
+from bellhop.services.memory_learner import MemoryLearner
 from bellhop.services.memory_service import MemoryService
 from bellhop.services.preferences_service import PreferencesService
 from bellhop.services.reminiscence import ReminiscenceService
@@ -71,6 +76,7 @@ class Settings:
     max_event_clients: int = 20  # GET /events subscribers; more get 503
     robot_url: str | None = None
     content: str = "local"  # local | wikipedia | apify
+    learning: str = "rule"  # rule (offline baseline) | claude (needs ANTHROPIC_API_KEY)
     apify_token: str | None = field(default=None, repr=False)
     api_key: str | None = field(default=None, repr=False)  # unset = API is open
     cors_origins: tuple[str, ...] = ("*",)
@@ -92,6 +98,7 @@ class Settings:
             guard_timeouts=env.get("BELLHOP_GUARDS", "1") != "0",
             robot_url=env.get("BELLHOP_ROBOT_URL") or None,
             content=env.get("BELLHOP_CONTENT", "local"),
+            learning=env.get("BELLHOP_LEARNING", "rule"),
             apify_token=env.get("APIFY_TOKEN") or None,
             api_key=env.get("BELLHOP_API_KEY") or None,
             cors_origins=tuple(
@@ -122,6 +129,7 @@ class Container:
     family: FamilyService
     preferences: PreferencesService
     memory_guard: MemoryGuard
+    memory_learner: MemoryLearner
     triage_guard: TriageGuard
     reminiscence: ReminiscenceService
     admin: AdminService
@@ -159,6 +167,14 @@ def _content_feed(settings: Settings) -> ContentFeed:
     if settings.content == "apify":
         return ApifyContentFeed(local, settings.apify_token)
     raise ValueError(f"unsupported content feed: {settings.content}")
+
+
+def _fact_extractor(settings: Settings) -> FactExtractor:
+    if settings.learning == "rule":
+        return RuleFactExtractor()
+    if settings.learning == "claude":
+        return ClaudeFactExtractor()
+    raise ValueError(f"unsupported learning setting: {settings.learning}")
 
 
 def _build_store(
@@ -214,6 +230,8 @@ def build_container(
     events = EventStream(bus, store, max_clients=settings.max_event_clients)
     index, local_index = _memory_index(settings)
     memory = MemoryService(index, clock, ids)
+    memory_guard = MemoryGuard(memory, local_index)
+    memory_learner = MemoryLearner(_fact_extractor(settings), memory_guard)
     care_store = InMemoryCareStore()
 
     container = Container(
@@ -245,7 +263,8 @@ def build_container(
             care_store.messages, store.residents, store.calls, care_store.entries, clock, ids
         ),
         preferences=PreferencesService(care_store.preferences, clock),
-        memory_guard=MemoryGuard(memory, local_index),
+        memory_guard=memory_guard,
+        memory_learner=memory_learner,
         triage_guard=TriageGuard(),
         reminiscence=ReminiscenceService(_content_feed(settings), memory, store.residents),
         admin=AdminService(store.residents, store.nurses, store.robots, store.calls, clock, ids),
@@ -255,6 +274,7 @@ def build_container(
         settings=settings,
     )
     RobotSignals(store.calls, out_gateway, bus)
+    LearnOnResolve(store.calls, store.residents, memory, memory_learner, bus)
     if settings.seed_file:
         apply_scenario(load_scenario(settings.seed_file), store, memory, care_store)
     elif settings.seed_demo:
