@@ -1,18 +1,18 @@
 [
   {
-    "id": "fact_fadce98e",
+    "id": "fact_54334e71",
     "resident_id": "res_margaret",
     "text": "Takes her tea with two sugars",
     "tags": [
       "tea",
       "preferences"
     ],
-    "created_at": "2026-10-24T21:42:42.906684Z",
+    "created_at": "2026-10-24T22:31:17.998605Z",
     "source": "staff",
     "confidence": 1.0,
     "quote": null,
     "call_id": null,
-    "last_confirmed": "2026-10-24T21:42:42.906684Z",
+    "last_confirmed": "2026-10-24T22:31:17.998605Z",
     "times_seen": 1
   }
 ]

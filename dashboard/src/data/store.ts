@@ -221,9 +221,9 @@ export class LiveStore {
         await this.send('POST', `/alerts/${alert.id}/ack`, { nurse_id: nurse })
         await this.loadLive()
       }),
-    sendRobot: async (room) => {
+    sendRobot: async (robotId, room) => {
       try {
-        const call = await this.send<ApiCall>('POST', '/calls', { room })
+        const call = await this.send<ApiCall>('POST', `/robots/${encodeURIComponent(robotId)}/dispatch`, { room })
         this.raw.calls.set(call.id, call)
         this.touch()
         void this.loadLive().catch(() => {}) // the robot's own status follows the dispatch
