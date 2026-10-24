@@ -597,3 +597,15 @@ def test_attend_sigterm_while_waiting_for_arrival_releases_the_robot(monkeypatch
     with pytest.raises(SystemExit):
         go()
     assert released == [1]
+
+
+def test_the_reply_tone_shows_on_the_eyes_and_always_calm_wins(tmp_path, monkeypatch):
+    backend = FakeBackend()
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.speak("excited", "Hooray!")
+    assert visit.eyes.expression(time.monotonic()) == "excited"
+    visit.voice.settings = {"tone": "calm"}
+    visit.speak("excited", "Hooray!")
+    assert visit.eyes.expression(time.monotonic()) == "calm"
+    visit.handle_turn("hello", "flux", block(1), 0.5, time.monotonic(), None, True)
+    assert visit.eyes.base == "listening"  # thinking only while the reply is being written

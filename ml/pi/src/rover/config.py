@@ -187,4 +187,17 @@ TONES = {
 }
 DEFAULT_TONE = "cheerful"
 SLOW_LENGTH_BONUS = 0.1  # added to length_scale when speech-settings say rate "slow"
+
+# OLED eyes: a 128x64 I2C screen. SSD1306 (0.96 inch) by default; a 1.3 inch SH1106 needs offset 2
+OLED_ADDRESS = int(os.environ.get("OLED_ADDRESS", "0x3C"), 16)
+OLED_COLUMN_OFFSET = int(os.environ.get("OLED_COLUMN_OFFSET", "0"))
+OLED_FLIP = os.environ.get("OLED_FLIP", "0") == "1"  # screen mounted upside down
+EYES_FPS = 10  # each changed 8-row page costs ~12 ms of the I2C bus shared with the motor board
+EYES_MOOD_HOLD_S = 3.0  # a reply's tone stays on the face this long after its last sentence
+EYES_BLINK_EVERY_S = (3.0, 6.0)  # random gap between blinks
+EYES_BLINK_S = 0.15
+EYES_SLOW_BLINK_S = 0.4  # calm
+EYES_GLANCE_EVERY_S = (3.0, 6.0)  # idle and listening glance aside now and then
+EYES_GLANCE_S = 0.8
+EYES_GLANCE_PX = 8
 LOUD_GAIN = 1.5  # speech-settings volume "loud"; clipped to full scale
