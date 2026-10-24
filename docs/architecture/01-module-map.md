@@ -51,13 +51,17 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 | `adapters/http_robot_gateway.py` | `HttpRobotGateway(base_url, timeout=2.0)`: `go_to` POSTs `/go_to {room}`, `set_led` POSTs `/led {state}`; non-2xx or transport error raises |
 | `services/robot_signals.py` | `RobotSignals(calls, gateway, bus)`: urgency 4 -> `emergency`, 3 -> `nurse_on_way`, assigned -> `listening`, resolved -> `idle`, only for the call's `robot_id`; gateway errors are logged, never raised |
 
-### Reminiscence content (optional, Apify)
+### Reminiscence content (Wikipedia direct; Apify optional)
+Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` also needs `APIFY_TOKEN`). Unknown value raises at startup.
+
 | File | Public interface |
 | --- | --- |
 | `ports/content.py` | `ContentItem(id, kind song|film|news|event, year, title, blurb)`, `ContentFeed.for_era(birth_year, limit=5)` (items from ages 15-25) |
 | `adapters/local_content.py` | `LocalContentFeed()`: about 30 canned 1940s-1970s items, deterministic, works offline |
-| `adapters/apify_content.py` | `ApifyContentFeed(fallback, token, actor=..., timeout=5.0)`: runs the actor via `run-sync-get-dataset-items`, caches per birth year, falls back on missing token, HTTP error, timeout or empty result. `map_item` isolates dataset mapping. Set `APIFY_TOKEN` in the environment only; never commit it |
-| `services/reminiscence.py` | `ReminiscenceService(feed, memory, residents)`: `prompt_context(resident_id, k=3)` (bulleted era items) and `ingest(resident_id)` (stores `MemoryFact`s tagged `reminiscence`). Needs `Resident.birth_year` |
+| `adapters/era_parser.py` | Pure. `parse_era(markdown, year, id_prefix="era")` turns a Wikipedia "{year} in music" page into `ContentItem`s: list items under Events, hit singles, albums, film, musical theatre and classical sections; skips navigation, references, births, deaths and anything negative or morbid; strips links; dedupes; blurb at most 200 chars; sections interleaved so the first few items are varied. `html_to_markdown(html)` prepares API HTML |
+| `adapters/wikipedia_content.py` | `WikipediaContentFeed(fallback, timeout=3.0, transport=None, user_agent=...)`: fetches `{year}_in_music` from the MediaWiki action API (`action=parse&prop=text`, about 0.5 s per page, 3 sampled years aged 20, 17, 23, so about 1.7 s cold), caches per year (failures too), stops after the first failed year, falls back on any error or empty parse. The User-Agent must name a contact: Wikimedia returns 403 otherwise |
+| `adapters/apify_content.py` | OPTIONAL, ingest-time (pre-warm) only, never in the voice loop. `ApifyContentFeed(fallback, token, actor=..., timeout=60.0)`: runs the crawler via `run-sync-get-dataset-items` (about 12 s per page), parses the single item's `markdown` with `era_parser`, caches per birth year, falls back on missing token, error, timeout or empty parse. Set `APIFY_TOKEN` in the environment only; never commit it |
+| `services/reminiscence.py` | `ReminiscenceService(feed, memory, residents)`: `items(resident_id, k)`, `prompt_context(resident_id, k=3)` (bulleted era items) and `ingest(resident_id)` (stores `MemoryFact`s tagged `reminiscence`). Needs `Resident.birth_year` (Margaret is seeded as 1938). Exposed as `Container.reminiscence` |
 
 ### Fetch.ai Liaison (`src/bellhop/fetchai/`)
 | File | Public interface |

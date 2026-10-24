@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +18,16 @@ from bellhop.api.deps import (
     triage_score,
 )
 from bellhop.container import Container
-from bellhop.domain import Alert, Call, InvalidTransition, MemoryFact, Robot, RobotStatus, Urgency
+from bellhop.domain import (
+    Alert,
+    Call,
+    InvalidTransition,
+    MemoryFact,
+    Resident,
+    Robot,
+    RobotStatus,
+    Urgency,
+)
 from bellhop.domain.care import (
     CareEntry,
     EntryKind,
@@ -26,6 +35,7 @@ from bellhop.domain.care import (
     Flag,
     Preferences,
 )
+from bellhop.ports.content import ContentItem
 from bellhop.services.memory_guard import Accepted, PendingFact
 
 
@@ -79,6 +89,10 @@ class PreferencesIn(BaseModel):
     quiet_mode: bool | None = None
     night_mode: bool | None = None
     favourite_drink: str | None = None
+
+
+class ResidentIn(BaseModel):
+    birth_year: int = Field(ge=1880, le=2015)
 
 
 class TextIn(BaseModel):
@@ -162,7 +176,8 @@ def create_app(container: Container) -> FastAPI:
 
     @app.get("/alerts")
     def list_alerts() -> list[Alert]:
-        return list(reversed(container.notifier.sent))
+        alerts = container.store.alerts.list_all()
+        return sorted(alerts, key=lambda a: a.created_at, reverse=True)
 
     @app.get("/residents/{resident_id}/memory")
     def recall(resident_id: str, q: str = "", k: int = 3) -> list[MemoryFact]:
@@ -239,6 +254,25 @@ def create_app(container: Container) -> FastAPI:
     @app.post("/flags/{flag_id}/resolve")
     def resolve_flag(flag_id: str) -> Flag:
         return container.care_signals.resolve_flag(flag_id)
+
+    @app.put("/residents/{resident_id}")
+    def update_resident(resident_id: str, body: ResidentIn) -> Resident:
+        resident = container.store.residents.get(resident_id)
+        if resident is None:
+            raise LookupError(resident_id)
+        resident.birth_year = body.birth_year
+        container.store.residents.save(resident)
+        return resident
+
+    @app.get("/residents/{resident_id}/reminiscence")
+    def reminiscence(resident_id: str, k: int = Query(3, ge=0, le=20)) -> list[ContentItem]:
+        require_resident(container, resident_id)
+        return container.reminiscence.items(resident_id, k)
+
+    @app.post("/residents/{resident_id}/reminiscence/ingest", status_code=201)
+    def ingest_reminiscence(resident_id: str, k: int = Query(5, ge=0, le=20)) -> list[MemoryFact]:
+        require_resident(container, resident_id)
+        return container.reminiscence.ingest(resident_id, k)
 
     @app.get("/residents/{resident_id}/preferences")
     def get_preferences(resident_id: str) -> Preferences:

@@ -10,7 +10,9 @@ from bellhop.services.memory_service import MemoryService
 
 def seed_demo(store: Any, memory: MemoryService) -> None:
     """`store` exposes `residents`, `nurses` and `robots` repositories (e.g. InMemoryStore)."""
-    margaret = Resident(id="res_margaret", name="Margaret", room="12", risk_flags={"falls"})
+    margaret = Resident(
+        id="res_margaret", name="Margaret", room="12", risk_flags={"falls"}, birth_year=1938
+    )
     arthur = Resident(id="res_arthur", name="Arthur", room="14")
     for resident in (margaret, arthur):
         store.residents.save(resident)

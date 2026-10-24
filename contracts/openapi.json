@@ -990,6 +990,165 @@
         }
       }
     },
+    "/residents/{resident_id}": {
+      "put": {
+        "summary": "Update Resident",
+        "operationId": "update_resident_residents__resident_id__put",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResidentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resident"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/reminiscence": {
+      "get": {
+        "summary": "Reminiscence",
+        "operationId": "reminiscence_residents__resident_id__reminiscence_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 0,
+              "default": 3,
+              "title": "K"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentItem"
+                  },
+                  "title": "Response Reminiscence Residents  Resident Id  Reminiscence Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/reminiscence/ingest": {
+      "post": {
+        "summary": "Ingest Reminiscence",
+        "operationId": "ingest_reminiscence_residents__resident_id__reminiscence_ingest_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 0,
+              "default": 5,
+              "title": "K"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryFact"
+                  },
+                  "title": "Response Ingest Reminiscence Residents  Resident Id  Reminiscence Ingest Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/residents/{resident_id}/preferences": {
       "get": {
         "summary": "Get Preferences",
@@ -1718,6 +1877,45 @@
         ],
         "title": "CareIn"
       },
+      "ContentItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "song",
+              "film",
+              "news",
+              "event"
+            ],
+            "title": "Kind"
+          },
+          "year": {
+            "type": "integer",
+            "title": "Year"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "blurb": {
+            "type": "string",
+            "title": "Blurb"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "year",
+          "title",
+          "blurb"
+        ],
+        "title": "ContentItem"
+      },
       "EntryKind": {
         "type": "string",
         "enum": [
@@ -2059,6 +2257,63 @@
           "room"
         ],
         "title": "RaiseCall"
+      },
+      "Resident": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "room": {
+            "type": "string",
+            "title": "Room"
+          },
+          "risk_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "title": "Risk Flags"
+          },
+          "birth_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "room"
+        ],
+        "title": "Resident"
+      },
+      "ResidentIn": {
+        "properties": {
+          "birth_year": {
+            "type": "integer",
+            "maximum": 2015.0,
+            "minimum": 1880.0,
+            "title": "Birth Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "birth_year"
+        ],
+        "title": "ResidentIn"
       },
       "ResolveIn": {
         "properties": {

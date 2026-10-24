@@ -1,38 +1,26 @@
-"""Apify-backed content feed with a local fallback.
+"""Apify-backed content feed with a local fallback. OPTIONAL: ingest-time (pre-warm) use only.
 
-Runs an Apify actor synchronously over the REST API. A missing token, HTTP error, timeout,
-malformed body or empty dataset all degrade to the wrapped `ContentFeed`. The token is sent
-only in the Authorization header and is never logged.
+Runs an Apify actor synchronously over the REST API. The website-content-crawler actor takes
+about 12 s for one Wikipedia page and returns ONE dataset item holding the whole page, so the
+item's `markdown` goes through `era_parser` (the same parser as `WikipediaContentFeed`, which
+fetches the page directly, free and in about a second). Never put this inside the voice loop:
+call it from an ingest job or pre-warm step so the cache is hot. A missing token, HTTP error,
+timeout, malformed body or empty parse all degrade to the wrapped `ContentFeed`. The token is
+sent only in the Authorization header and is never logged.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import httpx
 
+from bellhop.adapters.era_parser import parse_era
 from bellhop.ports.content import ContentFeed, ContentItem
 
 log = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.apify.com"
-_BLURB_MAX = 200
-
-
-def map_item(raw: dict[str, Any], year: int, index: int) -> ContentItem | None:
-    """Map one Apify dataset item to a ContentItem; None when unusable."""
-    meta = raw.get("metadata")
-    title = raw.get("title") or (meta.get("title") if isinstance(meta, dict) else None)
-    text = raw.get("blurb") or raw.get("text") or raw.get("description")
-    if not isinstance(title, str) or not title.strip() or not isinstance(text, str):
-        return None
-    blurb = " ".join(text.split())[:_BLURB_MAX]
-    if not blurb:
-        return None
-    return ContentItem(
-        id=f"apify-{year}-{index}", kind="event", year=year, title=title.strip(), blurb=blurb
-    )
 
 
 class ApifyContentFeed:
@@ -41,7 +29,7 @@ class ApifyContentFeed:
         fallback: ContentFeed,
         token: str | None,
         actor: str = "apify~website-content-crawler",
-        timeout: float = 5.0,
+        timeout: float = 60.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._fallback = fallback
@@ -83,5 +71,9 @@ class ApifyContentFeed:
             data = resp.json()
         if not isinstance(data, list):
             return []
-        mapped = (map_item(r, year, i) for i, r in enumerate(data) if isinstance(r, dict))
-        return [m for m in mapped if m is not None]
+        items: list[ContentItem] = []
+        for raw in data:
+            markdown = raw.get("markdown") if isinstance(raw, dict) else None
+            if isinstance(markdown, str):
+                items += parse_era(markdown, year, id_prefix="apify")
+        return items
