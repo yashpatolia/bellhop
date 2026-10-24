@@ -103,9 +103,26 @@ def play_call(
     resident: dict,
     scenario: Scenario,
     opts: VisitOptions = DEFAULT_OPTS,
+    on_ring: Callable[[str], None] | None = None,
 ) -> str | None:
     """Press the bell, then act as the robot. Returns the call id."""
     call = api.post("/calls", {"room": resident["room"]})
+    if on_ring:
+        on_ring(call["id"])
+    return attend(api, fleet, pace, rng, call, resident, scenario, opts)
+
+
+def attend(
+    api: Backend,
+    fleet: Fleet,
+    pace: Pace,
+    rng: random.Random,
+    call: dict,
+    resident: dict,
+    scenario: Scenario,
+    opts: VisitOptions = DEFAULT_OPTS,
+) -> str | None:
+    """Act as the robot for a call that already exists (a bell, or one rung from the dashboard)."""
     call_id = call["id"]
     robot_id = call.get("robot_id")
     log.info(
@@ -163,6 +180,8 @@ def _record_care(
     api: Backend, resident: dict, scenario: Scenario, call_id: str, rng: random.Random
 ) -> None:
     rid = resident["id"]
+    if not rid:
+        return  # a place with no resident (the lobby): nothing to record
     if scenario.category in ("pain", "breathing", "fall"):
         api.post(
             f"/residents/{rid}/care",

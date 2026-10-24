@@ -1,5 +1,5 @@
 {
-  "id": "call_077a0af0",
+  "id": "call_6bdb875b",
   "room": "12",
   "resident_id": "res_margaret",
   "urgency": 3,
@@ -9,7 +9,7 @@
     {
       "speaker": "resident",
       "text": "My hip aches",
-      "at": "2026-10-24T21:42:43.075852Z"
+      "at": "2026-10-24T22:35:50.886127Z"
     }
   ],
   "summary": "Hip pain since last night",
@@ -21,8 +21,8 @@
   "nurse_tasks": [
     "nurse_priya"
   ],
-  "created_at": "2026-10-24T21:42:43.074577Z",
-  "assigned_at": "2026-10-24T21:42:43.074740Z",
+  "created_at": "2026-10-24T22:35:50.884686Z",
+  "assigned_at": "2026-10-24T22:35:50.884856Z",
   "first_response_at": null,
   "resolved_at": null,
   "resolved_by_robot": null

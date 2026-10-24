@@ -136,3 +136,28 @@
 .lx-sumi .sm-open { margin-left: auto; font-weight: 700; color: var(--accent); }
 .lx-sumi .sm-back { display: inline-block; margin-bottom: 14px; font-weight: 700; color: var(--accent); }
 .lx-sumi .sm-callview .sb-detail { max-width: 760px; }
+
+/* dispatch: rooms on the left, robots and the send button on the right */
+.lx-sumi .sm-other { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.lx-sumi .sm-other label { display: grid; gap: 4px; font-weight: 600; color: var(--ink-2); }
+.lx-sumi .sm-other input { padding: 8px 10px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
+.lx-sumi .sm-dispatch-robots, .lx-sumi .sm-sent { margin: 0; padding: 0; list-style: none; }
+.lx-sumi .sm-dispatch-robots li { border-left: 4px solid var(--line); border-bottom: 1px solid var(--line); }
+.lx-sumi .sm-dispatch-robots label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 12px; cursor: pointer; }
+.lx-sumi .sm-dispatch-robots li.busy label { cursor: default; }
+.lx-sumi .sm-dispatch-robots li.chosen { background: var(--accent-tint); border-left-color: var(--accent); }
+.lx-sumi .sm-dispatch-robots input { width: 20px; height: 20px; accent-color: var(--accent); }
+.lx-sumi .sm-dispatch-robots li.free { border-left-color: var(--u1); }
+.lx-sumi .sm-dispatch-robots b { font-size: 1.05rem; }
+.lx-sumi .sm-dispatch-robots .free .sm-avail { color: var(--u1); font-weight: 700; }
+.lx-sumi .sm-dispatch-robots .busy .sm-avail { color: var(--ink-2); }
+.lx-sumi .sm-likely { padding: 0 8px; border: 1px solid var(--u1); border-radius: 999px; font-size: 0.85rem; font-weight: 600; color: var(--u1); }
+.lx-sumi .sm-dispatch-robots em { margin-left: auto; font-style: normal; font-family: var(--f-mono); font-size: 0.9em; color: var(--ink-2); }
+.lx-sumi .sm-why { margin: 0 0 8px; padding: 8px 12px; border-left: 4px solid var(--u3); background: var(--surface); font-weight: 600; }
+.lx-sumi .sm-send { max-width: 420px; }
+.lx-sumi .sm-sent li { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0 8px 14px; border-left: 3px solid var(--line); margin-bottom: 4px; }
+.lx-sumi .sm-sent li.open { border-left-color: var(--accent); }
+.lx-sumi .sm-sent time { font-family: var(--f-mono); color: var(--ink-2); }
+.lx-sumi .sm-dispatch-robots li { display: flex; flex-wrap: wrap; align-items: center; }
+.lx-sumi .sm-dispatch-robots li > label { flex: 1 1 380px; }
+.lx-sumi .sm-stop { margin: 0 12px 0 0; padding: 6px 12px; border-color: var(--u4); color: var(--u4); }

@@ -1,4 +1,4 @@
-import type { Call, Category, Snapshot, Urgency } from './data/types'
+import type { Call, Category, Robot, Snapshot, Urgency } from './data/types'
 
 export const URGENCY_LABEL: Record<Urgency, string> = {
   1: 'Robot resolving',
@@ -126,4 +126,23 @@ export function clearedAlerts(s: Snapshot, limit = 12): Snapshot['alerts'] {
     .filter((a) => !active.has(a.id))
     .sort((a, b) => (b.clearedAt ?? b.createdAt) - (a.clearedAt ?? a.createdAt))
     .slice(0, limit)
+}
+
+/** Below this charge staff are warned before driving a robot (percent). The backend does not refuse. */
+export const LOW_BATTERY = 20
+
+/** Whether a robot can take a manual drive now, in words. The backend accepts only an idle robot. */
+export function robotAvailability(r: Robot): { free: boolean; words: string } {
+  if (r.state === 'fault') return { free: false, words: 'Needs attention' }
+  if (r.state === 'charging') return { free: false, words: 'Charging' }
+  if (r.state === 'en_route') return { free: false, words: r.targetRoom ? `Driving, room ${r.targetRoom}` : 'Driving' }
+  if (r.state === 'with_resident') return { free: false, words: r.targetRoom ? `With a resident, room ${r.targetRoom}` : 'With a resident' }
+  if (r.battery < LOW_BATTERY) return { free: true, words: `Free, low battery (${Math.round(r.battery)}%)` }
+  return { free: true, words: 'Free' }
+}
+
+/** A free robot already in the room, otherwise the free one with the most charge. */
+export function closestFreeRobot(robots: Robot[], room: string): Robot | undefined {
+  const free = robots.filter((r) => robotAvailability(r).free)
+  return free.find((r) => r.room === room) ?? free.sort((a, b) => b.battery - a.battery)[0]
 }

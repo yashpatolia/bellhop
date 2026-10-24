@@ -221,6 +221,8 @@ export class LiveStore {
         await this.send('POST', `/alerts/${alert.id}/ack`, { nurse_id: nurse })
         await this.loadLive()
       }),
+    driveRobot: (robotId, target) => this.command(robotId, 'navigate', { target }),
+    stopRobot: (robotId) => this.command(robotId, 'stop'),
     resolve: (callId) =>
       this.guard(async () => {
         await this.send('POST', `/calls/${callId}/resolve`, { by_robot: false })
@@ -248,6 +250,19 @@ export class LiveStore {
       await this.send('POST', `/residents/${residentId}/memory`, body)
     } else {
       await this.send('POST', `/residents/${residentId}/medical/entries`, { category: entry.category, text: entry.text, since: entry.since })
+    }
+  }
+
+  /** A manual robot command. The backend answers with the robot, so the screen updates at once. */
+  private async command(robotId: string, what: 'navigate' | 'stop', body?: unknown): Promise<boolean> {
+    try {
+      const robot = await this.send<ApiRobot>('POST', `/robots/${encodeURIComponent(robotId)}/${what}`, body)
+      this.raw.robots.set(robot.id, robot)
+      this.touch()
+      return true
+    } catch (e) {
+      this.showProblem(e instanceof Error ? e.message : 'The robot did not take that command.')
+      return false
     }
   }
 
