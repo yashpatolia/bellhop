@@ -39,24 +39,57 @@ class _Rule:
     floor: Urgency
     label: str
     negatable: bool = True  # False when the phrase is itself a negation ("cannot ...")
+    requires: re.Pattern[str] | None = None  # extra context needed in the same clause
 
 
-def _rule(pat: str, floor: Urgency, label: str, negatable: bool = True) -> _Rule:
-    return _Rule(re.compile(pat), floor, label, negatable)
+def _rule(
+    pat: str, floor: Urgency, label: str, negatable: bool = True, requires: str | None = None
+) -> _Rule:
+    return _Rule(
+        re.compile(pat), floor, label, negatable, re.compile(requires) if requires else None
+    )
 
 
 E, U = Urgency.EMERGENCY, Urgency.NURSE_SOON
 
 _RULES: tuple[_Rule, ...] = (
     # Emergency
-    _rule(r"\bcannot (?:get|stand|sit) up\b", E, "can't get up", False),
+    _rule(
+        r"\bcannot get (?:\w+ ){0,2}?(?:back )?up\b|\bcannot (?:stand|sit) (?:back )?up\b"
+        r"|\bcannot get (?:off|out of)\b|\bcannot (?:stand on|walk|bear weight|weight bear)\b",
+        E,
+        "can't get up",
+        False,
+    ),
     _rule(r"\bcannot (?:move|feel) my (?:legs?|hips?|arms?)\b", E, "can't move limb", False),
     _rule(r"(?<!nearly )(?<!almost )\b(?:fell|fallen)\b", E, "fall"),
     _rule(r"\b(?:had|took) a fall\b|\bfall(?:ing)? (?:down|over)\b", E, "fall"),
-    _rule(r"\bon the floor\b", E, "on the floor"),
+    _rule(r"\b(?:slipped|tripped) (?:and|on|in|over)\b", E, "fall"),
+    _rule(r"\b(?:tumbled|collapsed|blacked out|toppled)\b", E, "collapse"),
+    _rule(r"\bon (?:the )?(?:floor|ground)\b", E, "on the floor"),
     _rule(
-        r"\bchest\b.{0,25}\b(?:tight|tightness|pain|hurts?|pressure|heavy|squeez\w*)\b"
-        r"|\b(?:tight|pain|pressure|tightness) (?:in|across) (?:my|the) chest\b",
+        r"\b(?:went|gone|go|going)\b(?:\W+\w+){0,3}?\W+(?:down|over)\b",
+        E,
+        "fall",
+        requires=r"\b(?:stairs|floor|ground|hard|crash\w*|kitchen|bathroom|hall\w*|bed|shower"
+        r"|leg|legs|hip|head|cannot|will not|stuck|hurt\w*|pain\w*)\b",
+    ),
+    _rule(
+        r"\b(?:will not|would not) (?:hold|support) (?:me|my)\b"
+        r"|\b(?:legs?|knees?) (?:gave|giving|gives|buckl\w*)\b|\bgave (?:way|out)\b",
+        E,
+        "legs gave way",
+        False,
+    ),
+    _rule(
+        r"\bchest\b.{0,25}\b(?:tight|tightness|pain\w*|hurt\w*|ach\w*|sore|discomfort|pressure|heavy|squeez\w*)\b"
+        r"|\b(?:tight|pain|pressure|tightness|discomfort) (?:in|across) (?:my|the) chest\b"
+        r"|\bclutching (?:his|her|my|the) chest\b"
+        r"|\b(?:pain\w*|hurt\w*|ach\w*|shooting)\b.{0,25}\b(?:left arm|jaw)\b"
+        r"|\bleft arm\b.{0,20}\b(?:pain\w*|hurt\w*|ach\w*|numb\w*|tingl\w*)\b"
+        r"|\b(?:jaw|heart)\b.{0,20}\b(?:pain\w*|hurt\w*|ach\w*|tight)\b"
+        r"|\bheart (?:is |was )?(?:racing|pounding|fluttering|thumping|hammering)\b"
+        r"|\b(?:arm|hand|face|leg)\b.{0,15}\b(?:numb\w*|tingl\w*)\b",
         E,
         "chest pain/tightness",
     ),
@@ -67,11 +100,40 @@ _RULES: tuple[_Rule, ...] = (
         False,
     ),
     _rule(
-        r"\b(?:short of breath|struggling to breathe|hard to breathe|gasping)\b",
+        r"\b(?:short of breath|struggling (?:to|for) breathe?|hard to breathe|gasping"
+        r"|(?:trouble|difficulty) breathing|breathless|wheez\w*|throat (?:is )?closing"
+        r"|cannot (?:get|take|draw)(?: any| enough| a)? (?:air|breath))\b",
         E,
         "breathing difficulty",
     ),
     _rule(r"\bchok(?:e|es|ed|ing)\b", E, "choking"),
+    _rule(
+        r"\b(?:cannot|unable)\b(?:\W+\w+){0,2}?\W+(?:breath\w*"
+        r"|(?:get|take|draw|catch)\W+(?:(?:any|enough|some|more|a)\W+)?(?:air|breath))\b",
+        E,
+        "can't breathe",
+        False,
+    ),
+    _rule(
+        r"\b(?:trouble|difficulty|struggl\w*|hard|harder|labou?red)\b(?:\W+\w+){0,3}?\W+"
+        r"(?:breath\w*|(?:get|getting|take|taking|draw|drawing)\W+"
+        r"(?:(?:any|enough|some|more|a)\W+)?air)\b",
+        E,
+        "breathing difficulty",
+    ),
+    _rule(
+        r"\b(?:heart attack|seizures?|convuls\w*|cardiac arrest|overdos\w*|paraly\w*)\b"
+        r"|\b(?:took|taken|swallowed) too (?:many|much)\b"
+        r"|\b(?:a|mini|having|had) stroke\b(?!\s+of)"
+        r"|\blopsided\b|\bnot making sense\b|\bface (?:is )?(?:sagging|crooked)\b"
+        r"|\bwords (?:keep |are )?(?:coming out )?(?:wrong|jumbled|mixed up)\b"
+        r"|\bspeech is (?:all )?(?:wrong|slurred|garbled)\b|\bworst headache\b"
+        r"|\bone side\b.{0,20}\b(?:weak\w*|numb\w*)\b"
+        r"|\bsudden(?:ly)?\b.{0,25}\b(?:weak\w*|numb\w*|confus\w*|vision|headache"
+        r"|cannot see|cannot speak)\b",
+        E,
+        "cardiac/stroke/overdose signs",
+    ),
     _rule(
         r"\bbleed(?:ing)?\b|\b(?:lot of|much) blood\b|\bblood (?:everywhere|pouring)\b",
         E,
@@ -102,24 +164,50 @@ _RULES: tuple[_Rule, ...] = (
     ),
     _rule(r"\b(?:nausea|nauseous|vomit\w*|sick to my stomach)\b", U, "nausea"),
     _rule(r"\bheadache\b", U, "headache"),
-    _rule(r"\b(?:hurt|hurts|hurting|ache|aches|aching|pain|painful|sore)\b", U, "pain"),
+    _rule(r"\b(?:hurt|hurts|hurting|ache|aches|aching|pain|pains|painful|sore)\b", U, "pain"),
     _rule(
-        r"\bnot (?:feel|feeling) (?:right|well)\b|\bfeel (?:strange|unwell|off|odd)\b",
+        r"\bnot (?:feel|feeling) (?:right|well)\b|\bnot (?:like )?(?:feeling )?myself\b",
         U,
         "doesn't feel right",
         False,
     ),
+    _rule(
+        r"\bfeel(?:ing|s)? (?:very |really |so |a bit )?"
+        r"(?:strange|unwell|off|odd|wrong|ill|terrible|awful|sick|poorly)\b"
+        r"|\bsomething(?:'s| is| feels| seems)? (?:wrong|off|not right)\b",
+        U,
+        "feels unwell",
+    ),
+    _rule(
+        r"\bbeen sick\b|\bthrowing up\b|\bcannot keep (?:\w+ ){0,2}down\b"
+        r"|\b(?:pale|clammy|sweaty|cold sweat)\b",
+        U,
+        "sickness/sweating",
+    ),
 )
 
-_MED_WORDS = re.compile(r"\b(?:pills?|medication|medicine|tablets?)\b")
+# Clause-level contexts that make a rule a non-event (idioms, seasons, noise, play).
+_BENIGN: dict[str, re.Pattern[str]] = {
+    "fall": re.compile(r"\b(?:in love|asleep|leaves|autumn|season|behind|apart)\b"),
+    "on the floor": re.compile(r"\b(?:sat|sit|sitting|play|playing|picnic|stretch\w*|yoga)\b"),
+    "breathing difficulty": re.compile(r"\b(?:breath away|fresh air|breath of)\b"),
+    "can't breathe": re.compile(r"\b(?:breath away|fresh air|breath of)\b"),
+    "pain": re.compile(r"\b(?:ears?|volume|loud|noise|noisy)\b"),
+}
+
+_MED_WORDS = re.compile(
+    r"\b(?:pills?|medications?|medicines?|tablets?|capsules?|meds|insulin|thinners?|doses?)\b"
+)
 _MED_TROUBLE = re.compile(
-    r"\b(?:remember|forgot|forget|different|wrong|again|twice|double|mixed|mixing)\b"
+    r"\b(?:remember|forgot|forget|different|wrong|again|twice|double|mixed|mixing|extra"
+    r"|too many|too much|by mistake|mistake|accident\w*)\b"
+    r"|\b(?:took|taken|take|swallowed|had|gave|given) (?:\w+ ){0,3}more\b"
 )
 
 
 def _normalise(text: str) -> str:
     t = text.lower().replace("’", "'")
-    t = re.sub(r"\bcan't\b|\bcan not\b|\bcannot\b", "cannot", t)
+    t = re.sub(r"\bcan't\b|\bcan not\b|\bcouldn't\b|\bunable to\b", "cannot", t)
     t = t.replace("won't", "will not").replace("n't", " not")
     return re.sub(r"[ \t]+", " ", t)
 
@@ -146,8 +234,13 @@ def keyword_floor(transcript: list[Turn]) -> FloorResult:
             if not clause or not clause.strip():
                 continue
             for rule in _RULES:
+                if rule.requires and not rule.requires.search(clause):
+                    continue
                 for m in rule.pattern.finditer(clause):
                     if rule.negatable and _negated(clause[: m.start()]):
+                        continue
+                    benign = _BENIGN.get(rule.label)
+                    if benign and benign.search(clause):
                         continue
                     if rule.label not in matched:
                         matched.append(rule.label)

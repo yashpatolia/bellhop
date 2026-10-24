@@ -225,3 +225,114 @@ def test_guard_labelled_set_never_under_escalates() -> None:
             assert d.urgency == Urgency.EMERGENCY, case.id
         if case.expected_urgency == 3:
             assert d.urgency >= Urgency.NURSE_SOON, case.id
+
+
+# ---- fresh-phrase regressions ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "my chest is really hurting and my arm feels numb",
+        "my chest aches",
+        "I have a pain in my chest",
+        "my jaw hurts and I feel sweaty",
+        "my left arm is numb",
+        "my heart is racing and I feel weak",
+        "I slipped in the shower and I cannot move my leg",
+        "I collapsed in the hallway",
+        "I tumbled out of bed",
+        "I cannot get off the floor",
+        "I am stuck on the ground and cannot get back up",
+        "I am gasping for air",
+        "I have trouble breathing",
+        "I cannot get any air",
+        "my throat is closing up",
+        "I am wheezing badly",
+    ],
+)
+def test_fresh_emergency_phrases(text: str) -> None:
+    assert keyword_floor(_r(text)).urgency == Urgency.EMERGENCY, text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I didn't fall, I just sat down on the floor to play",
+        "I wasn't hurt, I haven't fallen",
+        "I never fall, I am steady",
+        "I fell in love with this song",
+        "the fall leaves are so pretty",
+        "the fallen leaves are everywhere",
+        "could you turn the volume down, it hurts my ears to hear that",
+        "my slippers slipped my mind",
+    ],
+)
+def test_fresh_false_positives(text: str) -> None:
+    assert keyword_floor(_r(text)).urgency is None, text
+
+
+# ---- third batch: pattern-level coverage -----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "minimum"),
+    [
+        ("I've gone down in the kitchen, my leg won't hold me", 4),
+        ("I'm having trouble getting air", 4),
+        ("I think I'm having a heart attack", 4),
+        ("I think I'm having a stroke", 4),
+        ("she is having a seizure", 4),
+        ("I swallowed my tablets and then took more by mistake", 3),
+        ("I took a double dose of my pills", 3),
+        ("I took too many of the wrong medication", 3),
+        ("I think I overdosed", 3),
+        ("something is wrong, I'm not myself", 3),
+        ("something's not right with me", 3),
+        ("I feel unwell and strange", 3),
+        # varied registers, written blind before fixing
+        ("Mum rang me, she says she's on the ground in the hall and can't get herself up", 4),
+        ("Dad sounds really breathless and keeps saying his chest is squeezing", 4),
+        ("Res found on floor, c/o hip pain, unable to weight bear", 4),
+        ("Pt c/o dizziness and nausea x2 days", 3),
+        ("me fall down, no can stand, leg very pain", 4),
+        ("no breathe good, chest heavy", 4),
+        ("He's gone very pale and he's clutching his chest", 4),
+        ("She is not making sense and her face looks lopsided", 4),
+        ("I think my husband has had a stroke, his speech is all wrong", 4),
+        ("I keep getting these shooting pains down my left arm", 3),
+        ("I took my blood thinner twice today", 3),
+        ("I've been sick all night and can't keep anything down", 3),
+        ("My wife is bleeding from her head, there's blood on the carpet", 4),
+        ("I got my foot caught and went crashing down the stairs", 4),
+        ("my words keep coming out wrong", 4),
+        ("I can hear my heart thumping in my chest and I feel faint", 4),
+        ("Nurse, Mrs Lee in room 4 isn't waking up properly", 4),
+    ],
+)
+def test_third_batch_escalates(text: str, minimum: int) -> None:
+    floor = keyword_floor(_r(text))
+    assert floor.urgency is not None and floor.urgency >= minimum, (text, floor)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "that song took my breath away",
+        "I fell asleep in the chair",
+        "it is hard to hear the air conditioner",
+        "the volume went down on the television",
+        "prices have gone down so much",
+        "I do not feel unwell",
+        "I have no trouble breathing",
+        "I was stroking the cat",
+        "it was a stroke of luck",
+        "I need more pills please",
+        "I feel a bit blue today and miss my sister",
+        "Please turn the heating up, my feet are cold",
+        "He keeps asking what time dinner is and who I am",
+        "I could not sleep, can I have some warm milk",
+    ],
+)
+def test_third_batch_benign(text: str) -> None:
+    assert keyword_floor(_r(text)).urgency is None, text
