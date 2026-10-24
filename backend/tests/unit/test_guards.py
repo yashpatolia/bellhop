@@ -189,6 +189,10 @@ class Gw:
         time.sleep(self.delay)
         self.cmds.append(("set_led", robot_id, state))
 
+    def stop(self, robot_id):
+        time.sleep(self.delay)
+        self.cmds.append(("stop", robot_id))
+
 
 def test_guarded_gateway_passes_through():
     inner = Gw()
@@ -204,6 +208,70 @@ def test_guarded_gateway_raises_on_hang():
         g.go_to("r", "101")
     with pytest.raises(GuardTimeout):
         g.set_led("r", "red")
+
+
+def test_guarded_stop_passes_through_without_blocking():
+    inner = Gw()
+    g = GuardedRobotGateway(inner, timeout=1.0)
+    g.stop("r")
+    deadline = time.monotonic() + 1.0
+    while not inner.cmds and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert inner.cmds == [("stop", "r")]
+
+
+def test_guarded_stop_never_raises_or_blocks_on_hang():
+    g = GuardedRobotGateway(Gw(HANG), timeout=TICK)
+    started = time.monotonic()
+    g.stop("r")
+    assert time.monotonic() - started < TICK
+
+
+def test_guarded_stop_swallows_inner_errors():
+    class Boom(Gw):
+        def stop(self, robot_id):
+            raise RuntimeError("pi down")
+
+    GuardedRobotGateway(Boom(), timeout=1.0).stop("r")  # must not raise
+
+
+def _wait_for(pred, seconds=2.0):
+    deadline = time.monotonic() + seconds
+    while not pred() and time.monotonic() < deadline:
+        time.sleep(0.005)
+
+
+def test_go_to_that_lands_after_the_timeout_is_stopped_again():
+    inner = Gw(0.15)
+    g = GuardedRobotGateway(inner, timeout=TICK, restop_after=0.25)
+    with pytest.raises(GuardTimeout):
+        g.go_to("r", "101")
+    _wait_for(lambda: ("stop", "r") in inner.cmds)
+    assert inner.cmds == [("go_to", "r", "101"), ("stop", "r")]  # the stop came after the landing
+
+
+def test_go_to_inside_the_timeout_schedules_no_stop():
+    inner = Gw()
+    GuardedRobotGateway(inner, timeout=1.0, restop_after=0.05).go_to("r", "101")
+    time.sleep(0.15)
+    assert inner.cmds == [("go_to", "r", "101")]
+
+
+def test_late_stop_is_skipped_when_the_robot_got_a_newer_go_to():
+    delays = iter([0.3, 0.0])
+
+    class Seq(Gw):
+        def go_to(self, robot_id, room):
+            time.sleep(next(delays))
+            self.cmds.append(("go_to", robot_id, room))
+
+    inner = Seq()
+    g = GuardedRobotGateway(inner, timeout=TICK, restop_after=0.1)
+    with pytest.raises(GuardTimeout):
+        g.go_to("r", "101")
+    g.go_to("r", "102")  # the robot was freed and sent elsewhere
+    time.sleep(0.3)
+    assert ("stop", "r") not in inner.cmds
 
 
 # GuardedMemoryIndex
@@ -312,3 +380,11 @@ def test_container_wraps_memory_index_when_guarded():
     assert isinstance(c.memory._index, GuardedMemoryIndex)
     off = build_container(Settings(memory="moss", guard_timeouts=False))
     assert not isinstance(off.memory._index, GuardedMemoryIndex)
+
+
+def test_recording_gateway_records_stop():
+    from bellhop.adapters.robot_gateway import RecordingRobotGateway
+
+    g = RecordingRobotGateway()
+    g.stop("robot_1")
+    assert list(g.commands) == [("stop", "robot_1", "")]

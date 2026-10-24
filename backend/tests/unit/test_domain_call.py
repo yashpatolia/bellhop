@@ -88,3 +88,35 @@ def test_response_seconds_none_until_visit_starts():
     call.transition(CallStatus.ASSIGNED, T0)
     call.transition(CallStatus.IN_VISIT, T0 + timedelta(seconds=90))
     assert call.response_seconds == 90
+
+
+@pytest.mark.parametrize("late", [CallStatus.ESCALATED, CallStatus.NURSE_ACKED])
+def test_robot_arriving_after_escalation_records_first_response_and_keeps_status(late):
+    call = make_call()
+    call.transition(CallStatus.ASSIGNED, T0)
+    call.transition(CallStatus.ESCALATED, T0)
+    if late is CallStatus.NURSE_ACKED:
+        call.transition(CallStatus.NURSE_ACKED, T0)
+    call.start_visit(T0 + timedelta(seconds=30))
+    assert call.status is late  # the escalation stays visible
+    assert call.first_response_at == T0 + timedelta(seconds=30)
+    call.start_visit(T0 + timedelta(seconds=60))  # a retried report changes nothing
+    assert call.first_response_at == T0 + timedelta(seconds=30)
+    call.transition(CallStatus.RESOLVED, T0 + timedelta(seconds=90))
+
+
+def test_start_visit_on_a_normal_call_is_the_in_visit_transition():
+    call = make_call()
+    call.transition(CallStatus.ASSIGNED, T0)
+    call.transition(CallStatus.ROBOT_EN_ROUTE, T0)
+    call.start_visit(T0 + timedelta(seconds=5))
+    assert call.status is CallStatus.IN_VISIT
+    assert call.first_response_at == T0 + timedelta(seconds=5)
+
+
+def test_start_visit_on_a_finished_call_is_invalid():
+    call = make_call()
+    call.transition(CallStatus.ASSIGNED, T0)
+    call.transition(CallStatus.RESOLVED, T0)
+    with pytest.raises(InvalidTransition):
+        call.start_visit(T0)

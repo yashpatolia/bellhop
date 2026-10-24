@@ -28,7 +28,7 @@ def test_create_call_returns_201_and_assigns(client):
     assert r.status_code == 201
     body = r.json()
     assert body["room"] == "12"
-    assert body["status"] == "assigned"
+    assert body["status"] == "robot_en_route"
     assert body["resident_id"] == "res_margaret"
 
 
@@ -151,3 +151,13 @@ def test_fall_scenario_broadcasts_alert(client):
     assert alerts[0]["nurse_id"] is None
     assert alerts[0]["level"] == 4
     assert "fallen" in alerts[0]["message"]
+
+
+def test_in_visit_after_escalation_is_accepted_and_stays_escalated(client):
+    call_id = _raise(client).json()["id"]
+    client.post(f"/calls/{call_id}/score", json={"urgency": 3, "category": "pain"})
+    r = client.post(f"/calls/{call_id}/in-visit")
+    assert r.status_code == 200
+    assert r.json()["status"] == "escalated"
+    assert r.json()["first_response_at"] is not None
+    assert client.post(f"/calls/{call_id}/resolve").json()["status"] == "resolved"

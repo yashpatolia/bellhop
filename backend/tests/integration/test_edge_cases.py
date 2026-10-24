@@ -157,7 +157,7 @@ def test_call_from_unknown_room_has_no_resident_and_flows(app):
     call = app.call_service.raise_call("999")
     stored = app.store.calls.get(call.id)
     assert stored.resident_id is None
-    assert stored.status is CallStatus.ASSIGNED
+    assert stored.status is CallStatus.ROBOT_EN_ROUTE
     app.call_service.score(call.id, Urgency.NURSE_SOON, "unknown")
     app.call_service.resolve(call.id)
     (visit,) = app.store.visits.list_all()
@@ -187,7 +187,7 @@ def test_ack_before_escalation_is_rejected_and_leaves_state(app):
     with pytest.raises(Exception, match="nurse_acked"):
         app.call_service.ack_by_nurse(call.id, "nurse_priya")
     stored = app.store.calls.get(call.id)
-    assert stored.status is CallStatus.ASSIGNED
+    assert stored.status is CallStatus.ROBOT_EN_ROUTE
     assert "nurse_extra" not in stored.assigned_to
 
 
@@ -248,7 +248,7 @@ def test_low_urgency_scores_never_alert_or_escalate(app):
     app.call_service.score(call.id, Urgency.CHAT, "social")
     app.call_service.score(call.id, Urgency.ROUTINE, "request")
     assert app.notifier.sent == []
-    assert app.store.calls.get(call.id).status is CallStatus.ASSIGNED
+    assert app.store.calls.get(call.id).status is CallStatus.ROBOT_EN_ROUTE
 
 
 @pytest.mark.parametrize("level", [Urgency.NURSE_SOON, Urgency.EMERGENCY])
@@ -366,7 +366,7 @@ def test_raising_call_raised_handler_does_not_stop_call_creation(app):
     call = app.call_service.raise_call("12")
     stored = app.store.calls.get(call.id)
     assert stored is not None
-    assert stored.status is CallStatus.ASSIGNED  # dispatcher still ran
+    assert stored.status is CallStatus.ROBOT_EN_ROUTE  # dispatcher still ran
 
 
 def test_raising_scored_handler_does_not_block_alert_or_state(app):

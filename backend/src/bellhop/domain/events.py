@@ -21,6 +21,14 @@ class CallAssigned:
 
 
 @dataclass(frozen=True)
+class RobotUnreachable:
+    """The robot chosen for a call could not be commanded; a nurse must be told."""
+
+    call_id: str
+    robot_id: str
+
+
+@dataclass(frozen=True)
 class CallScored:
     call_id: str
     urgency: Urgency

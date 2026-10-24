@@ -91,6 +91,18 @@ class Call(BaseModel):
         elif to is CallStatus.RESOLVED:
             self.resolved_at = at
 
+    def start_visit(self, at: datetime) -> None:
+        """The robot reached the resident (in-visit report).
+
+        After escalation the robot may still arrive; that is accepted as a first response but
+        the status stays ESCALATED or NURSE_ACKED so the escalation never disappears.
+        """
+        if self.status in (CallStatus.ESCALATED, CallStatus.NURSE_ACKED):
+            if self.first_response_at is None:
+                self.first_response_at = at
+            return
+        self.transition(CallStatus.IN_VISIT, at)
+
     def score(self, urgency: Urgency, category: str) -> None:
         """Record a triage result. Urgency only ever ratchets up (lean toward escalation)."""
         if self.urgency is None or urgency > self.urgency:
