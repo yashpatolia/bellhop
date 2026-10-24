@@ -136,6 +136,45 @@ describe('actions', () => {
     store.stop()
   })
 
+  it('driving a robot posts the target, and the answer updates the robot at once', async () => {
+    const robot = { id: 'robot_9', status: 'busy', battery: 0.9, room: 'lobby' }
+    const b = fakeBackend({ 'POST /robots/robot_9/navigate': robot })
+    const store = make(b)
+    await store.loadLive()
+    expect(await store.actions.driveRobot('robot_9', '104')).toBe(true)
+    expect(b.seen.find((r) => r.method === 'POST')).toEqual({ method: 'POST', path: '/robots/robot_9/navigate', body: { target: '104' } })
+    expect(store.getSnapshot().robots.find((r) => r.id === 'robot_9')?.state).toBe('en_route')
+  })
+
+  it('a robot that refuses the drive says why and returns false', async () => {
+    const b = fakeBackend({ 'POST /robots/robot_1/navigate': () => new Response(JSON.stringify({ detail: 'robot robot_1 is not idle' }), { status: 409 }) })
+    const store = make(b)
+    store.start()
+    await vi.waitFor(() => expect(store.getSnapshot().connection.state).toBe('live'))
+    expect(await store.actions.driveRobot('robot_1', '104')).toBe(false)
+    expect(store.getSnapshot().connection.problem).toBe('robot robot_1 is not idle')
+    store.stop()
+  })
+
+  it('stopping a robot posts to its stop route and shows it standing by', async () => {
+    const b = fakeBackend({ 'POST /robots/robot_9/stop': { id: 'robot_9', status: 'idle', battery: 0.9, room: 'lobby' } })
+    const store = make(b)
+    await store.loadLive()
+    expect(await store.actions.stopRobot('robot_9')).toBe(true)
+    expect(b.seen.find((r) => r.method === 'POST')?.path).toBe('/robots/robot_9/stop')
+    expect(store.getSnapshot().robots.find((r) => r.id === 'robot_9')?.state).toBe('idle')
+  })
+
+  it('a robot the Pi cannot reach reports the failure instead of pretending', async () => {
+    const b = fakeBackend({ 'POST /robots/robot_1/stop': () => new Response(JSON.stringify({ detail: 'robot stop command failed' }), { status: 503 }) })
+    const store = make(b)
+    store.start()
+    await vi.waitFor(() => expect(store.getSnapshot().connection.state).toBe('live'))
+    expect(await store.actions.stopRobot('robot_1')).toBe(false)
+    expect(store.getSnapshot().connection.problem).toBe('robot stop command failed')
+    store.stop()
+  })
+
   it('marking a call done resolves it as staff, not as the robot', async () => {
     const b = fakeBackend({ 'POST /calls/call_x/resolve': {} })
     await make(b).actions.resolve('call_x')

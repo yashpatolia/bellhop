@@ -148,7 +148,7 @@ Regenerate the wire types after the contract changes: `npm run gen:api`.
 
 ### Views
 
-Three views share the same data: **Live** (the most urgent call, the activity log, robots, numbers), **Insights** (KPIs, hourly chart, category mix, backend metrics, alerts) and **Residents** (search, profile, habits and tendencies from the call history, what Bellhop has learned with the nurse review queue, staff notes, medical history, call history with full conversations). Routing is a hash (`#/`, `#/insights`, `#/residents`, `#/residents/<id>`, `#/residents/<id>/<callId>`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
+Four views share the same data: **Live** (the most urgent call, the activity log, robots, numbers), **Dispatch** (pick a room, see which robots are free, choose which free robot to drive there, the closest is preselected, and stop a driving robot; `POST /robots/{id}/navigate` and `/stop`), **Insights** (KPIs, hourly chart, category mix, backend metrics, alerts) and **Residents** (search, profile, habits and tendencies from the call history, what Bellhop has learned with the nurse review queue, staff notes, medical history, call history with full conversations). Routing is a hash (`#/`, `#/dispatch/<room>`, `#/insights`, `#/residents`, `#/residents/<id>`, `#/residents/<id>/<callId>`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
 
 When the backend cannot be reached the screens say so and keep trying; when the home is empty they say that instead of showing blank panels.
 
