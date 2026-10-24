@@ -95,7 +95,10 @@ export interface Resident {
   name: string
   room: string
   age: number | null
-  flags: string[]
+  flags: string[] // risk flags and hearing, in words, for display
+  riskFlags: string[] // as the backend stores them, for editing
+  birthYear: number | null
+  hardOfHearing: boolean
   mood: number[] // daily average, oldest first, 1 to 5; days without a reading are skipped
   pain: number[] // daily average, oldest first, 1 (none) to 5 (severe)
   learned: LearnedFact[]
@@ -153,7 +156,20 @@ export interface Connection {
 
 export type ReviewDecision = 'approve' | 'reject'
 
+/** What staff type when they add a resident or change one. */
+export interface ResidentInput {
+  name: string
+  room: string
+  birthYear: number | null
+  riskFlags: string[]
+  hardOfHearing: boolean
+}
+
 export interface Actions {
+  /** Add a resident and give them a room. Resolves to the new id; rejects with the backend's reason. */
+  addResident: (input: ResidentInput) => Promise<string>
+  /** Change a resident's name, room, year of birth or flags. Rejects with the backend's reason. */
+  updateResident: (residentId: string, input: ResidentInput) => Promise<void>
   /** Drive this robot to a room or marker (POST /robots/{id}/navigate). True once the robot accepted it. */
   driveRobot: (robotId: string, target: string) => Promise<boolean>
   /** Ask this robot to stop where it is (POST /robots/{id}/stop). */

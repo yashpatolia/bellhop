@@ -267,6 +267,7 @@ def test_save_call_flattens_sentinels_and_sets(server, clock):
         "",
         "",
         "",
+        0,  # resolved_by_robot: not decided yet
     ]
 
 

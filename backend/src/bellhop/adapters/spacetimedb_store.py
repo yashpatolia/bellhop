@@ -53,6 +53,7 @@ COLUMNS: dict[str, tuple[str, ...]] = {
         "assigned_at",
         "first_response_at",
         "resolved_at",
+        "resolved_by_robot",
     ),
     "resident": ("id", "name", "room", "risk_flags", "birth_year"),
     "nurse": ("id", "name", "on_shift", "open_tasks"),
@@ -97,6 +98,15 @@ def _dt(value: str) -> datetime | None:
     return datetime.fromisoformat(value) if value else None
 
 
+def _tri(value: bool | None) -> int:
+    """None -> 0, False -> 1, True -> 2 (the module has no optional column on this path)."""
+    return 0 if value is None else 2 if value else 1
+
+
+def _untri(value: int) -> bool | None:
+    return None if not value else value == 2
+
+
 def _call_args(c: Call) -> list[Any]:
     return [
         c.id,
@@ -113,6 +123,7 @@ def _call_args(c: Call) -> list[Any]:
         _iso(c.assigned_at),
         _iso(c.first_response_at),
         _iso(c.resolved_at),
+        _tri(c.resolved_by_robot),
     ]
 
 
@@ -133,6 +144,7 @@ def _call_from(r: dict[str, Any], turns: list[Turn]) -> Call:
         assigned_at=_dt(r["assigned_at"]),
         first_response_at=_dt(r["first_response_at"]),
         resolved_at=_dt(r["resolved_at"]),
+        resolved_by_robot=_untri(r.get("resolved_by_robot", 0)),
     )
 
 
@@ -314,6 +326,20 @@ class _Through(Generic[M]):  # noqa: UP046
         return getattr(self._mirror, name)
 
 
+class Link:
+    """What the other persistent stores need from the server: queued writes and full-table reads."""
+
+    def __init__(self, client: _Client, writer: _Writer) -> None:
+        self._client = client
+        self._writer = writer
+
+    def write(self, reducer: str, args: list[Any]) -> None:
+        self._writer.send(reducer, args)
+
+    def select_all(self, table: str) -> list[dict[str, Any]]:
+        return self._client.select_all(table)
+
+
 class SpacetimeDBStore:
     def __init__(
         self,
@@ -341,6 +367,11 @@ class SpacetimeDBStore:
         self.robots = _Through[Robot](mirror.robots, simple("save_robot", _robot_args))
         self.visits = _Through[Visit](mirror.visits, simple("save_visit", _visit_args))
         self.alerts = _Through[Alert](mirror.alerts, simple("save_alert", _alert_args))
+
+    @property
+    def link(self) -> Link:
+        """Shares this store's connection and write queue with the memory and care stores."""
+        return Link(self._client, self._writer)
 
     @property
     def pending(self) -> int:
