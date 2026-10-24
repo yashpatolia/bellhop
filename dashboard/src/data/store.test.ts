@@ -175,6 +175,49 @@ describe('actions', () => {
     store.stop()
   })
 
+  it('adding a resident posts the resident, saves hearing, and loads them back', async () => {
+    const created = { id: 'res_new', name: 'Ada Reyes', room: '21', risk_flags: ['falls'], birth_year: 1941 }
+    let residents: unknown[] = []
+    const b = fakeBackend({
+      'GET /residents': () => residents,
+      'POST /residents': () => {
+        residents = [created]
+        return new Response(JSON.stringify(created), { status: 201 })
+      },
+      'PUT /residents/res_new/preferences': { resident_id: 'res_new', hard_of_hearing: true },
+      'GET /residents/res_new/preferences': { resident_id: 'res_new', hard_of_hearing: true },
+      'GET /residents/res_new/memory/all': [],
+      'GET /residents/res_new/memory/pending': [],
+      'GET /residents/res_new/medical': { resident_id: 'res_new', conditions: [], allergies: [], medicines: [], mobility: '', diet: '', last_review: null, reviewed_by: '' },
+      'GET /residents/res_new/care/history': [],
+    })
+    const store = make(b)
+    const id = await store.actions.addResident({ name: 'Ada Reyes', room: '21', birthYear: 1941, riskFlags: ['falls'], hardOfHearing: true })
+    expect(id).toBe('res_new')
+    const post = b.seen.find((r) => r.method === 'POST')
+    expect(post).toEqual({ method: 'POST', path: '/residents', body: { name: 'Ada Reyes', room: '21', risk_flags: ['falls'], birth_year: 1941 } })
+    expect(b.seen.some((r) => r.method === 'PUT' && r.path === '/residents/res_new/preferences')).toBe(true)
+    expect(store.getSnapshot().residents.map((r) => [r.id, r.room, r.hardOfHearing, r.flags])).toEqual([['res_new', '21', true, ['Fall risk', 'Hard of hearing']]])
+  })
+
+  it('a room the backend refuses comes back as the reason, not a banner', async () => {
+    const b = fakeBackend({ 'POST /residents': () => new Response(JSON.stringify({ detail: 'room 21 is occupied' }), { status: 409 }) })
+    await expect(make(b).actions.addResident({ name: 'Ada', room: '21', birthYear: null, riskFlags: [], hardOfHearing: false })).rejects.toThrow('room 21 is occupied')
+  })
+
+  it('moving a resident patches their room and keeps the rest', async () => {
+    const b = fakeBackend({
+      'PATCH /residents/res_margaret': { id: 'res_margaret', name: 'Margaret', room: '30', risk_flags: ['falls'], birth_year: 1938 },
+      'PUT /residents/res_margaret/preferences': { resident_id: 'res_margaret', hard_of_hearing: false },
+      'GET /residents': [{ id: 'res_margaret', name: 'Margaret', room: '30', risk_flags: ['falls'], birth_year: 1938 }],
+    })
+    const store = make(b)
+    await store.loadResidents()
+    await store.actions.updateResident('res_margaret', { name: 'Margaret', room: '30', birthYear: 1938, riskFlags: ['falls'], hardOfHearing: false })
+    expect(b.seen.find((r) => r.method === 'PATCH')).toEqual({ method: 'PATCH', path: '/residents/res_margaret', body: { name: 'Margaret', room: '30', risk_flags: ['falls'], birth_year: 1938 } })
+    expect(store.getSnapshot().residents[0].room).toBe('30')
+  })
+
   it('marking a call done resolves it as staff, not as the robot', async () => {
     const b = fakeBackend({ 'POST /calls/call_x/resolve': {} })
     await make(b).actions.resolve('call_x')

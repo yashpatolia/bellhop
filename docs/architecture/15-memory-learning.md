@@ -62,7 +62,7 @@ Caveat: this set was written alongside the extractor prompt, so it is a developm
 
 ## Limits and next steps
 
-- Facts keep only `text` and a kind tag. Source, confidence, quote and call id are not persisted yet; that needs extra `MemoryFact` fields and a contract regeneration.
+- Facts keep their source, confidence, quote, call id, times heard and last confirmed, and with `BELLHOP_STORE=spacetimedb` they survive a restart (ADR-22, ADR-25).
 - Contradictions ("prefers tea" then "now prefers coffee") are not resolved; a new fact is only checked for duplicates.
 - `LearnOnResolve` (`services/learn_on_resolve.py`) subscribes to `CallResolved` and runs `MemoryLearner.learn` on a background thread, so the robot's resolve request never waits on a model. It skips calls with no known resident or where the resident never spoke, and logs any failure instead of raising. The default extractor is still the offline `rule` baseline until the Claude numbers are measured.
 - Nightly consolidation, habit statistics and the pre-visit briefing are separate steps (see the plan in the team notes).

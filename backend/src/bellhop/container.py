@@ -27,6 +27,7 @@ from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.adapters.robot_gateway import RecordingRobotGateway
 from bellhop.adapters.rule_extractor import RuleFactExtractor
 from bellhop.adapters.rule_note_refiner import RuleNoteRefiner
+from bellhop.adapters.spacetimedb_data import PersistentData
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
 from bellhop.adapters.wikipedia_content import WikipediaContentFeed
@@ -151,11 +152,33 @@ def _require_http_url(name: str, url: str) -> None:
         raise ValueError(f"{name} must start with http:// or https://")
 
 
+def _persistent_data(store: object) -> PersistentData | None:
+    """Memory, the review queue and care data persist when the store is SpacetimeDB.
+
+    If the server's module is older than this backend (its new tables are missing) everything
+    still works, held in memory only, and a warning says so.
+    """
+    if not isinstance(store, SpacetimeDBStore):
+        return None
+    data = PersistentData(store.link)
+    try:
+        loaded = data.hydrate()
+    except (httpx.HTTPError, ValueError, KeyError) as exc:
+        log.warning(
+            "SpacetimeDB module lacks the memory and care tables (%s): that data is not "
+            "persisted until the module is published again (see spacetimedb/README.md)",
+            type(exc).__name__,
+        )
+        return None
+    log.info("loaded %d memory and care rows from SpacetimeDB", loaded)
+    return data
+
+
 def _memory_index(
-    settings: Settings,
+    settings: Settings, local: DeletableLocalMemoryIndex | None = None
 ) -> tuple[MemoryIndex, DeletableLocalMemoryIndex]:
     """The index MemoryService uses, plus the local index MemoryGuard deletes from."""
-    local = DeletableLocalMemoryIndex()
+    local = local or DeletableLocalMemoryIndex()
     if settings.memory == "moss":
         moss = MossMemoryIndex(local, settings.moss_project_id, settings.moss_project_key)
         if settings.guard_timeouts:
@@ -247,11 +270,12 @@ def build_container(
         dispatcher_bus = SerializedSubscriptions(bus)
     # Subscribed before every service so call.raised reaches the stream before call.assigned.
     events = EventStream(bus, store, max_clients=settings.max_event_clients)
-    index, local_index = _memory_index(settings)
+    persistent = _persistent_data(store)
+    index, local_index = _memory_index(settings, persistent.index if persistent else None)
     memory = MemoryService(index, clock, ids)
-    memory_guard = MemoryGuard(memory, local_index)
+    memory_guard = MemoryGuard(memory, local_index, persistent.pending if persistent else None)
     memory_learner = MemoryLearner(_fact_extractor(settings), memory_guard)
-    care_store = InMemoryCareStore()
+    care_store = persistent.care if persistent else InMemoryCareStore()
 
     container = Container(
         store=store,
@@ -279,7 +303,13 @@ def build_container(
         care_signals=CareSignals(care_store.entries, care_store.flags, clock, ids, bus),
         visit_notes=VisitNotes(store.calls, care_store.entries, clock),
         family=FamilyService(
-            care_store.messages, store.residents, store.calls, care_store.entries, clock, ids
+            care_store.messages,
+            store.residents,
+            store.calls,
+            care_store.entries,
+            clock,
+            ids,
+            care_store.deliveries,
         ),
         preferences=PreferencesService(care_store.preferences, clock),
         memory_guard=memory_guard,

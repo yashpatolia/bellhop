@@ -14,6 +14,9 @@ class DeletableLocalMemoryIndex(LocalMemoryIndex):
             return []
         return sorted(index.facts.values(), key=lambda f: (f.created_at, f.id))
 
+    def update(self, fact: MemoryFact) -> None:
+        """A fact changed in place (heard again). A persistent index saves it."""
+
     def remove(self, fact_id: str) -> bool:
         """Delete one fact by id. Returns whether anything was removed."""
         for resident_id, index in self._by_resident.items():

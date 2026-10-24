@@ -55,8 +55,49 @@ class PendingFact:
     call_id: str | None = None
 
 
+class PendingStore(Protocol):
+    """Where facts wait for a nurse. In memory by default; persistent when the data must survive."""
+
+    def add(self, item: PendingFact) -> None: ...
+    def get(self, pending_id: str) -> PendingFact:
+        """Raises KeyError for an unknown id."""
+        ...
+
+    def remove(self, pending_id: str) -> None: ...
+    def for_resident(self, resident_id: str) -> list[PendingFact]: ...
+    def last_number(self) -> int:
+        """The highest N in ids shaped `pending-N`, so new ids never repeat a stored one."""
+        ...
+
+
+class InMemoryPending:
+    def __init__(self) -> None:
+        self._items: dict[str, PendingFact] = {}
+
+    def add(self, item: PendingFact) -> None:
+        self._items[item.id] = item
+
+    def get(self, pending_id: str) -> PendingFact:
+        return self._items[pending_id]
+
+    def remove(self, pending_id: str) -> None:
+        del self._items[pending_id]
+
+    def for_resident(self, resident_id: str) -> list[PendingFact]:
+        return [p for p in self._items.values() if p.resident_id == resident_id]
+
+    def last_number(self) -> int:
+        return max((_number(i) for i in self._items), default=0)
+
+
+def _number(pending_id: str) -> int:
+    tail = pending_id.rpartition("-")[2]
+    return int(tail) if tail.isdigit() else 0
+
+
 class _Index(Protocol):
     def facts(self, resident_id: str) -> list[MemoryFact]: ...
+    def update(self, fact: MemoryFact) -> None: ...
     def remove(self, fact_id: str) -> bool: ...
     def remove_all(self, resident_id: str) -> int: ...
 
@@ -74,11 +115,13 @@ def _similar(a: str, b: str) -> bool:
 
 
 class MemoryGuard:
-    def __init__(self, memory_service: MemoryService, index: _Index) -> None:
+    def __init__(
+        self, memory_service: MemoryService, index: _Index, pending: PendingStore | None = None
+    ) -> None:
         self._memory = memory_service
         self._index = index
-        self._pending: dict[str, PendingFact] = {}
-        self._seq = count(1)
+        self._pending = pending if pending is not None else InMemoryPending()
+        self._seq = count(self._pending.last_number() + 1)
         self._lock = threading.RLock()  # makes check-then-store atomic
 
     def propose(
@@ -101,8 +144,10 @@ class MemoryGuard:
                 return rejected
             if source != "staff" and confidence < MIN_CONFIDENCE:
                 pid = f"pending-{next(self._seq)}"
-                self._pending[pid] = PendingFact(
-                    pid, resident_id, text, tuple(tags), source, confidence, quote, call_id
+                self._pending.add(
+                    PendingFact(
+                        pid, resident_id, text, tuple(tags), source, confidence, quote, call_id
+                    )
                 )
                 return Rejected("pending_review")
             return Accepted(
@@ -131,10 +176,10 @@ class MemoryGuard:
         return None
 
     def pending(self, resident_id: str) -> list[PendingFact]:
-        return [p for p in self._pending.values() if p.resident_id == resident_id]
+        return self._pending.for_resident(resident_id)
 
     def _owned(self, pending_id: str, resident_id: str | None) -> PendingFact:
-        item = self._pending[pending_id]
+        item = self._pending.get(pending_id)
         if resident_id is not None and item.resident_id != resident_id:
             raise KeyError(pending_id)
         return item
@@ -146,7 +191,7 @@ class MemoryGuard:
         """
         with self._lock:
             item = self._owned(pending_id, resident_id)
-            del self._pending[pending_id]
+            self._pending.remove(pending_id)
             if (rejected := self._check(item.resident_id, item.text)) is not None:
                 return rejected
             return Accepted(
@@ -163,7 +208,7 @@ class MemoryGuard:
 
     def reject(self, pending_id: str, resident_id: str | None = None) -> None:
         self._owned(pending_id, resident_id)
-        del self._pending[pending_id]
+        self._pending.remove(pending_id)
 
     def facts(self, resident_id: str) -> list[MemoryFact]:
         """Every stored fact for the resident, oldest first."""
@@ -177,6 +222,7 @@ class MemoryGuard:
                 fact.last_confirmed = max(
                     filter(None, [fact.last_confirmed, at or self._memory.now()])
                 )
+                self._index.update(fact)
                 return
 
     def forget(self, resident_id: str, fact_id: str) -> bool:
@@ -186,7 +232,7 @@ class MemoryGuard:
 
     def forget_all(self, resident_id: str) -> int:
         for pid in [p.id for p in self.pending(resident_id)]:
-            del self._pending[pid]
+            self._pending.remove(pid)
         return self._index.remove_all(resident_id)
 
     def _is_duplicate(self, resident_id: str, text: str) -> bool:
