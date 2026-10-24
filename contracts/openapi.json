@@ -2495,6 +2495,119 @@
         ]
       }
     },
+    "/robots/{robot_id}/navigate": {
+      "post": {
+        "summary": "Navigate Robot",
+        "operationId": "navigate_robot_robots__robot_id__navigate_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "robot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Robot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NavigateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Robot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown robot"
+          },
+          "409": {
+            "description": "robot is not idle"
+          },
+          "503": {
+            "description": "robot command failed"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/robots/{robot_id}/stop": {
+      "post": {
+        "summary": "Stop Robot",
+        "operationId": "stop_robot_robots__robot_id__stop_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "robot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Robot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Robot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown robot"
+          },
+          "503": {
+            "description": "robot command failed"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/robots/{robot_id}": {
       "put": {
         "summary": "Report Robot",
@@ -3550,6 +3663,7 @@
         ],
         "title": "MessageDirection"
       },
+<<<<<<< HEAD
       "NoteCategory": {
         "type": "string",
         "enum": [
@@ -3576,15 +3690,31 @@
             "type": "string",
             "maxLength": 500,
             "title": "Text"
+=======
+      "NavigateIn": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Target"
+>>>>>>> 62c6548 (Add dashboard robot navigation controls)
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
+<<<<<<< HEAD
           "category",
           "text"
         ],
         "title": "NoteIn"
+=======
+          "target"
+        ],
+        "title": "NavigateIn",
+        "description": "An opaque navigation label. The Pi resolves it to its local map/marker configuration."
+>>>>>>> 62c6548 (Add dashboard robot navigation controls)
       },
       "Nurse": {
         "properties": {
