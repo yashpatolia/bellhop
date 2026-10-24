@@ -1,7 +1,6 @@
 """Piper voice (Poppy): one sentence at a time, tone tags set speed, pitch and expressiveness."""
 
 import numpy as np
-import sounddevice as sd
 from piper import PiperVoice, SynthesisConfig
 
 from rover import config
@@ -53,6 +52,8 @@ class Voice:
             print(f"tts: cannot load {config.PIPER_VOICE} ({exc}); printing lines only")
             return
         try:
+            import sounddevice as sd  # lazy: needs the PortAudio system library
+
             self._device = find_device(device_name, "output")
             self._device_rate = int(sd.query_devices(self._device, "output")["default_samplerate"])
         except Exception as exc:
@@ -81,6 +82,8 @@ class Voice:
             # USB speakers often refuse Piper's 22.05 kHz, so play at the device's own rate
             voice_rate = self._voice.config.sample_rate
             audio = resample(audio, round(len(audio) * self._device_rate / voice_rate))
+            import sounddevice as sd  # lazy: needs the PortAudio system library
+
             sd.play(audio, samplerate=self._device_rate, device=self._device)
             sd.wait()
         except Exception as exc:

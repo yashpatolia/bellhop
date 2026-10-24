@@ -6,7 +6,6 @@ import time
 from collections import deque
 
 import numpy as np
-import sounddevice as sd
 
 from rover import config
 
@@ -19,6 +18,8 @@ def find_device(name: str, kind: str) -> int | None:
     """
     if not name:
         return None
+    import sounddevice as sd  # lazy: needs the PortAudio system library
+
     for index, device in enumerate(sd.query_devices()):
         if name.lower() in device["name"].lower() and device[f"max_{kind}_channels"] > 0:
             return index
@@ -32,12 +33,14 @@ class Mic:
         self._blocks: queue.Queue[np.ndarray] = queue.Queue()
         preroll_blocks = max(1, round(config.PREROLL_S * config.SAMPLE_RATE / config.BLOCK_SAMPLES))
         self._preroll: deque[np.ndarray] = deque(maxlen=preroll_blocks)
-        self._stream: sd.InputStream | None = None
+        self._stream = None  # sounddevice.InputStream once started
         self._speaking = False
         self._stopped_speaking_at = -math.inf
 
     def start(self) -> None:
         try:
+            import sounddevice as sd  # lazy: needs the PortAudio system library
+
             self._stream = sd.InputStream(
                 samplerate=config.SAMPLE_RATE,
                 channels=1,

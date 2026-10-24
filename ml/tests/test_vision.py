@@ -99,3 +99,61 @@ def test_target_relocks_only_near_last_box_while_coasting():
     near = {7: [500, 100, 600, 300], 8: [150, 110, 250, 310]}
     assert choose_target(near, target, now=0.5).id == 8
     assert choose_target(far, target, now=config.COAST_S + 0.1).id == 7  # coast over: take it
+
+
+def test_vision_main_closes_the_camera_on_sigterm_and_installs_handlers(monkeypatch):
+    import sys
+
+    from rover import safety
+    from rover.vision import __main__ as vision_main
+
+    installed = []
+    monkeypatch.setattr(safety, "exit_cleanly_on_signals", lambda: installed.append(1))
+
+    class Camera:
+        backend = "fake"
+        closed = False
+
+        def read(self):
+            raise SystemExit(0)  # what the SIGTERM handler raises
+
+        def close(self):
+            self.closed = True
+
+    camera = Camera()
+    monkeypatch.setattr(vision_main, "open_camera", lambda source: camera)
+    for name in ("PersonTracker", "FaceFinder", "MarkerFinder"):
+        monkeypatch.setattr(vision_main, name, lambda: object())
+    monkeypatch.setattr(sys, "argv", ["vision"])
+    with pytest.raises(SystemExit):
+        vision_main.main()
+    assert installed == [1]
+    assert camera.closed
+
+
+def test_vision_main_closes_the_camera_when_a_model_fails_to_load(monkeypatch):
+    import sys
+
+    from rover import safety
+    from rover.vision import __main__ as vision_main
+
+    monkeypatch.setattr(safety, "exit_cleanly_on_signals", lambda: None)
+
+    class Camera:
+        backend = "fake"
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    camera = Camera()
+    monkeypatch.setattr(vision_main, "open_camera", lambda source: camera)
+
+    def boom():
+        raise RuntimeError("model file missing")
+
+    monkeypatch.setattr(vision_main, "PersonTracker", boom)
+    monkeypatch.setattr(sys, "argv", ["vision"])
+    with pytest.raises(RuntimeError):
+        vision_main.main()
+    assert camera.closed
