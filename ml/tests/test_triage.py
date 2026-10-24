@@ -16,17 +16,25 @@ def answer(result):
     return lambda transcript, risk_flags: result
 
 
-JEV = TriageResult(4, "fall", "", 0.9, "jev")
+JEV = TriageResult(4, "fall", "", 0.9, "jev")  # sure
+UNSURE_JEV = TriageResult(4, "fall", "", 0.5, "jev")
 CLAUDE = TriageResult(3, "mobility", "Says she went down by the bed.", 0.8, "claude")
+QUOTE = 'Resident said: "I went down by the bed and can\'t get up."'
 
 
-def test_both_take_higher_urgency_with_claudes_summary_and_confidence():
-    result = triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=answer(CLAUDE))
+def test_a_sure_jev_is_used_without_asking_claude():
+    claude = Flaky()  # no outcomes: any call would fail the test
+    result = triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=claude)
+    assert result == TriageResult(4, "fall", QUOTE, 0.9, "jev") and claude.calls == 0
+
+
+def test_an_unsure_jev_asks_claude_and_the_higher_urgency_wins():
+    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=answer(CLAUDE))
     assert result == TriageResult(4, "fall", "Says she went down by the bed.", 0.8, "jev+claude")
 
 
 def test_tie_keeps_claudes_category():
-    jev = TriageResult(3, "pain", "", 0.9, "jev")
+    jev = TriageResult(3, "pain", "", 0.5, "jev")
     result = triage(TRANSCRIPT, [], ask_jev=answer(jev), ask_claude=answer(CLAUDE))
     assert (result.urgency, result.category) == (3, "mobility")
 
@@ -35,10 +43,10 @@ def test_claude_only_is_used_as_is():
     assert triage(TRANSCRIPT, [], ask_jev=answer(None), ask_claude=answer(CLAUDE)) == CLAUDE
 
 
-def test_jev_only_gets_low_confidence_and_quotes_the_resident():
-    result = triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=answer(None))
+def test_unsure_jev_only_gets_low_confidence_and_quotes_the_resident():
+    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=answer(None))
     assert result.confidence == config.JEV_ONLY_CONFIDENCE
-    assert result.summary == 'Resident said: "I went down by the bed and can\'t get up."'
+    assert result.summary == QUOTE
     assert (result.urgency, result.category, result.source) == (4, "fall", "jev")
 
 
@@ -48,7 +56,7 @@ def test_no_answer_is_none():
 
 def test_slow_and_crashing_models_are_dropped(monkeypatch):
     monkeypatch.setattr(config, "TRIAGE_TIMEOUT_S", 0.1)
-    monkeypatch.setattr(config, "JEV_GRACE_S", 0.1)
+    monkeypatch.setattr(config, "JEV_TIMEOUT_S", 0.1)
     release = threading.Event()
 
     def slow(transcript, risk_flags):
@@ -59,7 +67,7 @@ def test_slow_and_crashing_models_are_dropped(monkeypatch):
         raise RuntimeError("bug")
 
     try:
-        assert triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=slow).source == "jev"
+        assert triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=slow).source == "jev"
         assert triage(TRANSCRIPT, [], ask_jev=crash, ask_claude=answer(CLAUDE)) == CLAUDE
     finally:
         release.set()
@@ -157,15 +165,15 @@ def test_no_retry_when_the_budget_is_spent():
     assert result is None and flaky.calls == 1
 
 
-def test_failed_claude_falls_back_to_jev_after_retry():
+def test_failed_claude_falls_back_to_an_unsure_jev_after_retry():
     flaky = Flaky(None, None)
-    result = triage(TRANSCRIPT, [], ask_jev=answer(JEV), ask_claude=flaky)
+    result = triage(TRANSCRIPT, [], ask_jev=answer(UNSURE_JEV), ask_claude=flaky)
     assert result.source == "jev" and result.urgency == 4
 
 
-def test_hung_jev_does_not_block_a_claude_answer(monkeypatch):
+def test_hung_jev_hands_over_to_claude_after_its_timeout(monkeypatch):
     monkeypatch.setattr(config, "TRIAGE_TIMEOUT_S", 5.0)
-    monkeypatch.setattr(config, "JEV_GRACE_S", 0.1)
+    monkeypatch.setattr(config, "JEV_TIMEOUT_S", 0.1)
     release = threading.Event()
 
     def hung(transcript, risk_flags):
@@ -180,18 +188,7 @@ def test_hung_jev_does_not_block_a_claude_answer(monkeypatch):
         release.set()
 
 
-def test_jev_arriving_within_the_grace_still_raises_urgency(monkeypatch):
-    monkeypatch.setattr(config, "JEV_GRACE_S", 2.0)
-
-    def late(transcript, risk_flags):
-        time.sleep(0.2)
-        return JEV
-
-    result = triage(TRANSCRIPT, [], ask_jev=late, ask_claude=answer(CLAUDE))
-    assert result.urgency == 4 and result.source == "jev+claude"
-
-
-def test_jev_never_lowers_the_result():
-    low = TriageResult(1, "social", "", 0.9, "jev")
+def test_an_unsure_jev_never_lowers_claudes_result():
+    low = TriageResult(1, "social", "", 0.5, "jev")
     high = TriageResult(4, "fall", "Fell.", 0.9, "claude")
     assert triage(TRANSCRIPT, [], ask_jev=answer(low), ask_claude=answer(high)).urgency == 4

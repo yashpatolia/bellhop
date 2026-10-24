@@ -191,6 +191,8 @@ class TextVisit(voice_main.Visit):
             triage_fn=None if live_claude else mock_triage_and_post,
         )
         self.script = script
+        if not live_claude:
+            self.ask_tone = None  # offline mocks: no Jev call for the tone either
         runs = os.environ.get("ROVER_TEXT_RUNS") or str(Path(tempfile.gettempdir()) / "rover-text")
         self.log = TurnLog(Path(runs))
 
