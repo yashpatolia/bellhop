@@ -71,6 +71,30 @@ def _wait_for_nurse(api: Backend, call_id: str, pace: Pace, opts: VisitOptions) 
         waited += opts.poll_s
 
 
+def _nurse_takes_it(
+    api: Backend,
+    call_id: str,
+    scenario: Scenario,
+    pace: Pace,
+    rng: random.Random,
+    opts: VisitOptions,
+) -> None:
+    """No robot came, so a nurse handled the bell: they say what it was, then close it."""
+    try:
+        api.post(
+            f"/calls/{call_id}/score",
+            {
+                "urgency": scenario.urgency,
+                "category": scenario.category,
+                "summary": scenario.summary,
+            },
+        )
+        pace.wait(opts.nurse_delay_s + rng.uniform(0, 30))
+        api.request("POST", f"/calls/{call_id}/resolve", ok=(200, 409), json={"by_robot": False})
+    except BackendError as exc:
+        log.warning("%s: %s", call_id, exc)
+
+
 def play_call(
     api: Backend,
     fleet: Fleet,
@@ -93,6 +117,8 @@ def play_call(
     )
     if robot_id is None:
         log.info("%s: no robot free, a nurse owns it", call_id)
+        if opts.nurse_delay_s:
+            _nurse_takes_it(api, call_id, scenario, pace, rng, opts)
         return call_id
 
     fleet.set(robot_id, status="busy", room="hall")
