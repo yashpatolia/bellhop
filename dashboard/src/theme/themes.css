@@ -1,0 +1,16 @@
+/* Ink & Rust: muted, earthy, professional. Every component reads only these tokens.
+   Urgency colours: u1 calm, u2 info, u3 needs a nurse, u4 emergency. Chips always carry words too. */
+
+[data-theme='sumi'] {
+  /* Ink & Rust */
+  --bg: #e7e5e0; --surface: #f5f3ee; --surface-2: #edebe5;
+  --ink: #1a1a1a; --ink-2: #4f4e4a; --ink-3: #82807a; --line: #bfbbb2;
+  --accent: #1f1f1f; --accent-ink: #f5f3ee; --accent-tint: #dedbd3;
+  --u1: #55705f; --u2: #566879; --u3: #8f5238; --u4: #a02c24;
+  --radius: 6px; --radius-sm: 4px; --border: 1px; --shadow: 0 1px 2px rgba(30, 25, 20, 0.08);
+  --f-display: 'Zen Maru Gothic', sans-serif; --f-body: 'Zen Maru Gothic', sans-serif; --f-mono: 'DM Mono', monospace;
+  --d-weight: 700; --d-track: 0;
+  --bg-image: none;
+  --bg-size: auto;
+}
+
