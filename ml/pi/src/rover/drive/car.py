@@ -22,7 +22,8 @@ ADC_BATTERY_CHANNEL = 2
 ADC_READ_TRIES = 5  # two equal reads in a row count as stable
 LED_COUNT = 8
 LED_BRIGHTNESS = 255
-PAN, TILT = "0", "1"  # Freenove servo channels
+# Freenove's Servo client maps selector 0/1 to PCA9685 channels 8/9 (pan/tilt).
+PAN, TILT = "0", "1"
 
 
 def clamp_duty(duty: float) -> int:
@@ -54,8 +55,15 @@ class FakeCar:
     def stop(self) -> None:
         self.drive(0, 0)
 
+    def look_at(self, pan: int, tilt: int) -> None:
+        # Do not let any future caller reach the client UI's mechanically unsafe pan extremes,
+        # or tilt down into the chassis. Configuration is checked at startup too.
+        pan = min(config.HEAD_PAN_MAX, max(config.HEAD_PAN_MIN, pan))
+        tilt = min(config.HEAD_TILT_MAX, max(config.HEAD_TILT_MIN, tilt))
+        self._log("head", (pan, tilt))
+
     def look_ahead(self) -> None:
-        self._log("head", (config.PAN_CENTER, config.TILT_DRIVE))
+        self.look_at(config.PAN_CENTER, config.TILT_DRIVE)
 
     def distance_cm(self) -> float | None:
         return FAKE_DISTANCE_CM
@@ -134,10 +142,15 @@ class RealCar:
     def stop(self) -> None:
         self._motors.set_motor_model(0, 0, 0, 0)
 
-    def look_ahead(self) -> None:
+    def look_at(self, pan: int, tilt: int) -> None:
+        pan = min(config.HEAD_PAN_MAX, max(config.HEAD_PAN_MIN, pan))
+        tilt = min(config.HEAD_TILT_MAX, max(config.HEAD_TILT_MIN, tilt))
         if self._servos is not None:
-            self._servos.set_servo_pwm(PAN, config.PAN_CENTER)
-            self._servos.set_servo_pwm(TILT, config.TILT_DRIVE)
+            self._servos.set_servo_pwm(PAN, pan)
+            self._servos.set_servo_pwm(TILT, tilt)
+
+    def look_ahead(self) -> None:
+        self.look_at(config.PAN_CENTER, config.TILT_DRIVE)
 
     def distance_cm(self) -> float | None:
         if self._sonar is None:
