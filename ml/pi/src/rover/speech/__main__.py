@@ -669,6 +669,7 @@ def main() -> None:
 
     else:
         brain = Brain()
+        threading.Thread(target=brain.warm, daemon=True, name="claude-warm").start()
         voice = Voice()  # loaded once; each visit sets the resident's speech settings
         stt = OfflineSTT()
         listener = VisionListener()
@@ -680,7 +681,9 @@ def main() -> None:
 
     threading.Thread(target=read_enter, daemon=True).start()
     # SIGTERM/SIGINT/SIGHUP: LED idle and wheels stopped, then exit 0 (finally blocks still run)
-    release = safety.install_motors_off(ledguard.release_robot)
+    release = safety.install_motors_off(
+        ledguard.release_robot, hard_exit_after_s=config.SHUTDOWN_GRACE_S
+    )
     finished: set[str] = set()
     while True:
         call = find_call(backend, args.call, finished)

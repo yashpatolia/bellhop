@@ -142,7 +142,10 @@ MOONSHINE_ARCH = "small-streaming"  # offline fallback STT; scripts/download_mod
 # Claude
 BRAIN_MODEL = "claude-sonnet-5-5"
 TRIAGE_MODEL = "claude-haiku-5-5"
-FIRST_TEXT_TIMEOUT_S = 3.0
+# First reply sentence budget before the fallback line. Measured from a laptop: first sentence in
+# 1.3 to 2.0 s; the Pi on venue Wi-Fi was slower than the old 3 s, so allow twice that.
+FIRST_TEXT_TIMEOUT_S = 6.0
+CLAUDE_KEEPALIVE_S = 60.0  # keep the TLS connection to Claude between turns (SDK default is 5 s)
 HISTORY_EXCHANGES = 20
 MAX_REPLY_TOKENS = 300
 BRAIN_EFFORT = "low"  # chat: low keeps the time to first spoken word short
@@ -167,6 +170,7 @@ TRIAGE_EFFORT = "low"  # has to answer inside TRIAGE_ATTEMPT_S
 TRIAGE_MAX_TOKENS = 1024  # room for any thinking plus the small JSON answer
 
 # Visit
+SHUTDOWN_GRACE_S = 3.0  # after SIGTERM and the LED/stop cleanup, force-exit if a worker is stuck
 VISIT_QUIET_END_S = 60.0
 VISIT_START_FALLBACK_S = 60.0
 FACE_START_S = 1.0
