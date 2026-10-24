@@ -290,13 +290,13 @@ def test_moving_tools_post_to_the_drive_server(monkeypatch):
     post = FakePost()
     monkeypatch.setattr(tools.httpx, "post", post)
     ctx = ToolContext(FakeBackend(), "c1")
-    assert run_tool("go_to_room", {"room": "12"}, ctx) == "on the way to room 12"
+    assert run_tool("go_to_room", {"room": "210"}, ctx) == "on the way to room 210"
     assert run_tool("follow_patient", {}, ctx) == "following the resident"
     assert run_tool("face_patient", {}, ctx) == "turning to face the resident"
     assert run_tool("stop", {}, ctx) == "stopped"
     url = config.PI_SERVER_URL
     assert post.sent == [
-        (f"{url}/go_to", {"room": "12"}),
+        (f"{url}/go_to", {"room": "210"}),
         (f"{url}/follow", {}),
         (f"{url}/face", {}),
         (f"{url}/stop", {}),
@@ -307,8 +307,7 @@ def test_go_to_room_refuses_unknown_rooms_without_posting(monkeypatch):
     post = FakePost()
     monkeypatch.setattr(tools.httpx, "post", post)
     answer = run_tool("go_to_room", {"room": "dining room"}, ToolContext(FakeBackend(), "c1"))
-    assert post.sent == [] and "valid rooms are" in answer
-    assert all(room in answer for room in config.MARKER_ROOMS.values())
+    assert post.sent == [] and "no configured room or marker" in answer
 
 
 def test_moving_tool_failures_are_short_and_printed(monkeypatch, capsys):

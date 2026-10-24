@@ -15,8 +15,6 @@ from rover import config
 from rover.backend import Backend
 
 NO_INPUT = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
-ROOMS = sorted(set(config.MARKER_ROOMS.values()))
-
 TOOLS: list[dict] = [
     {
         "name": "look",
@@ -66,13 +64,17 @@ TOOLS: list[dict] = [
         "description": (
             "Drive to a room. Use it only when a resident or a member of staff explicitly asks "
             "you to go to a room. Never use it on your own initiative, and never to come back "
-            f"later. Valid rooms: {', '.join(ROOMS)} ('{config.HOME_ROOM}' is your home)."
+            "later. The destination must be a configured room name or an ArUco marker ID."
         ),
         "strict": True,
         "input_schema": {
             "type": "object",
             "properties": {
-                "room": {"type": "string", "description": f"One of: {', '.join(ROOMS)}."}
+                "room": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A configured room name or ArUco marker ID.",
+                }
             },
             "required": ["room"],
             "additionalProperties": False,
@@ -161,9 +163,9 @@ def _move(name: str, path: str, body: dict, done: str) -> str:
 
 def _go_to_room(args: dict) -> str:
     room = str(args.get("room") or "").strip()
-    if room not in ROOMS:
+    if config.marker_for_room(room) is None:
         print(f"tool go_to_room: refused unknown room {room!r}")
-        return f"no room {room!r}; valid rooms are {', '.join(ROOMS)}"
+        return f"no configured room or marker {room!r}"
     return _move("go_to_room", "/go_to", {"room": room}, f"on the way to room {room}")
 
 
