@@ -10,7 +10,7 @@ class FakeLearner:
         self.runs = []
         self.fail = fail
 
-    def learn(self, resident_id, transcript, resident_name=None, known_facts=()):
+    def learn(self, resident_id, transcript, resident_name=None, known_facts=(), call_id=None):
         if self.fail:
             raise RuntimeError("model down")
         self.runs.append((resident_id, [t.text for t in transcript], resident_name))

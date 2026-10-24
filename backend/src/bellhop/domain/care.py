@@ -66,3 +66,61 @@ class FamilyMessage(BaseModel):
     direction: MessageDirection
     text: str
     created_at: datetime
+
+
+class NoteCategory(StrEnum):
+    """What staff can add to a resident's profile. The first five become memory facts."""
+
+    LIKE = "like"
+    DISLIKE = "dislike"
+    PERSON = "person"
+    ROUTINE = "routine"
+    STYLE = "style"  # how to talk with them
+    CONDITION = "condition"
+    ALLERGY = "allergy"
+    MEDICINE = "medicine"
+    MOBILITY = "mobility"
+    DIET = "diet"
+
+    @property
+    def is_fact(self) -> bool:
+        return self in FACT_NOTE_CATEGORIES
+
+
+FACT_NOTE_CATEGORIES = frozenset(
+    {
+        NoteCategory.LIKE,
+        NoteCategory.DISLIKE,
+        NoteCategory.PERSON,
+        NoteCategory.ROUTINE,
+        NoteCategory.STYLE,
+    }
+)
+
+
+class RefinedNote(BaseModel):
+    """A staff note after the tidy step: cleaner wording plus what was changed."""
+
+    category: NoteCategory
+    text: str
+    since: str | None = None  # conditions only
+    notes: list[str] = Field(default_factory=list)
+
+
+class Condition(BaseModel):
+    name: str = Field(max_length=200)
+    since: str = Field(default="recently", max_length=32)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class MedicalRecord(BaseModel):
+    """Medical history entered by staff. Bellhop never learns or changes it by itself."""
+
+    resident_id: str
+    conditions: list[Condition] = Field(default_factory=list)
+    allergies: list[str] = Field(default_factory=list)
+    medicines: list[str] = Field(default_factory=list)  # names only
+    mobility: str = ""
+    diet: str = ""
+    last_review: datetime | None = None
+    reviewed_by: str = ""

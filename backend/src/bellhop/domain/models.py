@@ -69,6 +69,7 @@ class Call(BaseModel):
     assigned_at: datetime | None = None
     first_response_at: datetime | None = None
     resolved_at: datetime | None = None
+    resolved_by_robot: bool | None = None  # set when the call is resolved
 
     @property
     def needs_nurse(self) -> bool:
@@ -133,6 +134,13 @@ class MemoryFact(BaseModel):
     text: str
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
+    # Provenance: where the fact came from and how sure we are. Defaults suit hand-entered facts.
+    source: str = "staff"  # staff | conversation | family | inferred
+    confidence: float = 1.0
+    quote: str | None = None  # the resident's own words, when heard from them
+    call_id: str | None = None
+    last_confirmed: datetime | None = None
+    times_seen: int = 1
 
 
 class Nurse(BaseModel):
