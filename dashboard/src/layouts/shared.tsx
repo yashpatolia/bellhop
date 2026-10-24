@@ -17,7 +17,6 @@ import {
 import './shared.css'
 
 export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_route: 'Driving', with_resident: 'With a resident', charging: 'Charging' }
-export const STAFF_WORDS: Record<string, string> = { free: 'free', busy: 'busy', with_resident: 'with a resident' }
 
 export const NAV = [
   { id: 'live', label: 'Live', href: '#/' },
@@ -76,20 +75,6 @@ export function Nav({ view }: { view: string }) {
         </a>
       ))}
     </nav>
-  )
-}
-
-export function Staff({ data }: { data: BellhopData }) {
-  return (
-    <ul className="sb-staff" aria-label="Staff on duty">
-      {data.nurses.map((n) => (
-        <li key={n.id} className={n.status}>
-          <i aria-hidden="true" />
-          <b>{n.name.replace('Nurse ', '')}</b>
-          <span>{STAFF_WORDS[n.status]}</span>
-        </li>
-      ))}
-    </ul>
   )
 }
 
