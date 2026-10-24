@@ -59,7 +59,7 @@ class CallService:
         self._lock = threading.RLock()  # guards read-modify-write of a call
 
     @_locked
-    def raise_call(self, room: str, robot_id: str | None = None) -> Call:
+    def raise_call(self, room: str) -> Call:
         resident = self._residents.by_room(room)
         call = Call(
             id=self._ids.new_id("call"),
@@ -68,7 +68,7 @@ class CallService:
             created_at=self._clock.now(),
         )
         self._calls.save(call)
-        self._bus.publish(CallRaised(call_id=call.id, room=room, robot_id=robot_id))
+        self._bus.publish(CallRaised(call_id=call.id, room=room))
         return call
 
     @_locked

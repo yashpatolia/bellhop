@@ -46,7 +46,6 @@ from bellhop.services.family import FamilyService
 from bellhop.services.feedback import FeedbackService
 from bellhop.services.learn_on_resolve import LearnOnResolve
 from bellhop.services.liaison import Liaison
-from bellhop.services.manual_dispatch import ManualDispatch
 from bellhop.services.medical import MedicalService
 from bellhop.services.memory_guard import MemoryGuard
 from bellhop.services.memory_learner import MemoryLearner
@@ -136,7 +135,6 @@ class Container:
     memory_guard: MemoryGuard
     memory_learner: MemoryLearner
     medical: MedicalService
-    manual_dispatch: ManualDispatch
     note_refiner: NoteRefiner
     triage_guard: TriageGuard
     reminiscence: ReminiscenceService
@@ -254,7 +252,6 @@ def build_container(
     memory_guard = MemoryGuard(memory, local_index)
     memory_learner = MemoryLearner(_fact_extractor(settings), memory_guard)
     care_store = InMemoryCareStore()
-    call_service = CallService(store.calls, store.residents, bus, clock, ids, store.nurses)
 
     container = Container(
         store=store,
@@ -262,8 +259,7 @@ def build_container(
         notifier=notifier,
         gateway=gateway,
         memory=memory,
-        call_service=call_service,
-        manual_dispatch=ManualDispatch(store.calls, store.robots, call_service),
+        call_service=CallService(store.calls, store.residents, bus, clock, ids, store.nurses),
         dispatcher=Dispatcher(
             store.calls,
             store.residents,
