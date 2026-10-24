@@ -10,7 +10,6 @@ import logging
 import os
 from typing import Any
 
-import anthropic
 from pydantic import BaseModel, Field
 
 from bellhop.domain.care import NoteCategory, RefinedNote
@@ -49,7 +48,11 @@ class ClaudeNoteRefiner:
         self, fallback: NoteRefiner, client: Any | None = None, model: str | None = None
     ) -> None:
         self._fallback = fallback
-        self._client = client if client is not None else anthropic.Anthropic()
+        if client is None:
+            import anthropic  # optional dependency: only needed when BELLHOP_REFINER=claude
+
+            client = anthropic.Anthropic()
+        self._client = client
         self._model = model or os.environ.get(MODEL_ENV) or DEFAULT_MODEL
 
     def refine(self, category: NoteCategory, text: str) -> RefinedNote:

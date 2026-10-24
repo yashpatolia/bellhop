@@ -35,7 +35,6 @@ OK, FAIL, SKIPPED = "OK", "FAIL", "SKIPPED"
 KEYS = {  # name -> (required, what is lost without it)
     "DEEPGRAM_API_KEY": (True, "Flux is off, every turn goes to Moonshine"),
     "ANTHROPIC_API_KEY": (True, "replies use the fallback line and Claude triage is skipped"),
-    "TYPESAFE_API_KEY": (False, "Jev triage is skipped"),
     "BELLHOP_API_KEY": (False, "fine while the backend is open; the backend check says if not"),
 }
 SKEW_FAIL_S = 5.0  # the Date header only has whole seconds
