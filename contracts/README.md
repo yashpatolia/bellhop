@@ -38,7 +38,6 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 | `GET /calls/{id}/note` | One-line visit note `{text, resident_id, room, at}` |
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
-| `POST /robots/{id}/dispatch {room}` | Staff send this robot to a room. It is the bell for that room with the robot chosen: 201 + the `Call` (status `robot_en_route`, `robot_id` set). 404 unknown robot; 409 when the robot is not `idle`, has under 20% charge, could not be commanded (a nurse is asked instead), or the room already has an open call; 422 for a bad body. `call.raised` events now also carry `robot_id` (null for a normal bell) |
 | `GET /robots` | Robots with `status`, `battery`, `room` |
 | `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created unless the server sets `BELLHOP_ALLOW_NEW_ROBOTS=0` (then 404). An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
 | `PUT /residents/{id} {birth_year}` | Set the resident's birth year (1880 to 2015, else 422; unknown id 404). Needed for reminiscence |
