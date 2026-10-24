@@ -120,6 +120,7 @@
 .lx-sumi .sm-form textarea { resize: vertical; }
 .lx-sumi .sm-form :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lx-sumi .sm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.lx-sumi li > .sm-actions { margin-top: 8px; }
 .lx-sumi .sm-original { margin: 0; color: var(--ink-2); }
 .lx-sumi .sm-changes { margin: 0; padding: 0 0 0 18px; color: var(--ink-2); }
 .lx-sumi .sm-added { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid var(--u1); background: var(--surface); }
