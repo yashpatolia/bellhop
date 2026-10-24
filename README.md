@@ -75,7 +75,7 @@ Each call carries its own explanation: a one line `summary`, an SBAR block (Situ
 
 ## The agents
 
-Six agents, each with one job (full table in [01-project.md](artifacts/docs/01-project.md)):
+Six agents, each with one job (full table in [01-project.md](docs/plan/01-project.md)):
 
 | Agent | Job | Runs on |
 | --- | --- | --- |
@@ -273,9 +273,31 @@ Dashboard on the live backend:
 3. Copy `dashboard/.env.example` to `dashboard/.env.local` and set `VITE_BELLHOP_API_URL`. Add `VITE_BELLHOP_API_KEY` only if the backend uses a key.
 4. Run `npm run dev`.
 
-Other scripts: `npm run build` (typecheck and bundle), `npm run lint` (oxlint). Useful URLs: `/#/themes` to compare layouts, `/?theme=mocha` to force a theme, `/?demo=busy` for a busy mock floor.
+Other scripts: `npm run build` (typecheck and bundle), `npm run lint` (oxlint). Useful URL: `/?demo=busy` for a busy mock floor.
 
 Pre-demo checklist for live mode: health check passes, initial `/calls` loads, a pressed bell appears without refresh, a robot status change updates its card, toggling Tailscale off and on recovers via refetch, and the polling fallback visibly works with SSE unavailable.
+
+## Code and architecture
+
+| Path | What's in it |
+| --- | --- |
+| [AGENTS.md](AGENTS.md) | Start here if you are an AI agent or new contributor: commands and rules |
+| [docs/architecture/](docs/architecture/README.md) | Architecture, module map, extension guide, agent roles, decisions, testing |
+| [contracts/](contracts/README.md) | Frontend contract: OpenAPI spec plus real example payloads, kept in sync by a drift test |
+| [docs/architecture/11-status.md](docs/architecture/11-status.md) | Progress checklist: done and verified, unverified, gaps, blocked, next, team handoff |
+| [backend/](backend/README.md) | Python backend (`uv`): call state, dispatch, memory recall, staff alerts, config table |
+
+### Ask Bellhop through ASI:One (optional)
+
+```bash
+cd backend
+uv sync --extra fetch
+export BELLHOP_AGENT_SEED="<long secret phrase>"   # never commit it
+uv run uvicorn bellhop.api.main:app &
+uv run python -m bellhop.fetchai                   # then connect the Mailbox via the Agent inspector link; needs an Agentverse account
+```
+
+Then ask "what happened in room 12?" from ASI:One with the Agents toggle on. Details: `docs/architecture/06-integrations.md`.
 
 ## Repository map
 
@@ -286,16 +308,21 @@ Pre-demo checklist for live mode: health check passes, initial `/calls` loads, a
 | `dashboard/src/layouts/` | One folder per live theme layout |
 | `dashboard/_archived-layouts/` | Retired themes kept for reference |
 | `artifacts/` | Static HTML and CSS plan, research and overview, no build step |
-| `artifacts/docs/` | Markdown and PDF exports of the project, research and extra ideas |
+| `docs/plan/` | Markdown and PDF exports of the project, research and extra ideas |
+| `docs/architecture/` | Backend architecture, module map, decisions, testing, status |
+| `backend/` | Python backend (`uv`): call state, dispatch, memory recall, staff alerts |
+| `contracts/` | Frontend contract: OpenAPI spec plus real example payloads |
+| `spacetimedb/` | SpacetimeDB module |
+| `AGENTS.md` | Commands and rules for AI agents and new contributors |
 | `CLAUDE.md` | Working rules and design rules for contributors and AI assistants |
 
 ### Plan and research documents
 
-The original plan, research and extra ideas live in `artifacts/`. The previous README, which indexes them, is kept as [artifacts/docs-index.md](artifacts/docs-index.md). Start with [01-project.md](artifacts/docs/01-project.md) for the plan or open [artifacts/index.html](artifacts/index.html) in a browser for the polished overview.
+The original plan, research and extra ideas live in `docs/plan/`, with polished HTML versions in `artifacts/`. The previous README, which indexes them, is kept as [artifacts/docs-index.md](artifacts/docs-index.md). Start with [01-project.md](docs/plan/01-project.md) for the plan or open [artifacts/index.html](artifacts/index.html) in a browser for the polished overview.
 
 ## Current status
 
-- **Done:** nurse dashboard with five distinct layouts, mock simulator, live REST plus SSE source, theme gallery.
+- **Done:** nurse dashboard (Ink & Rust layout, activity log), mock simulator, live REST plus SSE source.
 - **Not yet verified:** the live source has not been run against the real backend (the Tailscale address was unreachable from the dev machine when written). The call and robot field mapping in `live.ts` is tolerant on purpose and should be checked against the first real payload.
 - **Not wired:** nurse action buttons are local only; `/alerts` and `/metrics` are not shown; residents, nurses and hourly data still come from the mock base.
-- **Elsewhere in the project:** the robot code, voice loop, agents and backend are owned by other teammates and are described here from the plan, not implemented in this repo.
+- **Elsewhere in the project:** the backend, contracts and SpacetimeDB module are in this repo (see below); the robot code and voice loop are owned by other teammates.

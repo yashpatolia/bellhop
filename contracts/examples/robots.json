@@ -1,0 +1,8 @@
+[
+  {
+    "id": "robot_1",
+    "status": "busy",
+    "battery": 1.0,
+    "room": "lobby"
+  }
+]
