@@ -1,0 +1,9 @@
+{
+  "id": "res_ines",
+  "name": "Ines",
+  "room": "301",
+  "risk_flags": [
+    "falls"
+  ],
+  "birth_year": null
+}

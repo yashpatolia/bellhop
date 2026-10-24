@@ -1,0 +1,23 @@
+[
+  {
+    "id": "local-15",
+    "kind": "film",
+    "year": 1958,
+    "title": "South Pacific",
+    "blurb": "The much-loved musical filled picture houses."
+  },
+  {
+    "id": "local-16",
+    "kind": "song",
+    "year": 1958,
+    "title": "Volare",
+    "blurb": "Domenico Modugno's song had everyone humming along."
+  },
+  {
+    "id": "local-17",
+    "kind": "event",
+    "year": 1959,
+    "title": "Alaska and Hawaii Join the Union",
+    "blurb": "The flag gained its 49th and 50th stars."
+  }
+]

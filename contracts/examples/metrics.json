@@ -1,0 +1,16 @@
+{
+  "resolved_without_nurse": 1,
+  "minutes_saved": 4.0,
+  "share_answered_within_10min": 0.0,
+  "calls_by_hour": {
+    "3": 3
+  },
+  "calls_by_room": {
+    "12": 3
+  },
+  "calls_by_category": {
+    "social": 1,
+    "pain": 1,
+    "fall": 1
+  }
+}
