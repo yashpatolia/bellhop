@@ -1,0 +1,126 @@
+import pytest
+
+from bellhop.adapters.event_bus import InMemoryEventBus
+from bellhop.adapters.memory_store import InMemoryStore
+from bellhop.domain import CallStatus, Nurse, Resident, Robot, RobotStatus
+from bellhop.domain.events import CallAssigned
+from bellhop.services.call_service import CallService
+from bellhop.services.dispatcher import Decision, DefaultPolicy, Dispatcher
+
+
+class RecordingGateway:
+    def __init__(self) -> None:
+        self.moves: list[tuple[str, str]] = []
+
+    def go_to(self, robot_id: str, room: str) -> None:
+        self.moves.append((robot_id, room))
+
+    def set_led(self, robot_id: str, state: str) -> None:
+        pass
+
+
+@pytest.fixture
+def env(clock, ids):
+    store, bus, assigned, gateway = InMemoryStore(), InMemoryEventBus(), [], RecordingGateway()
+    bus.subscribe(CallAssigned, assigned.append)
+    Dispatcher(
+        store.calls,
+        store.residents,
+        store.robots,
+        store.nurses,
+        gateway,
+        DefaultPolicy(),
+        bus,
+        clock,
+    )
+    svc = CallService(store.calls, store.residents, bus, clock, ids)
+    return svc, store, assigned, gateway
+
+
+def test_idle_robot_is_assigned_and_sent(env):
+    svc, store, assigned, gateway = env
+    store.robots.save(Robot(id="b1"))
+    call = svc.raise_call("12")
+    saved = store.calls.get(call.id)
+    assert saved.status is CallStatus.ASSIGNED
+    assert saved.assigned_to == ["b1"]
+    assert saved.robot_id == "b1"
+    assert gateway.moves == [("b1", "12")]
+    assert store.robots.get("b1").status is RobotStatus.BUSY
+    assert assigned == [CallAssigned(call_id=call.id, robot_id="b1", nurse_id=None)]
+
+
+def test_low_battery_robot_is_skipped(env):
+    svc, store, _, gateway = env
+    store.robots.save(Robot(id="low", battery=0.1))
+    store.robots.save(Robot(id="ok", battery=0.5))
+    svc.raise_call("12")
+    assert gateway.moves == [("ok", "12")]
+
+
+def test_busy_and_charging_robots_are_skipped(env):
+    svc, store, _, gateway = env
+    store.robots.save(Robot(id="busy", status=RobotStatus.BUSY))
+    store.robots.save(Robot(id="chg", status=RobotStatus.CHARGING))
+    store.nurses.save(Nurse(id="n1", name="A"))
+    svc.raise_call("12")
+    assert gateway.moves == []
+
+
+def test_robot_in_same_room_is_preferred(env):
+    svc, store, _, gateway = env
+    store.robots.save(Robot(id="far", room="3"))
+    store.robots.save(Robot(id="near", room="12"))
+    svc.raise_call("12")
+    assert gateway.moves == [("near", "12")]
+
+
+def test_risk_flag_resident_also_gets_a_nurse(env):
+    svc, store, assigned, _ = env
+    store.residents.save(Resident(id="r1", name="Ada", room="12", risk_flags={"falls"}))
+    store.robots.save(Robot(id="b1"))
+    store.nurses.save(Nurse(id="n1", name="A"))
+    call = svc.raise_call("12")
+    assert assigned[0].robot_id == "b1" and assigned[0].nurse_id == "n1"
+    assert store.calls.get(call.id).assigned_to == ["b1", "n1"]
+
+
+def test_no_risk_flags_means_robot_only(env):
+    svc, store, assigned, _ = env
+    store.residents.save(Resident(id="r1", name="Ada", room="12"))
+    store.robots.save(Robot(id="b1"))
+    store.nurses.save(Nurse(id="n1", name="A"))
+    svc.raise_call("12")
+    assert assigned[0].nurse_id is None
+
+
+def test_nurse_alone_when_no_robot_is_free(env):
+    svc, store, assigned, gateway = env
+    store.nurses.save(Nurse(id="n1", name="A"))
+    call = svc.raise_call("12")
+    assert store.calls.get(call.id).status is CallStatus.ASSIGNED
+    assert assigned == [CallAssigned(call_id=call.id, robot_id=None, nurse_id="n1")]
+    assert gateway.moves == []
+
+
+def test_least_loaded_on_shift_nurse_is_chosen(env):
+    svc, store, assigned, _ = env
+    store.nurses.save(Nurse(id="busy", name="A", open_tasks=3))
+    store.nurses.save(Nurse(id="free", name="B", open_tasks=1))
+    store.nurses.save(Nurse(id="off", name="C", on_shift=False, open_tasks=0))
+    svc.raise_call("12")
+    assert assigned[0].nurse_id == "free"
+
+
+def test_nothing_available_escalates_the_call(env):
+    svc, store, assigned, gateway = env
+    call = svc.raise_call("12")
+    assert store.calls.get(call.id).status is CallStatus.ESCALATED
+    assert assigned == [] and gateway.moves == []
+
+
+def test_default_policy_returns_empty_decision_with_no_resources(clock):
+    from bellhop.domain import Call
+
+    call = Call(id="c", room="1", created_at=clock.now())
+    assert DefaultPolicy().decide(call, None, [], []) == Decision(None, None)

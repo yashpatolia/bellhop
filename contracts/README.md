@@ -1,0 +1,55 @@
+# Frontend contract
+
+Source of truth for the dashboard (and anything else that talks to the backend).
+
+| File | What it is |
+| --- | --- |
+| `openapi.json` | OpenAPI 3 spec generated from the live FastAPI app. A backend test fails if it drifts |
+| `examples/*.json` | Real responses from the three demo scenes. Use them as mock data before the backend runs |
+
+## Get typed fast
+```
+npx openapi-typescript contracts/openapi.json -o src/api/types.ts   # TypeScript types
+```
+To mock before the backend runs, serve `examples/*.json` (for example with MSW). Do not hand-write types; regenerate when `openapi.json` changes (`git log contracts/`).
+
+## Run the backend with demo data
+```
+cd backend
+uv sync
+BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --port 8000
+```
+Open http://localhost:8000/docs for interactive docs. CORS allows every origin, so a Vite dev server on another port works.
+Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses `nurse_priya` and `nurse_sam`, robot `robot_1`.
+
+## Endpoints
+| Method and path | Use |
+| --- | --- |
+| `POST /calls {room}` | Bell press (the web-button backup). Returns the `Call`; robot and nurse are assigned immediately |
+| `GET /calls` | All calls, newest first. Poll this for the live feed |
+| `GET /calls/{id}` | One call with transcript, summary, timestamps |
+| `POST /calls/{id}/turns {speaker, text}` | Add to the transcript (`resident`, `robot`, `nurse`) |
+| `POST /calls/{id}/score {urgency, category, summary?}` | Triage result; urgency 1 to 4 |
+| `POST /calls/{id}/in-visit` | Robot reached the resident |
+| `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
+| `GET /alerts` | Alerts for nurses, newest first |
+| `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
+| `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |
+| `GET /residents/{id}/memory?q=&k=` | Memory recall for the voice loop |
+| `POST /residents/{id}/memory {text, tags?}` | Add a memory fact |
+| `GET /health` | `{"status":"ok"}` |
+
+## Meaning of the values
+- **`urgency`** is an integer: 1 chat, 2 routine, 3 nurse soon, 4 emergency. It never goes down on a call.
+- **`status`** moves `ringing, assigned, (robot_en_route), in_visit, resolved, closed`. A call scored 3 or 4 becomes `escalated`, then `nurse_acked` after the nurse acknowledges.
+- **`Alert.nurse_id`** is `null` for a broadcast: urgency 4 goes to every nurse on shift. Urgency 3 names one nurse.
+- Times are ISO 8601 in UTC. `calls_by_hour` keys are UTC hours as strings.
+- `share_answered_within_10min` is `0.0` until at least one call has a first response (`in-visit`).
+- `minutes_saved` assumes 4 minutes per robot-resolved call. Label that assumption on screen.
+- Errors: unknown id 404, illegal state change 409, bad body 422.
+
+## Live updates
+MVP is polling: `GET /calls`, `GET /alerts` and `GET /metrics` once a second is plenty. Streaming (SSE, or SpacetimeDB subscriptions) comes later and will not change these shapes.
+
+## Changing the contract
+Change the API in `backend/src/bellhop/api/`, run `cd backend && uv run python scripts/export_contract.py`, and commit `contracts/`. Tell Yash.
