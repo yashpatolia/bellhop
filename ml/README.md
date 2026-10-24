@@ -220,7 +220,7 @@ ignored; `POST /stop`, process signals, and the motor watchdog still stop immedi
 numbers, duty cap, and timeout are deployment settings in `.env` (`BELLHOP_MANUAL_*`), not room or
 controller-model hardcodes. Verify the mapping with wheels raised before any floor test.
 
-**Rooms.** Printed markers are ids 201-210 (`DICT_4X4_250`, 15 cm). `config.MARKER_ROOMS` maps marker id to the backend's room string: 201 = `"12"` (Margaret), 202 = `"14"` (Arthur), 203 = `"lobby"` (home/start). If rooms change, update `MARKER_ROOMS`, the bell button and the backend residents together.
+**Rooms.** Printed markers use `DICT_4X4_250` (15 cm). Configure the venue mapping in the Pi's uncommitted `.env`, for example `BELLHOP_MARKER_ROOMS={"210":"12"}` when physical marker 210 is the backend's room 12. Numeric targets such as `210` address that marker directly; no room-to-marker mapping is embedded in code. Keep the backend resident room, bell button and this deployment mapping aligned.
 
 **Visit flow** (`rover.speech`):
 1. Find the call: `--call <id>`, or the newest call for `ROBOT_ID` in `assigned` / `robot_en_route`.
