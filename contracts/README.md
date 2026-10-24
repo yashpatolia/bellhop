@@ -29,7 +29,9 @@ Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses
 | `GET /calls` | All calls, newest first. Poll this for the live feed |
 | `GET /calls/{id}` | One call with transcript, summary, timestamps |
 | `POST /calls/{id}/turns {speaker, text}` | Add to the transcript (`resident`, `robot`, `nurse`) |
-| `POST /calls/{id}/score {urgency, category, summary?}` | Triage result; urgency 1 to 4 |
+| `POST /calls/{id}/score {urgency, category, summary?, confidence?}` | Triage result; urgency 1 to 4, `confidence` 0 to 1. Passed through the triage guard: keyword floor (fall, chest pain, ...) and low confidence (under 0.6, +1) can only raise urgency; the reason is appended to `summary` |
+| `POST /calls/{id}/triage-failed` | The model failed: defaults to urgency 3 (nurse soon); a keyword floor may make it 4 |
+| `GET /calls/{id}/note` | One-line visit note `{text, resident_id, room, at}` |
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
 | `GET /robots` | Robots with `status`, `battery`, `room` |
@@ -38,8 +40,23 @@ Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses
 | `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
 | `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |
 | `GET /residents/{id}/memory?q=&k=` | Memory recall for the voice loop |
-| `POST /residents/{id}/memory {text, tags?}` | Add a memory fact |
+| `POST /residents/{id}/memory {text, tags?, source?, confidence?}` | Add a fact through the memory guard: 201 + fact; 202 `{status:"pending_review"}` when low confidence from a non-staff source; 422 `{detail: reason}` (`too_short`, `too_long`, `clinical_claim`, `duplicate`) |
+| `GET /residents/{id}/memory/pending` | Facts waiting for nurse review |
+| `POST /residents/{id}/memory/pending/{pid}/approve` / `reject` | Approve (returns the fact) or drop a pending fact; unknown id 404 |
+| `DELETE /residents/{id}/memory/{fact_id}` | Forget one fact (204, unknown 404) |
+| `DELETE /residents/{id}/memory` | Forget everything for the resident: `{removed: n}` |
+| `POST /residents/{id}/care {kind, value?, note?, call_id?}` | Record `mood`/`pain` (value 1 to 5 required), `drink`, `repeat_question`. Three days of pain in a row opens a PAIN flag |
+| `GET /residents/{id}/care/summary` | `{pain_streak_days, mood_lower_than_usual, drinks_today, repeat_questions_today}` |
+| `GET /flags?resident_id=&open_only=true` | Flags with a `reason` |
+| `POST /flags/{id}/resolve` | Resolve a flag |
+| `GET` / `PUT /residents/{id}/preferences` | `{hard_of_hearing, quiet_mode, night_mode, favourite_drink}`; PUT merges the given fields |
+| `GET /residents/{id}/speech-settings` | `{rate, volume, captions, tone}` derived from preferences |
+| `POST /residents/{id}/family/messages {text}` / `family/replies {text}` | Voice note to the resident / resident reply (201) |
+| `GET /residents/{id}/family/messages` | Messages, oldest first |
+| `GET /residents/{id}/postcard` | `{lines: [...]}` positive, non-medical summary of today. Never mentions pain |
 | `GET /health` | `{"status":"ok"}` |
+
+Unknown call, alert, flag, pending fact or resident gives 404.
 
 ## Meaning of the values
 - **`urgency`** is an integer: 1 chat, 2 routine, 3 nurse soon, 4 emergency. It never goes down on a call.

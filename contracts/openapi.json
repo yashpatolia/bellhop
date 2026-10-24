@@ -222,6 +222,86 @@
         }
       }
     },
+    "/calls/{call_id}/triage-failed": {
+      "post": {
+        "summary": "Triage Failed",
+        "operationId": "triage_failed_calls__call_id__triage_failed_post",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Call"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calls/{call_id}/note": {
+      "get": {
+        "summary": "Visit Note",
+        "operationId": "visit_note_calls__call_id__note_get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Visit Note Calls  Call Id  Note Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/calls/{call_id}/in-visit": {
       "post": {
         "summary": "In Visit",
@@ -479,8 +559,732 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Forget All",
+        "operationId": "forget_all_residents__resident_id__memory_delete",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Forget All Residents  Resident Id  Memory Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/memory/pending": {
+      "get": {
+        "summary": "Pending Memory",
+        "operationId": "pending_memory_residents__resident_id__memory_pending_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingFact"
+                  },
+                  "title": "Response Pending Memory Residents  Resident Id  Memory Pending Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/memory/pending/{pending_id}/approve": {
+      "post": {
+        "summary": "Approve Memory",
+        "operationId": "approve_memory_residents__resident_id__memory_pending__pending_id__approve_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemoryFact"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/memory/pending/{pending_id}/reject": {
+      "post": {
+        "summary": "Reject Memory",
+        "operationId": "reject_memory_residents__resident_id__memory_pending__pending_id__reject_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Reject Memory Residents  Resident Id  Memory Pending  Pending Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/memory/{fact_id}": {
+      "delete": {
+        "summary": "Forget Fact",
+        "operationId": "forget_fact_residents__resident_id__memory__fact_id__delete",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "fact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fact Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/care": {
+      "post": {
+        "summary": "Record Care",
+        "operationId": "record_care_residents__resident_id__care_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CareIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareEntry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/care/summary": {
+      "get": {
+        "summary": "Care Summary",
+        "operationId": "care_summary_residents__resident_id__care_summary_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Care Summary Residents  Resident Id  Care Summary Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flags": {
+      "get": {
+        "summary": "List Flags",
+        "operationId": "list_flags_flags_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resident Id"
+            }
+          },
+          {
+            "name": "open_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Open Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Flag"
+                  },
+                  "title": "Response List Flags Flags Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flags/{flag_id}/resolve": {
+      "post": {
+        "summary": "Resolve Flag",
+        "operationId": "resolve_flag_flags__flag_id__resolve_post",
+        "parameters": [
+          {
+            "name": "flag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Flag Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Flag"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/preferences": {
+      "get": {
+        "summary": "Get Preferences",
+        "operationId": "get_preferences_residents__resident_id__preferences_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Put Preferences",
+        "operationId": "put_preferences_residents__resident_id__preferences_put",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preferences"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/speech-settings": {
+      "get": {
+        "summary": "Speech Settings",
+        "operationId": "speech_settings_residents__resident_id__speech_settings_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Speech Settings Residents  Resident Id  Speech Settings Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/family/messages": {
+      "post": {
+        "summary": "Leave Voice Note",
+        "operationId": "leave_voice_note_residents__resident_id__family_messages_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyMessage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Family Messages",
+        "operationId": "family_messages_residents__resident_id__family_messages_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FamilyMessage"
+                  },
+                  "title": "Response Family Messages Residents  Resident Id  Family Messages Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/family/replies": {
+      "post": {
+        "summary": "Record Reply",
+        "operationId": "record_reply_residents__resident_id__family_replies_post",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyMessage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/residents/{resident_id}/postcard": {
+      "get": {
+        "summary": "Postcard",
+        "operationId": "postcard_residents__resident_id__postcard_get",
+        "parameters": [
+          {
+            "name": "resident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "title": "Response Postcard Residents  Resident Id  Postcard Get"
                 }
               }
             }
@@ -816,6 +1620,214 @@
         ],
         "title": "CallStatus"
       },
+      "CareEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EntryKind"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "kind",
+          "at"
+        ],
+        "title": "CareEntry"
+      },
+      "CareIn": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/EntryKind"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CareIn"
+      },
+      "EntryKind": {
+        "type": "string",
+        "enum": [
+          "mood",
+          "pain",
+          "drink",
+          "repeat_question"
+        ],
+        "title": "EntryKind"
+      },
+      "FamilyMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MessageDirection"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "direction",
+          "text",
+          "created_at"
+        ],
+        "title": "FamilyMessage"
+      },
+      "Flag": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FlagType"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "type",
+          "reason",
+          "created_at"
+        ],
+        "title": "Flag"
+      },
+      "FlagType": {
+        "type": "string",
+        "enum": [
+          "pain",
+          "asks_for_nurse",
+          "distress",
+          "no_answer"
+        ],
+        "title": "FlagType",
+        "description": "Only four flag types, each with a reason, so nurses keep trusting them."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -877,6 +1889,18 @@
             },
             "type": "array",
             "title": "Tags"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "conversation"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 1.0
           }
         },
         "type": "object",
@@ -884,6 +1908,144 @@
           "text"
         ],
         "title": "MemoryIn"
+      },
+      "MessageDirection": {
+        "type": "string",
+        "enum": [
+          "to_resident",
+          "from_resident"
+        ],
+        "title": "MessageDirection"
+      },
+      "PendingFact": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "conversation"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "resident_id",
+          "text"
+        ],
+        "title": "PendingFact"
+      },
+      "Preferences": {
+        "properties": {
+          "resident_id": {
+            "type": "string",
+            "title": "Resident Id"
+          },
+          "hard_of_hearing": {
+            "type": "boolean",
+            "title": "Hard Of Hearing",
+            "default": false
+          },
+          "quiet_mode": {
+            "type": "boolean",
+            "title": "Quiet Mode",
+            "default": false
+          },
+          "night_mode": {
+            "type": "boolean",
+            "title": "Night Mode",
+            "default": false
+          },
+          "favourite_drink": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favourite Drink"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resident_id"
+        ],
+        "title": "Preferences"
+      },
+      "PreferencesIn": {
+        "properties": {
+          "hard_of_hearing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hard Of Hearing"
+          },
+          "quiet_mode": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Mode"
+          },
+          "night_mode": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Night Mode"
+          },
+          "favourite_drink": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favourite Drink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PreferencesIn"
       },
       "RaiseCall": {
         "properties": {
@@ -1004,6 +2166,19 @@
               }
             ],
             "title": "Summary"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
           }
         },
         "type": "object",
@@ -1012,6 +2187,21 @@
           "category"
         ],
         "title": "ScoreIn"
+      },
+      "TextIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TextIn"
       },
       "Turn": {
         "properties": {

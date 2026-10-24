@@ -39,7 +39,7 @@ Nothing else. No DI framework, no CQRS, no repositories-per-aggregate beyond the
 1. Bell press -> `POST /calls` -> `CallService.raise_call(room)` -> `CallRaised`.
 2. `Dispatcher` reacts: picks robot / nurse / both via `DispatchPolicy` -> `CallAssigned`; `RobotGateway.go_to`.
 3. Robot arrives; Companion fetches `GET /residents/{id}/memory?q=...` (`MemoryService.recall`).
-4. Triage result -> `POST /calls/{id}/score` -> `Call.score` -> `CallScored`.
+4. Triage result -> `POST /calls/{id}/score` -> `TriageGuard.decide` (keyword floor, low confidence; model failure uses `POST /calls/{id}/triage-failed`) -> `Call.score` -> `CallScored`.
 5. `Liaison` reacts to urgency >= 3: creates `Alert`, `Notifier.send` -> `AlertRaised`.
 6. Resolution -> `CallResolved` -> `Visit` recorded; `Analytics` reads calls and visits for the dashboard counters.
 

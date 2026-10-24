@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from bellhop.adapters.care_store import InMemoryCareStore
+from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
 from bellhop.adapters.event_bus import InMemoryEventBus
 from bellhop.adapters.guards import (
     GuardedMemoryIndex,
@@ -16,22 +18,27 @@ from bellhop.adapters.guards import (
     SerializedSubscriptions,
 )
 from bellhop.adapters.http_robot_gateway import HttpRobotGateway
-from bellhop.adapters.local_memory import LocalMemoryIndex
 from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.adapters.moss_memory import MossMemoryIndex
 from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.adapters.robot_gateway import RecordingRobotGateway
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
-from bellhop.ports import EventBus, MemoryIndex, Notifier, RobotGateway
+from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
 from bellhop.seed import seed_demo
 from bellhop.services.analytics import Analytics
 from bellhop.services.call_service import CallService
+from bellhop.services.care_signals import CareSignals
 from bellhop.services.dispatcher import DefaultPolicy, Dispatcher
+from bellhop.services.family import FamilyService
 from bellhop.services.feedback import FeedbackService
 from bellhop.services.liaison import Liaison
+from bellhop.services.memory_guard import MemoryGuard
 from bellhop.services.memory_service import MemoryService
+from bellhop.services.preferences_service import PreferencesService
 from bellhop.services.robot_signals import RobotSignals
+from bellhop.services.triage_guard import TriageGuard
+from bellhop.services.visit_notes import VisitNotes
 from bellhop.services.workload import Workload
 
 log = logging.getLogger(__name__)
@@ -83,19 +90,30 @@ class Container:
     feedback: FeedbackService
     analytics: Analytics
     workload: Workload
+    clock: Clock
+    care_store: InMemoryCareStore
+    care_signals: CareSignals
+    visit_notes: VisitNotes
+    family: FamilyService
+    preferences: PreferencesService
+    memory_guard: MemoryGuard
+    triage_guard: TriageGuard
     # Guarded wrappers actually injected into services (None when guards are off).
     guarded_notifier: GuardedNotifier | None = None
     guarded_gateway: GuardedRobotGateway | None = None
 
 
-def _memory_index(settings: Settings) -> MemoryIndex:
-    local = LocalMemoryIndex()
+def _memory_index(
+    settings: Settings,
+) -> tuple[MemoryIndex, DeletableLocalMemoryIndex]:
+    """The index MemoryService uses, plus the local index MemoryGuard deletes from."""
+    local = DeletableLocalMemoryIndex()
     if settings.memory == "moss":
         moss = MossMemoryIndex(local, settings.moss_project_id, settings.moss_project_key)
         if settings.guard_timeouts:
-            return GuardedMemoryIndex(moss, local, settings.memory_budget_ms)
-        return moss
-    return local
+            return GuardedMemoryIndex(moss, local, settings.memory_budget_ms), local
+        return moss, local
+    return local, local
 
 
 def _build_store(
@@ -144,7 +162,9 @@ def build_container(
         guarded_gateway = GuardedRobotGateway(gateway, settings.gateway_timeout)
         out_notifier, out_gateway = guarded_notifier, guarded_gateway
         dispatcher_bus = SerializedSubscriptions(bus)
-    memory = MemoryService(_memory_index(settings), clock, ids)
+    index, local_index = _memory_index(settings)
+    memory = MemoryService(index, clock, ids)
+    care_store = InMemoryCareStore()
 
     container = Container(
         store=store,
@@ -167,6 +187,16 @@ def build_container(
         feedback=FeedbackService(store.visits, store.calls, bus, ids),
         analytics=Analytics(store.calls, store.visits),
         workload=Workload(store.calls, store.robots, store.nurses, bus),
+        clock=clock,
+        care_store=care_store,
+        care_signals=CareSignals(care_store.entries, care_store.flags, clock, ids, bus),
+        visit_notes=VisitNotes(store.calls, care_store.entries, clock),
+        family=FamilyService(
+            care_store.messages, store.residents, store.calls, care_store.entries, clock, ids
+        ),
+        preferences=PreferencesService(care_store.preferences, clock),
+        memory_guard=MemoryGuard(memory, local_index),
+        triage_guard=TriageGuard(),
         guarded_notifier=guarded_notifier,
         guarded_gateway=guarded_gateway,
     )

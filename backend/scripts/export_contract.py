@@ -20,7 +20,8 @@ def dump(path: Path, data: object) -> None:
 
 
 def main() -> None:
-    app = create_app(build_container(Settings(seed_demo=True, guard_timeouts=False)))
+    container = build_container(Settings(seed_demo=True, guard_timeouts=False))
+    app = create_app(container)
     dump(OUT / "openapi.json", json.loads(json.dumps(app.openapi())))
 
     c = TestClient(app)
@@ -47,6 +48,19 @@ def main() -> None:
     dump(ex / "robots.json", c.get("/robots").json())
     margaret = c.get("/residents/res_margaret/memory", params={"q": "tea please"}).json()
     dump(ex / "memory_recall.json", margaret)
+
+    r = "/residents/res_margaret"
+    c.post(f"{r}/care", json={"kind": "mood", "value": 5, "note": "enjoyed bingo"})
+    c.post(f"{r}/care", json={"kind": "drink", "note": "tea"})
+    c.post(f"{r}/care", json={"kind": "pain", "value": 3, "note": "knee"})
+    dump(ex / "care_summary.json", c.get(f"{r}/care/summary").json())
+    dump(ex / "postcard.json", c.get(f"{r}/postcard").json())
+    c.put(f"{r}/preferences", json={"hard_of_hearing": True})
+    dump(ex / "speech_settings.json", c.get(f"{r}/speech-settings").json())
+    container.care_signals.raise_flag("res_margaret", "pain", "pain mentioned 3 days in a row")
+    dump(ex / "flags.json", c.get("/flags").json())
+    c.post(f"{r}/memory", json={"text": "Has a grandson named Theo", "confidence": 0.3})
+    dump(ex / "memory_pending.json", c.get(f"{r}/memory/pending").json())
 
 
 if __name__ == "__main__":
