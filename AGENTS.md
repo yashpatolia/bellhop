@@ -14,10 +14,10 @@ backend/tests/         unit/ and integration/ (mirror src)
 backend/scripts/       demo_scenes.py, export_contract.py
 contracts/             openapi.json + example payloads (drift-tested)
 spacetimedb/           TypeScript module for the optional SpacetimeDB store
-docs/architecture/     module map, decisions, testing, status (00 to 11)
+docs/architecture/     module map, decisions, testing, status, research (00 to 14)
 docs/plan/             product plan and research (read-only)
 artifacts/             static HTML overview pages
-tools/                 Node tooling (local node_modules)
+tools/                 local Node tooling, git-ignored
 .github/workflows/     backend.yml: lint, format check, tests
 ```
 

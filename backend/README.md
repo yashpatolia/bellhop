@@ -6,7 +6,7 @@ Call state, dispatch, memory recall and staff alerts for the Bellhop care-home r
 
 ```
 uv sync
-BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --port 8000
+BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --host 0.0.0.0 --port 8000
 ```
 
 Seed data adds the demo resident (room 12) and her memories. Then, in a second terminal, play the demo:
@@ -44,7 +44,7 @@ Read from the environment by `Settings.from_env` in `src/bellhop/container.py`.
 | `BELLHOP_ROBOT_URL` | unset | Robot HTTP gateway URL |
 | `BELLHOP_CONTENT` | `local` | Reminiscence content: `local`, `wikipedia` or `apify` |
 | `APIFY_TOKEN` | unset | Apify API token |
-| `BELLHOP_API_KEY` | unset | Shared secret. When set, every route except `GET /health` needs header `X-API-Key` (401 otherwise). Unset = open (dev) |
+| `BELLHOP_API_KEY` | unset | Shared secret. When set, every route except `GET /health` needs `X-API-Key` (401 otherwise); `GET /events` also accepts `?api_key=` for browser EventSource. Unset = open (dev) |
 | `BELLHOP_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins, e.g. `http://localhost:5173`. Use the dashboard origin outside dev |
 | `BELLHOP_ALLOW_NEW_ROBOTS` | `1` | `0` makes `PUT /robots/{id}` update known robots only (404 otherwise). Default lets the Pi self-register in the demo |
 

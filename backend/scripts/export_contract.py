@@ -19,6 +19,20 @@ def dump(path: Path, data: object) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n")
 
 
+def sample_events(container, client) -> dict[str, dict]:
+    """One example of each SSE event: {"call.raised": {"id", "event", "data"}, ...}."""
+    samples: dict[str, dict] = {}
+    while (message := client.pop()) is not None:
+        if message.name not in samples:
+            frame = container.events.frame(message).strip().splitlines()
+            samples[message.name] = {
+                "id": message.id,
+                "event": message.name,
+                "data": json.loads(frame[2].removeprefix("data: ")),
+            }
+    return samples
+
+
 def main() -> None:
     container = build_container(Settings(seed_demo=True, guard_timeouts=False))
     app = create_app(container)
@@ -26,6 +40,7 @@ def main() -> None:
 
     c = TestClient(app)
     ex = OUT / "examples"
+    stream_client = container.events.connect()  # records the live events the scenes below cause
 
     tea = c.post("/calls", json={"room": "12"}).json()
     c.post(f"/calls/{tea['id']}/score", json={"urgency": 1, "category": "social"})
@@ -66,6 +81,23 @@ def main() -> None:
     dump(ex / "reminiscence.json", c.get(f"{r}/reminiscence", params={"k": 3}).json())
     c.post(f"{r}/memory", json={"text": "Has a grandson named Theo", "confidence": 0.3})
     dump(ex / "memory_pending.json", c.get(f"{r}/memory/pending").json())
+
+    c.put("/robots/robot_1", json={"status": "idle", "battery": 0.9, "room": "12"})
+    dump(ex / "events.json", sample_events(container, stream_client))
+
+    dump(
+        ex / "resident_created.json",
+        c.post(
+            "/residents",
+            json={"id": "res_ines", "name": "Ines", "room": "301", "risk_flags": ["falls"]},
+        ).json(),
+    )
+    dump(ex / "residents_list.json", c.get("/residents").json())
+    dump(
+        ex / "nurse_created.json",
+        c.post("/nurses", json={"id": "nurse_lena", "name": "Lena"}).json(),
+    )
+    dump(ex / "nurses_list.json", c.get("/nurses").json())
 
 
 if __name__ == "__main__":

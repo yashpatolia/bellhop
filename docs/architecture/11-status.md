@@ -5,7 +5,7 @@ Snapshot of 2026-10-23. Read [01-module-map.md](01-module-map.md) for what exist
 ## Numbers (from `cd backend && .venv/bin/python -m pytest -q -p no:warnings`)
 | Check | Result |
 | --- | --- |
-| Tests | 901 passed, 1 skipped (`test_fetchai_agent.py`: `uagents` not installed) |
+| Tests | Re-run before quoting: HTTP integration tests are temporarily blocked by the lockfile's Starlette 1.9.0 test-client dependency issue (it expects `httpx2`, which is not locked). The last reported green snapshot before the SSE/admin work was 1,002 passed, 1 skipped. |
 | Lint | `ruff check src tests` clean |
 | Strict xfail | Known-bug records live in `tests/integration/test_edge_cases_2.py` (see [05-testing.md](05-testing.md)) |
 
@@ -13,14 +13,15 @@ Other agents were editing tests while this was written: an earlier run in the sa
 
 Commits (`git log --oneline`):
 ```
-8a350a4 Add Wikipedia reminiscence feed, demo driver, CI; fix alert listing
+25db187 Add adversarial API regression tests (care, memory, triage, hardening)
+49987ca Harden API, add scenario-driven setup, privacy fixes, docs and status
 c40cfad Broaden triage keyword floor by pattern; document measured limits
 7177682 Wire care signals, visit notes, family, memory guard and triage guard
 58dc187 Add robot status routes, Pi gateway and LED signals; care data contract
 74585be Add Bellhop backend, architecture docs and frontend contract
 6dd6ed4 Add Bellhop plan, research and polished HTML artifacts
 ```
-The working tree has uncommitted changes (hardening, new tests, docs).
+The working tree contains the pending admin/SSE release and research notes. Do not call it green until `httpx2` is available and the full suite has run.
 
 ## Done and verified
 | Area | How verified |
@@ -29,6 +30,8 @@ The working tree has uncommitted changes (hardening, new tests, docs).
 | Call, dispatch, workload, alerts, feedback, analytics | Unit tests; integration tests through the real container and HTTP API |
 | Three demo scenes (tea, hip pain, fall) | Integration tests (`test_demo_scenes.py`) and `scripts/demo_scenes.py` against a real uvicorn server |
 | HTTP API, auth header, body limit, field limits, CORS | Integration tests with `TestClient`; `contracts/openapi.json` drift test |
+| Runtime home setup | Scenario files and authenticated admin routes create/list/patch residents and nurses; contract examples generated |
+| Dashboard live updates | `GET /events` SSE: call lifecycle, alert and robot events; bounded per-client queues, 20-client cap, heartbeat and EventSource query-key support |
 | Care signals, memory guard, family, preferences, visit notes | Unit and integration tests |
 | Triage guard behaviour as specified | Unit tests (not a measure of real-world recall, see gaps) |
 | Wikipedia reminiscence feed | Unit tests with a fake transport, plus a live MediaWiki fetch (real network) |
@@ -50,7 +53,8 @@ The working tree has uncommitted changes (hardening, new tests, docs).
 | Triage keyword guard is weak | Recall on independent fresh batches: 20/24, 19/24, then 11/24 on the paraphrase-heavy batch. Gordon's model is the real safety net; the guard is a backstop (ADR-13) |
 | No auth by default | `BELLHOP_API_KEY` is optional; unset means open. CORS default is `*` |
 | In-memory default store | State is lost on restart unless `BELLHOP_STORE=spacetimedb` works |
-| Synchronous event bus | A slow handler blocks `publish` and so the request (ADR-5, ADR-9) |
+| Other synchronous event handlers | The SSE fan-out is bounded and non-blocking; unrelated synchronous bus handlers can still delay a request |
+| Test-client dependency | Starlette 1.9.0's `TestClient` expects `httpx2`, absent from the lockfile; all HTTP integration tests hang until that dev dependency is restored |
 | Forgotten memory with Moss on | Removed from the local index only; the Moss copy stays |
 | Labelled set is small | 30 fictional cases, plus nurse overrides once calls resolve |
 
@@ -69,10 +73,12 @@ The working tree has uncommitted changes (hardening, new tests, docs).
 4. Try Moss with real keys; confirm the SDK calls.
 5. Try SpacetimeDB with a token, then Maincloud; decide whether persistence is needed for the demo.
 6. Set `BELLHOP_API_KEY` and a narrow `BELLHOP_CORS_ORIGINS` for the demo deployment.
+7. On demo hardware, test Tailscale inside WSL plus Pi/Yash devices; run with `--host 0.0.0.0`, seed demo data, phone hotspot and backup hotspot. Confirm the Pi's five-second stop-and-idle watchdog.
+8. Restore the missing `httpx2` test dependency, then run the full suite and quote its final count.
 
 ## Team handoff
 | Person | Owns | Needs from the backend or from them |
 | --- | --- | --- |
-| Yash | Dashboard; [contracts/](../../contracts/README.md) consumer | Poll `GET /calls`, `/alerts`, `/metrics` once a second; regenerate types when `openapi.json` changes |
+| Yash | Dashboard; [contracts/](../../contracts/README.md) consumer | Use `GET /events` first and poll `GET /calls`, `/alerts`, `/metrics` after reconnect or as fallback; regenerate types when `openapi.json` changes |
 | Gordon | Triage model | `POST /calls/{id}/score` with `confidence`; `POST /calls/{id}/triage-failed` on model failure; the labelled set (`python -m bellhop.labelled`, `GET /labelled-examples`) |
 | Jeremy | Pi, bell button, LEDs | Everything in [09-hardware-interface.md](09-hardware-interface.md) |
