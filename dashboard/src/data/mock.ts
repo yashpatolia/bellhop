@@ -261,17 +261,25 @@ export class Simulator {
     const roll = Math.random()
     const pool = roll < 0.08 ? SCENARIOS.filter((s) => s.urgency === 4) : roll < 0.36 ? SCENARIOS.filter((s) => s.urgency === 3) : SCENARIOS.filter((s) => s.urgency < 3)
     const sc = forced ?? pick(pool)
-    const robot = this.robots.find((x) => x.state === 'idle' && x.battery > 25) ?? this.robots.find((x) => x.state === 'idle')
-    const call = makeCall(sc, r, Date.now(), 'robot_en_route', robot?.id ?? null)
+    const call = makeCall(sc, r, Date.now(), 'robot_en_route', null)
     this.calls = [call, ...this.calls]
-    if (robot) {
-      robot.state = 'en_route'
-      robot.targetRoom = r.room
-      robot.callId = call.id
-      this.paths.set(robot.id, this.routeTo(robot, r.room))
-    }
     this.phaseAt.set(call.id, Date.now())
+    this.dispatchWaiting()
     this.rebuild()
+  }
+
+  /** Sends a free robot to each call that is still waiting for one, oldest call first. */
+  private dispatchWaiting() {
+    const waiting = this.calls.filter((c) => c.status === 'robot_en_route' && !this.robots.some((r) => r.callId === c.id)).reverse()
+    for (const call of waiting) {
+      const robot = this.robots.find((x) => x.state === 'idle' && x.battery > 25 && !this.paths.has(x.id))
+      if (!robot) return
+      robot.state = 'en_route'
+      robot.targetRoom = call.room
+      robot.callId = call.id
+      this.paths.set(robot.id, this.routeTo(robot, call.room))
+      this.calls = this.calls.map((c) => (c.id === call.id ? { ...c, robotId: robot.id } : c))
+    }
   }
 
   private routeTo(robot: Robot, room: number): Waypoint[] {
@@ -337,6 +345,7 @@ export class Simulator {
       this.nextCallIn = Math.round(rand(14, 26))
     }
     this.moveRobots()
+    this.dispatchWaiting()
     const now = Date.now()
     for (const c of this.calls) {
       if (c.status === 'resolved') continue

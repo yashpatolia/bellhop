@@ -10,3 +10,6 @@ node_modules/
 .coverage
 htmlcov/
 tools/
+
+# macOS
+.DS_Store

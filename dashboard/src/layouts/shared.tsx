@@ -191,6 +191,14 @@ export function Detail({ call, data, empty }: { call: Call | undefined; data: Be
         <p className="sb-wait">The summary appears once Bellhop has talked with the resident.</p>
       )}
 
+      {call.transcript.length === 0 && isOpen(call) && (
+        <>
+          <h3>Conversation</h3>
+          <p className="sb-wait">
+            {data.robots.some((b) => b.callId === call.id) ? 'The conversation starts when the robot reaches the room.' : 'Waiting for a free robot. The conversation starts when one arrives.'}
+          </p>
+        </>
+      )}
       {call.transcript.length > 0 && (
         <>
           <h3>Conversation</h3>
