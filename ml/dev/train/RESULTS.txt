@@ -1,0 +1,25 @@
+Local triage scorer, latest run (bge-small-en-v1.5, C=4, min confidence 0.5)
+
+Train: 1120 rows {1: 649, 2: 87, 3: 183, 4: 201}. Eval: 156 rows (hard_cases 26 + backend 30 + 100 hand-verified).
+Labels for training and the verified sample were written by the Claude coding agent that built this
+(no ANTHROPIC_API_KEY was available), not by a human or by the API. Treat them as a single noisy labeller.
+Claude-alone and Claude+local columns were NOT measured (no key): run evaluate.py --claude.
+
+Under = true >= 3 and predicted lower. False alarm = true < 3 and predicted >= 3. Over = predicted above true.
+
+group           method        under  over   false-alarm  urgent recall
+hard+backend    floor         9      0.018  0.050        0.750
+(n=56)          local         4      0.214  0.300        0.917
+                floor+local   3      0.214  0.300        0.917
+hand-verified   floor         25     0.020  0.015        0.281
+(n=100)         local         7      0.160  0.132        0.781
+                floor+local   5      0.170  0.147        0.844
+all (n=156)     floor         34     0.019  0.023        0.529
+                local         11     0.179  0.170        0.853
+                floor+local   8      0.186  0.182        0.882
+
+Min confidence sweep, floor+local on all: 0.5 under 8 FA 0.18; 0.6 under 10 FA 0.15; 0.7 under 13 FA 0.09.
+Latency (embed + head, laptop CPU): p50 5.7 ms, p95 10.2 ms. Head file 6566 bytes. Embedding model about 133 MB.
+Remaining misses at 0.5: elephant on chest, ticker racing, "wants a real person", and 5 forum sentences.
+False alarms are mostly negations and idioms ("I didn't fall", "no chest pain", "died laughing"), which
+embeddings cannot see; Claude handles those, so the local scorer would wrongly raise them.

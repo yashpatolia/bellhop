@@ -10,9 +10,10 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, wait
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import anthropic
@@ -21,6 +22,7 @@ from typesafe_sdk import Choice, RetryPolicy, Score, TypeSafeClient, TypeSafeErr
 from rover import config
 from rover.agent.brain import claude_client
 from rover.backend import Backend
+from rover.triage import local
 
 Transcript = list[tuple[str, str]]
 
@@ -88,8 +90,8 @@ def ask_claude(transcript: Transcript, risk_flags: list[str]) -> TriageResult | 
     if client is None:
         print("fallback: no ANTHROPIC_API_KEY, Claude triage skipped")
         return None
-    # One try only: a retry could not finish inside the triage time budget anyway.
-    client = client.with_options(timeout=config.TRIAGE_TIMEOUT_S, max_retries=0)
+    # No SDK retries: triage() owns the single retry so it can respect the overall budget.
+    client = client.with_options(timeout=config.TRIAGE_ATTEMPT_S, max_retries=0)
     try:
         response = client.messages.create(
             model=config.TRIAGE_MODEL,
@@ -174,6 +176,12 @@ def ask_jev(transcript: Transcript, risk_flags: list[str]) -> TriageResult | Non
     )
 
 
+def _real_ask_local(transcript: Transcript) -> tuple[int, float] | None:
+    if not config.LOCAL_TRIAGE:
+        return None
+    return local.score_transcript(local.get_scorer(), transcript)
+
+
 # triage() takes parameters with these same names, so it reaches the real ones through aliases.
 _real_ask_jev, _real_ask_claude = ask_jev, ask_claude
 
@@ -200,7 +208,47 @@ def merge(
     return None
 
 
+def raise_urgency(
+    result: TriageResult | None, score: tuple[int, float] | None, summary: str = ""
+) -> TriageResult | None:
+    """The local scorer can only raise the urgency, and only when it is sure enough. With no model
+    answer at all it is used only for a nurse-soon or emergency score (urgency 3 or 4)."""
+    if score is None or score[1] < config.LOCAL_MIN_CONFIDENCE:
+        return result
+    urgency = score[0]
+    if result is None:
+        if urgency < 3:
+            return None
+        return TriageResult(urgency, "ambiguous", summary, config.JEV_ONLY_CONFIDENCE, "local")
+    if urgency <= result.urgency:
+        return result
+    return replace(result, urgency=urgency, source=f"{result.source}+local")
+
+
 AskFn = Callable[[Transcript, list[str]], TriageResult | None]
+
+
+def with_retry(ask: AskFn, deadline: float, clock: Callable[[], float], retries: int = 1) -> AskFn:
+    """Call `ask` again after a failure (None or a crash) while the budget has room for it."""
+
+    def run(transcript: Transcript, risk_flags: list[str]) -> TriageResult | None:
+        result = None
+        for attempt in range(retries + 1):
+            try:
+                result = ask(transcript, risk_flags)
+            except Exception as exc:
+                print(f"triage: claude attempt {attempt + 1} crashed: {exc!r}")
+                result = None
+            if result is not None:
+                return result
+            if attempt < retries and deadline - clock() < config.TRIAGE_RETRY_MIN_S:
+                print("triage: no budget left to retry Claude")
+                return None
+            if attempt < retries:
+                print("triage: retrying Claude once")
+        return None
+
+    return run
 
 
 def triage(
@@ -208,22 +256,53 @@ def triage(
     risk_flags: list[str],
     ask_jev: AskFn | None = None,
     ask_claude: AskFn | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    claude_retries: int = 1,
+    ask_local: Callable[[Transcript], tuple[int, float] | None] | None = None,
 ) -> TriageResult | None:
-    asks = {"jev": ask_jev or _real_ask_jev, "claude": ask_claude or _real_ask_claude}
-    pool = ThreadPoolExecutor(max_workers=len(asks))
-    futures = {name: pool.submit(ask, transcript, risk_flags) for name, ask in asks.items()}
-    done, _ = wait(futures.values(), timeout=config.TRIAGE_TIMEOUT_S)
+    """Ask both models at once. Claude gets one retry inside the budget; Jev is a bonus that is
+    waited for only JEV_GRACE_S after Claude has answered, and it can only raise the urgency.
+    The local scorer (offline, milliseconds) is applied last and can only raise it too."""
+    started = clock()
+    wall = time.monotonic()
+    budget_end = wall + config.TRIAGE_TIMEOUT_S
+    claude_ask = with_retry(
+        ask_claude or _real_ask_claude, started + config.TRIAGE_TIMEOUT_S, clock, claude_retries
+    )
+    pool = ThreadPoolExecutor(max_workers=3)
+    futures = {
+        "jev": pool.submit(ask_jev or _real_ask_jev, transcript, risk_flags),
+        "claude": pool.submit(claude_ask, transcript, risk_flags),
+        "local": pool.submit(ask_local or _real_ask_local, transcript),
+    }
+    # Claude first: it owns the budget. Then Jev gets only a short grace if Claude answered.
+    wait([futures["claude"]], timeout=max(0.0, budget_end - time.monotonic()))
+    claude_answered = futures["claude"].done() and _answer(futures["claude"]) is not None
+    jev_end = time.monotonic() + config.JEV_GRACE_S if claude_answered else budget_end
+    wait(
+        [futures["jev"], futures["local"]],
+        timeout=max(0.0, min(budget_end, jev_end) - time.monotonic()),
+    )
     pool.shutdown(wait=False, cancel_futures=True)  # never wait on a hung model
     results: dict[str, TriageResult | None] = {}
     for name, future in futures.items():
-        if future not in done:
-            print(f"triage: {name} timed out after {config.TRIAGE_TIMEOUT_S:g}s")
+        if name == "local":
             continue
-        try:
-            results[name] = future.result()
-        except Exception as exc:  # a bug in one model's path must not stop the visit
-            print(f"triage: {name} crashed: {exc!r}")
-    return merge(results.get("jev"), results.get("claude"), transcript)
+        if not future.done():
+            print(f"triage: {name} did not answer in time, ignored")
+            continue
+        results[name] = _answer(future, name)
+    merged = merge(results.get("jev"), results.get("claude"), transcript)
+    score = _answer(futures["local"], "local") if futures["local"].done() else None
+    return raise_urgency(merged, score, SUMMARY_QUOTE.format(_last_resident_line(transcript)))
+
+
+def _answer(future, name: str = "model") -> TriageResult | None:
+    try:
+        return future.result()
+    except Exception as exc:  # a bug in one model's path must not stop the visit
+        print(f"triage: {name} crashed: {exc!r}")
+        return None
 
 
 def triage_and_post(

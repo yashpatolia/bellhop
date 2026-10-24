@@ -8,3 +8,5 @@ runs/
 AGENTS.md
 CLAUDE.md
 GOTCHAS.md
+# collected public text and labels for the local triage scorer (dev/train)
+dev/train/data/
