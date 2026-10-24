@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from rover import config
+from rover.speech import offline
 from rover.speech.flux import FluxStream
 from rover.speech.gates import FaceGate, Gates, block_dbfs
 from rover.speech.mic import Mic
@@ -206,3 +207,20 @@ def test_mic_half_duplex_mute_and_echo_tail():
     assert not mic.muted(stopped + config.ECHO_TAIL_S + 0.05)
     mic.set_speaking(False)  # a repeated "not speaking" must not restart the tail
     assert not mic.muted(stopped + config.ECHO_TAIL_S + 0.05)
+
+
+def test_moonshine_requires_a_complete_cached_model(tmp_path):
+    group = {
+        "base_url": "https://download.moonshine.ai/models/en/small-streaming",
+        "files": [{"name": "encoder.onnx"}, {"name": "decoder.onnx"}],
+    }
+    root = tmp_path / "download.moonshine.ai" / "models" / "en" / "small-streaming"
+    root.mkdir(parents=True)
+    (root / "encoder.onnx").write_bytes(b"model")
+
+    with pytest.raises(RuntimeError, match="decoder.onnx"):
+        offline.cached_model_path(tmp_path, group, "small-streaming")
+
+    (root / "decoder.onnx").write_bytes(b"model")
+    path, arch = offline.cached_model_path(tmp_path, group, "small-streaming")
+    assert path == str(root) and arch == "small-streaming"
