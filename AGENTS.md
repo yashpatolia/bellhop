@@ -1,21 +1,41 @@
 # AGENTS.md
 
-Entry point for any AI agent or new contributor. Read this, then `docs/architecture/README.md`.
+Entry point for any contributor or tooling. Read this, then [docs/architecture/README.md](docs/architecture/README.md).
 
 ## What this repo is
 Bellhop: a care-home robot that answers the call bell and escalates to a nurse only when needed.
 Product plan: `docs/plan/01-project.md`. Static overview pages: `artifacts/`.
-The Python backend (call state, dispatch, memory recall, staff alerts) lives in `backend/`.
+Current progress, gaps and handoffs: [docs/architecture/11-status.md](docs/architecture/11-status.md). Frontend API contract: [contracts/README.md](contracts/README.md).
+
+## Layout
+```
+backend/src/bellhop/   domain, ports, services, adapters, api, fetchai, labelled, container.py
+backend/tests/         unit/ and integration/ (mirror src)
+backend/scripts/       demo_scenes.py, export_contract.py
+contracts/             openapi.json + example payloads (drift-tested)
+spacetimedb/           TypeScript module for the optional SpacetimeDB store
+docs/architecture/     module map, decisions, testing, status (00 to 11)
+docs/plan/             product plan and research (read-only)
+artifacts/             static HTML overview pages
+tools/                 Node tooling (local node_modules)
+.github/workflows/     backend.yml: lint, format check, tests
+```
 
 ## Commands (run from `backend/`)
 ```
-uv sync                      # install
-uv run pytest                # all tests (must stay green)
-uv run pytest tests/unit     # fast loop
-uv run ruff check src tests  # lint
-uv run ruff format src tests # format
+uv sync                                  # install
+uv run pytest                            # all tests (must stay green; includes contract drift)
+uv run pytest tests/unit                 # fast loop
+uv run ruff check src tests scripts      # lint
+uv run ruff format src tests scripts     # format
+BELLHOP_SEED_DEMO=1 uv run uvicorn bellhop.api.main:app --port 8000   # run the API
+uv run python scripts/demo_scenes.py     # play the three demo scenes against a running server
+uv run python scripts/export_contract.py # regenerate contracts/ after an API change
 ```
-Use `uv` for everything. Never `pip install`; add deps with `uv add [--dev] <pkg>`.
+Use `uv` for everything. Never `pip install`; add deps with `uv add [--dev] <pkg>`. CI (`.github/workflows/backend.yml`) runs lint, format check and `uv run pytest`.
+
+## Exploring the code
+This repo has a CodeGraph index (`.codegraph/`, git-ignored). Use it for exploration instead of grepping. Refresh with `codegraph sync`; if results look stale, run a full `codegraph index`.
 
 ## Environments (isolation rule)
 Not Python-only: TypeScript/Node is fine where it fits (SpacetimeDB module, dashboard, tooling). Always isolate:
@@ -35,4 +55,4 @@ Not Python-only: TypeScript/Node is fine where it fits (SpacetimeDB module, dash
 7. Keep files small and single-purpose. Public behaviour is documented in `docs/architecture/`; update docs in the same change.
 
 ## Where things go
-See `docs/architecture/01-module-map.md`. To extend (new sponsor adapter, new dispatch rule, new alert channel) see `docs/architecture/02-extension-guide.md`.
+See [01-module-map.md](docs/architecture/01-module-map.md). To extend (new adapter, dispatch rule, alert channel) see [02-extension-guide.md](docs/architecture/02-extension-guide.md).

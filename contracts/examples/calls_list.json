@@ -1,6 +1,6 @@
 [
   {
-    "id": "call_85da1170",
+    "id": "call_3fa133be",
     "room": "12",
     "resident_id": "res_margaret",
     "urgency": 4,
@@ -15,13 +15,13 @@
     "nurse_tasks": [
       "nurse_sam"
     ],
-    "created_at": "2026-10-24T03:29:55.192311Z",
-    "assigned_at": "2026-10-24T03:29:55.192424Z",
+    "created_at": "2026-10-24T03:42:40.826584Z",
+    "assigned_at": "2026-10-24T03:42:40.826699Z",
     "first_response_at": null,
     "resolved_at": null
   },
   {
-    "id": "call_1d8940e1",
+    "id": "call_2fd5a3e8",
     "room": "12",
     "resident_id": "res_margaret",
     "urgency": 3,
@@ -31,7 +31,7 @@
       {
         "speaker": "resident",
         "text": "My hip aches",
-        "at": "2026-10-24T03:29:55.181652Z"
+        "at": "2026-10-24T03:42:40.804410Z"
       }
     ],
     "summary": "Hip pain since last night",
@@ -43,13 +43,13 @@
     "nurse_tasks": [
       "nurse_priya"
     ],
-    "created_at": "2026-10-24T03:29:55.177782Z",
-    "assigned_at": "2026-10-24T03:29:55.177889Z",
+    "created_at": "2026-10-24T03:42:40.799987Z",
+    "assigned_at": "2026-10-24T03:42:40.800114Z",
     "first_response_at": null,
     "resolved_at": null
   },
   {
-    "id": "call_d88b8b18",
+    "id": "call_41a43806",
     "room": "12",
     "resident_id": "res_margaret",
     "urgency": 1,
@@ -63,9 +63,9 @@
     ],
     "robot_id": "robot_1",
     "nurse_tasks": [],
-    "created_at": "2026-10-24T03:29:55.159474Z",
-    "assigned_at": "2026-10-24T03:29:55.159604Z",
+    "created_at": "2026-10-24T03:42:40.782871Z",
+    "assigned_at": "2026-10-24T03:42:40.783013Z",
     "first_response_at": null,
-    "resolved_at": "2026-10-24T03:29:55.169405Z"
+    "resolved_at": "2026-10-24T03:42:40.792141Z"
   }
 ]

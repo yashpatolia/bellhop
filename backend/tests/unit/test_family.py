@@ -97,8 +97,9 @@ def test_postcard_cheerful_and_capped(clock, ids):
     svc, _ = _svc(clock, ids, *entries)
     lines = svc.daily_postcard("r1", NOW)
     assert 1 <= len(lines) <= 3
-    assert "Talked about her roses" in lines
     assert "Enjoyed some juice" in lines
+    assert "Was in good spirits" in lines
+    assert not any("roses" in line or "checkers" in line for line in lines)  # notes not echoed
 
 
 def test_postcard_good_mood_only(clock, ids):

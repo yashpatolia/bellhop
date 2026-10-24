@@ -8,5 +8,10 @@
 | [03-agent-roles.md](03-agent-roles.md) | You are an AI agent picking up work: roles, handoffs, definition of done |
 | [04-decisions.md](04-decisions.md) | You wonder why something is the way it is, or want to change it |
 | [05-testing.md](05-testing.md) | You are writing tests |
+| [06-integrations.md](06-integrations.md) | You need sponsor facts: SpacetimeDB, Moss, Fetch.ai |
+| [07-tech-scout.md](07-tech-scout.md) | You want library verdicts and bottleneck notes |
+| [09-hardware-interface.md](09-hardware-interface.md) | You are building the Pi, bell button or LEDs (Jeremy) |
+| [10-review.md](10-review.md) | You want the independent review findings |
+| [11-status.md](11-status.md) | You need what is done, verified, blocked and next, with test numbers |
 
 Scope: the `backend/` package `bellhop`. Robot firmware (Jeremy), triage model (Gordon) and React dashboard (Yash) integrate through the interfaces in the module map.

@@ -1,11 +1,13 @@
 """Family voice notes, resident replies and the daily postcard.
 
-Postcards are built only from recorded, positive, non-medical entries. Pain and urgency
-never appear in them.
+Postcards are built only from structured care entries (mood bucket, drink taken with an
+allowlisted drink name). Free-text notes are never echoed, so pain, urgency, medication and
+nurse wording cannot appear.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, time
 
 from bellhop.domain.care import CareEntry, EntryKind, FamilyMessage, MessageDirection
@@ -14,16 +16,19 @@ from bellhop.ports.care import CareRepository, FamilyMessageRepository
 
 _QUIET_LINE = "Had a quiet day and enjoyed a visit from the robot"
 _MAX_LINES = 3
-_BLOCKED = (
-    "pain", "hurt", "ache", "sore", "nurse", "urgent", "alert", "dizzy", "fall", "fell",
-    "medic", "pill", "doctor", "sick", "bleed", "sad", "cry", "upset", "angry", "confus",
-    "scared", "worr", "complain", "lonely", "bad", "afraid", "distress",
-)  # fmt: skip
+# Privacy by construction: postcard text is never copied from free-text notes. Lines come from
+# fixed templates, and the only note-derived content is a drink name found in this allowlist.
+_DRINKS = frozenset(
+    "tea coffee juice water milk cocoa chocolate lemonade squash cordial smoothie".split()
+)
+_WORD = re.compile(r"\w+")
 
 
-def _safe(text: str) -> bool:
-    low = text.lower()
-    return bool(text.strip()) and not any(b in low for b in _BLOCKED)
+def _drink_name(note: str) -> str | None:
+    for word in _WORD.findall(note.lower()):
+        if word in _DRINKS:
+            return word
+    return None
 
 
 class FamilyService:
@@ -87,12 +92,9 @@ class FamilyService:
 
     @staticmethod
     def _line(e: CareEntry) -> str | None:
-        if e.kind == EntryKind.MOOD and e.value is not None and e.value >= 3:
-            if e.note and _safe(e.note):
-                return e.note[0].upper() + e.note[1:]
-            return "Was in good spirits" if e.value >= 4 else None
+        if e.kind == EntryKind.MOOD and e.value is not None and e.value >= 4:
+            return "Was in good spirits"
         if e.kind == EntryKind.DRINK:
-            if e.note and _safe(e.note):
-                return f"Enjoyed some {e.note}"
-            return "Enjoyed a drink"
+            drink = _drink_name(e.note) if e.note else None
+            return f"Enjoyed some {drink}" if drink else "Enjoyed a drink"
         return None

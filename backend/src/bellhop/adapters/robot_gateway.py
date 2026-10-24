@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from bellhop.adapters.notifiers import BoundedLog
+
 
 class RecordingRobotGateway:
     """Default RobotGateway: records commands. The real Pi-backed gateway replaces it."""
 
     def __init__(self) -> None:
-        self.commands: list[tuple[str, str, str]] = []
+        self.commands: BoundedLog = BoundedLog()  # last 1000 (kind, robot_id, arg)
 
     def go_to(self, robot_id: str, room: str) -> None:
         self.commands.append(("go_to", robot_id, room))

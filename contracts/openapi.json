@@ -28,38 +28,23 @@
       }
     },
     "/calls": {
-      "get": {
-        "summary": "List Calls",
-        "operationId": "list_calls_calls_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Call"
-                  },
-                  "type": "array",
-                  "title": "Response List Calls Calls Get"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "summary": "Create Call",
         "operationId": "create_call_calls_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RaiseCall"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -83,12 +68,66 @@
             }
           }
         }
+      },
+      "get": {
+        "summary": "List Calls",
+        "operationId": "list_calls_calls_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Call"
+                  },
+                  "title": "Response List Calls Calls Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/calls/{call_id}": {
       "get": {
         "summary": "Read Call",
         "operationId": "read_call_calls__call_id__get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -128,6 +167,11 @@
       "post": {
         "summary": "Add Turn",
         "operationId": "add_turn_calls__call_id__turns_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -177,6 +221,11 @@
       "post": {
         "summary": "Score",
         "operationId": "score_calls__call_id__score_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -226,6 +275,11 @@
       "post": {
         "summary": "Triage Failed",
         "operationId": "triage_failed_calls__call_id__triage_failed_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -265,6 +319,11 @@
       "get": {
         "summary": "Visit Note",
         "operationId": "visit_note_calls__call_id__note_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -306,6 +365,11 @@
       "post": {
         "summary": "In Visit",
         "operationId": "in_visit_calls__call_id__in_visit_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -345,6 +409,11 @@
       "post": {
         "summary": "Resolve",
         "operationId": "resolve_calls__call_id__resolve_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "call_id",
@@ -397,10 +466,98 @@
         }
       }
     },
+    "/calls/{call_id}/override": {
+      "post": {
+        "summary": "Override",
+        "description": "Nurse corrects the robot's urgency; feeds GET /labelled-examples.",
+        "operationId": "override_calls__call_id__override_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverrideIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Call"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labelled-examples": {
+      "get": {
+        "summary": "Labelled Examples",
+        "operationId": "labelled_examples_labelled_examples_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Labelled Examples Labelled Examples Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
     "/alerts/{alert_id}/ack": {
       "post": {
         "summary": "Ack",
         "operationId": "ack_alerts__alert_id__ack_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "alert_id",
@@ -450,17 +607,46 @@
       "get": {
         "summary": "List Alerts",
         "operationId": "list_alerts_alerts_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/Alert"
                   },
-                  "type": "array",
                   "title": "Response List Alerts Alerts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -472,6 +658,11 @@
       "get": {
         "summary": "Recall",
         "operationId": "recall_residents__resident_id__memory_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -488,6 +679,7 @@
             "required": false,
             "schema": {
               "type": "string",
+              "maxLength": 500,
               "default": "",
               "title": "Q"
             }
@@ -498,6 +690,8 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
               "default": 3,
               "title": "K"
             }
@@ -533,6 +727,11 @@
       "post": {
         "summary": "Remember",
         "operationId": "remember_residents__resident_id__memory_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -578,6 +777,11 @@
       "delete": {
         "summary": "Forget All",
         "operationId": "forget_all_residents__resident_id__memory_delete",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -621,6 +825,11 @@
       "get": {
         "summary": "Pending Memory",
         "operationId": "pending_memory_residents__resident_id__memory_pending_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -664,6 +873,11 @@
       "post": {
         "summary": "Approve Memory",
         "operationId": "approve_memory_residents__resident_id__memory_pending__pending_id__approve_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -712,6 +926,11 @@
       "post": {
         "summary": "Reject Memory",
         "operationId": "reject_memory_residents__resident_id__memory_pending__pending_id__reject_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -764,6 +983,11 @@
       "delete": {
         "summary": "Forget Fact",
         "operationId": "forget_fact_residents__resident_id__memory__fact_id__delete",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -805,6 +1029,11 @@
       "post": {
         "summary": "Record Care",
         "operationId": "record_care_residents__resident_id__care_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -854,6 +1083,11 @@
       "get": {
         "summary": "Care Summary",
         "operationId": "care_summary_residents__resident_id__care_summary_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -895,6 +1129,11 @@
       "get": {
         "summary": "List Flags",
         "operationId": "list_flags_flags_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -955,6 +1194,11 @@
       "post": {
         "summary": "Resolve Flag",
         "operationId": "resolve_flag_flags__flag_id__resolve_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "flag_id",
@@ -994,6 +1238,11 @@
       "put": {
         "summary": "Update Resident",
         "operationId": "update_resident_residents__resident_id__put",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1043,6 +1292,11 @@
       "get": {
         "summary": "Reminiscence",
         "operationId": "reminiscence_residents__resident_id__reminiscence_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1060,7 +1314,7 @@
             "schema": {
               "type": "integer",
               "maximum": 20,
-              "minimum": 0,
+              "minimum": 1,
               "default": 3,
               "title": "K"
             }
@@ -1098,6 +1352,11 @@
       "post": {
         "summary": "Ingest Reminiscence",
         "operationId": "ingest_reminiscence_residents__resident_id__reminiscence_ingest_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1115,7 +1374,7 @@
             "schema": {
               "type": "integer",
               "maximum": 20,
-              "minimum": 0,
+              "minimum": 1,
               "default": 5,
               "title": "K"
             }
@@ -1153,6 +1412,11 @@
       "get": {
         "summary": "Get Preferences",
         "operationId": "get_preferences_residents__resident_id__preferences_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1190,6 +1454,11 @@
       "put": {
         "summary": "Put Preferences",
         "operationId": "put_preferences_residents__resident_id__preferences_put",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1239,6 +1508,11 @@
       "get": {
         "summary": "Speech Settings",
         "operationId": "speech_settings_residents__resident_id__speech_settings_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1280,6 +1554,11 @@
       "post": {
         "summary": "Leave Voice Note",
         "operationId": "leave_voice_note_residents__resident_id__family_messages_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1327,6 +1606,11 @@
       "get": {
         "summary": "Family Messages",
         "operationId": "family_messages_residents__resident_id__family_messages_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1370,6 +1654,11 @@
       "post": {
         "summary": "Record Reply",
         "operationId": "record_reply_residents__resident_id__family_replies_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1419,6 +1708,11 @@
       "get": {
         "summary": "Postcard",
         "operationId": "postcard_residents__resident_id__postcard_get",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "resident_id",
@@ -1480,13 +1774,23 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
       }
     },
     "/robots/{robot_id}": {
       "put": {
         "summary": "Report Robot",
         "operationId": "report_robot_robots__robot_id__put",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
         "parameters": [
           {
             "name": "robot_id",
@@ -1549,7 +1853,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
       }
     }
   },
@@ -1559,6 +1868,7 @@
         "properties": {
           "nurse_id": {
             "type": "string",
+            "maxLength": 64,
             "title": "Nurse Id"
           }
         },
@@ -1856,13 +2166,15 @@
           },
           "note": {
             "type": "string",
+            "maxLength": 500,
             "title": "Note",
             "default": ""
           },
           "call_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 64
               },
               {
                 "type": "null"
@@ -2079,17 +2391,21 @@
         "properties": {
           "text": {
             "type": "string",
+            "maxLength": 2000,
             "title": "Text"
           },
           "tags": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 32
             },
             "type": "array",
+            "maxItems": 10,
             "title": "Tags"
           },
           "source": {
             "type": "string",
+            "maxLength": 32,
             "title": "Source",
             "default": "conversation"
           },
@@ -2114,6 +2430,33 @@
           "from_resident"
         ],
         "title": "MessageDirection"
+      },
+      "OverrideIn": {
+        "properties": {
+          "urgency": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Urgency"
+          },
+          "nurse_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nurse Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "urgency"
+        ],
+        "title": "OverrideIn"
       },
       "PendingFact": {
         "properties": {
@@ -2232,7 +2575,8 @@
           "favourite_drink": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 64
               },
               {
                 "type": "null"
@@ -2249,6 +2593,7 @@
         "properties": {
           "room": {
             "type": "string",
+            "maxLength": 32,
             "title": "Room"
           }
         },
@@ -2373,7 +2718,8 @@
           "room": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 32
               },
               {
                 "type": "null"
@@ -2409,12 +2755,14 @@
           },
           "category": {
             "type": "string",
+            "maxLength": 64,
             "title": "Category"
           },
           "summary": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 500
               },
               {
                 "type": "null"
@@ -2486,10 +2834,12 @@
         "properties": {
           "speaker": {
             "type": "string",
+            "maxLength": 32,
             "title": "Speaker"
           },
           "text": {
             "type": "string",
+            "maxLength": 2000,
             "title": "Text"
           }
         },
@@ -2549,6 +2899,13 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
       }
     }
   }

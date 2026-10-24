@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from bellhop.domain import MemoryFact
 
 TEXT_WEIGHT = 1.0
 TAG_WEIGHT = 2.0
 
-_WORD = re.compile(r"[a-z0-9]+")
+# Scripts written without spaces between words: index them as character bigrams.
+_UNSPACED = "\u0e00-\u0e7f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af"
+_WORD = re.compile(rf"[{_UNSPACED}]+|[^\W_{_UNSPACED}]+|[^\w\s]")
 _STOPWORDS = frozenset(
     """a an and any are as at be been but by can could did do does for from get got had has have
     her him his how i if in is it its me my of on or our she so some that the their them then
@@ -19,14 +22,21 @@ _STOPWORDS = frozenset(
 
 
 def tokenize(text: str) -> set[str]:
-    """Lowercased content words with a trivial plural stem (sugars -> sugar)."""
-    out = set()
-    for word in _WORD.findall(text.lower()):
-        if word in _STOPWORDS:
-            continue
-        if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
-            word = word[:-1]
-        out.add(word)
+    """Lowercased content words (unicode aware) with a trivial plural stem.
+
+    Unspaced scripts (CJK, Thai) become character bigrams; emoji count as one token each.
+    """
+    out: set[str] = set()
+    for word in _WORD.findall(text.casefold()):
+        if re.match(f"[{_UNSPACED}]", word):
+            out.update(word[i : i + 2] for i in range(max(len(word) - 1, 1)))
+        elif len(word) == 1 and not word.isalnum():
+            if unicodedata.category(word) in ("So", "Sk"):
+                out.add(word)
+        elif word not in _STOPWORDS:
+            if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+                word = word[:-1]
+            out.add(word)
     return out
 
 
@@ -54,7 +64,7 @@ class _ResidentIndex:
     def recall(self, utterance: str, k: int) -> list[MemoryFact]:
         scores: dict[str, float] = {}
         for token in tokenize(utterance):
-            for fact_id, weight in self.postings.get(token, {}).items():
+            for fact_id, weight in list(self.postings.get(token, {}).items()):
                 scores[fact_id] = scores.get(fact_id, 0.0) + weight
         # Highest score, then most recent, then id, so ordering is deterministic.
         ranked = sorted(

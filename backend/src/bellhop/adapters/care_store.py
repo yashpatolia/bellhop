@@ -44,7 +44,7 @@ class _Flags:
     def list(self, resident_id: str | None = None, open_only: bool = True) -> list[Flag]:
         return [
             f.model_copy(deep=True)
-            for f in self._items.values()
+            for f in list(self._items.values())
             if (resident_id is None or f.resident_id == resident_id)
             and (not open_only or f.resolved_at is None)
         ]

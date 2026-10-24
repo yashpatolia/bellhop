@@ -44,6 +44,11 @@ Read from the environment by `Settings.from_env` in `src/bellhop/container.py`.
 | `BELLHOP_ROBOT_URL` | unset | Robot HTTP gateway URL |
 | `BELLHOP_CONTENT` | `local` | Reminiscence content: `local`, `wikipedia` or `apify` |
 | `APIFY_TOKEN` | unset | Apify API token |
+| `BELLHOP_API_KEY` | unset | Shared secret. When set, every route except `GET /health` needs header `X-API-Key` (401 otherwise). Unset = open (dev) |
+| `BELLHOP_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins, e.g. `http://localhost:5173`. Use the dashboard origin outside dev |
+| `BELLHOP_ALLOW_NEW_ROBOTS` | `1` | `0` makes `PUT /robots/{id}` update known robots only (404 otherwise). Default lets the Pi self-register in the demo |
+
+`BELLHOP_ROBOT_URL` and `BELLHOP_STDB_URL` must be `http://` or `https://` (build fails otherwise). Request bodies are capped at 1 MB (413) and string fields have length limits (422).
 
 Keep secrets in env vars or a git-ignored `.env`, never in the repo.
 
