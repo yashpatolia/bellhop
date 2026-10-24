@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from bellhop.api.deps import AlertNotFound, ack_alert, get_call
 from bellhop.container import Container
-from bellhop.domain import Alert, Call, InvalidTransition, MemoryFact, Urgency
+from bellhop.domain import Alert, Call, InvalidTransition, MemoryFact, Robot, RobotStatus, Urgency
 from bellhop.services.call_service import CallNotFound
 
 
@@ -32,6 +32,12 @@ class ScoreIn(BaseModel):
 
 class ResolveIn(BaseModel):
     by_robot: bool = True
+
+
+class RobotReport(BaseModel):
+    status: RobotStatus
+    battery: float = Field(ge=0, le=1)
+    room: str | None = None
 
 
 class AckIn(BaseModel):
@@ -112,6 +118,23 @@ def create_app(container: Container) -> FastAPI:
     @app.post("/residents/{resident_id}/memory", status_code=201)
     def remember(resident_id: str, body: MemoryIn) -> MemoryFact:
         return container.memory.remember(resident_id, body.text, body.tags)
+
+    @app.get("/robots")
+    def list_robots() -> list[Robot]:
+        return container.store.robots.list_all()
+
+    @app.put("/robots/{robot_id}")
+    def report_robot(robot_id: str, body: RobotReport) -> Robot:
+        robots = container.store.robots
+        robot = robots.get(robot_id) or Robot(id=robot_id)
+        holds_call = any(c.robot_id == robot_id for c in container.store.calls.list_open())
+        # A robot with an open call stays busy: only a resolved call frees it (safer than
+        # trusting a stale "idle" report). Battery and room are still applied.
+        if not (holds_call and body.status is RobotStatus.IDLE):
+            robot.status = body.status
+        robot.battery, robot.room = body.battery, body.room
+        robots.save(robot)
+        return robot
 
     @app.get("/metrics")
     def metrics() -> dict[str, Any]:

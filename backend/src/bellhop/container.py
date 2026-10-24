@@ -15,6 +15,7 @@ from bellhop.adapters.guards import (
     GuardedRobotGateway,
     SerializedSubscriptions,
 )
+from bellhop.adapters.http_robot_gateway import HttpRobotGateway
 from bellhop.adapters.local_memory import LocalMemoryIndex
 from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.adapters.moss_memory import MossMemoryIndex
@@ -30,6 +31,7 @@ from bellhop.services.dispatcher import DefaultPolicy, Dispatcher
 from bellhop.services.feedback import FeedbackService
 from bellhop.services.liaison import Liaison
 from bellhop.services.memory_service import MemoryService
+from bellhop.services.robot_signals import RobotSignals
 from bellhop.services.workload import Workload
 
 log = logging.getLogger(__name__)
@@ -49,6 +51,7 @@ class Settings:
     notifier_timeout: float = 2.0
     gateway_timeout: float = 2.0
     memory_budget_ms: float = 50
+    robot_url: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -63,6 +66,7 @@ class Settings:
             moss_project_id=env.get("MOSS_PROJECT_ID"),
             moss_project_key=env.get("MOSS_PROJECT_KEY"),
             guard_timeouts=env.get("BELLHOP_GUARDS", "1") != "0",
+            robot_url=env.get("BELLHOP_ROBOT_URL") or None,
         )
 
 
@@ -71,7 +75,7 @@ class Container:
     store: InMemoryStore | SpacetimeDBStore
     bus: InMemoryEventBus
     notifier: RecordingNotifier
-    gateway: RecordingRobotGateway
+    gateway: RecordingRobotGateway | HttpRobotGateway
     memory: MemoryService
     call_service: CallService
     dispatcher: Dispatcher
@@ -125,7 +129,12 @@ def build_container(
     settings = settings or Settings()
     clock, ids = SystemClock(), UuidIds()
     store, bus = _build_store(settings, stdb_client), InMemoryEventBus()
-    notifier, gateway = RecordingNotifier(), RecordingRobotGateway()
+    notifier = RecordingNotifier()
+    gateway: RecordingRobotGateway | HttpRobotGateway = (
+        HttpRobotGateway(settings.robot_url, settings.gateway_timeout)
+        if settings.robot_url
+        else RecordingRobotGateway()
+    )
     guarded_notifier = guarded_gateway = None
     out_notifier: Notifier = notifier
     out_gateway: RobotGateway = gateway
@@ -161,6 +170,7 @@ def build_container(
         guarded_notifier=guarded_notifier,
         guarded_gateway=guarded_gateway,
     )
+    RobotSignals(store.calls, out_gateway, bus)
     if settings.seed_demo:
         seed_demo(store, memory)
     return container

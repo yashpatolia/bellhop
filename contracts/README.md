@@ -5,7 +5,7 @@ Source of truth for the dashboard (and anything else that talks to the backend).
 | File | What it is |
 | --- | --- |
 | `openapi.json` | OpenAPI 3 spec generated from the live FastAPI app. A backend test fails if it drifts |
-| `examples/*.json` | Real responses from the three demo scenes. Use them as mock data before the backend runs |
+| `examples/*.json` | Real responses from the three demo scenes (plus `robots.json`). Use them as mock data before the backend runs |
 
 ## Get typed fast
 ```
@@ -32,6 +32,8 @@ Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses
 | `POST /calls/{id}/score {urgency, category, summary?}` | Triage result; urgency 1 to 4 |
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
+| `GET /robots` | Robots with `status`, `battery`, `room` |
+| `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created. An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
 | `GET /alerts` | Alerts for nurses, newest first |
 | `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
 | `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |

@@ -498,6 +498,77 @@
         }
       }
     },
+    "/robots": {
+      "get": {
+        "summary": "List Robots",
+        "operationId": "list_robots_robots_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Robot"
+                  },
+                  "type": "array",
+                  "title": "Response List Robots Robots Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/robots/{robot_id}": {
+      "put": {
+        "summary": "Report Robot",
+        "operationId": "report_robot_robots__robot_id__put",
+        "parameters": [
+          {
+            "name": "robot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Robot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RobotReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Robot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "summary": "Metrics",
@@ -837,6 +908,79 @@
         },
         "type": "object",
         "title": "ResolveIn"
+      },
+      "Robot": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RobotStatus",
+            "default": "idle"
+          },
+          "battery": {
+            "type": "number",
+            "title": "Battery",
+            "default": 1.0
+          },
+          "room": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Robot"
+      },
+      "RobotReport": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RobotStatus"
+          },
+          "battery": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "battery"
+        ],
+        "title": "RobotReport"
+      },
+      "RobotStatus": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "busy",
+          "charging",
+          "fault"
+        ],
+        "title": "RobotStatus"
       },
       "ScoreIn": {
         "properties": {
