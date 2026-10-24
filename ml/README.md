@@ -119,6 +119,47 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 
 On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:<robot server port>`.
 
+### Safe stationary conversation test
+
+Use this before any drive test. It exercises the complete voice path—bell call, Moonshine
+transcription, Claude reply, Piper playback and backend triage—while deliberately preventing all
+drive commands. The backend must be started with `BELLHOP_ROBOT_URL` **unset** for this test.
+
+On the Pi, first confirm that the configured backend answers. `API` is read from `.env`, so no
+machine address is baked into code or the command:
+
+```bash
+cd ~/ml
+API=$(sed -n 's/^BELLHOP_API=//p' .env | tail -n 1)
+curl --max-time 5 -sS "$API/health"
+```
+
+Stop an existing speech listener before starting a manual one. This prevents two processes from
+competing for the microphone:
+
+```bash
+sudo systemctl stop bellhop-speech 2>/dev/null || true
+pkill -f '[r]over\.speech' 2>/dev/null || true
+```
+
+Then create one demo call and start the voice process. `--call` forces an immediate greeting for
+that call, `--no-face` avoids requiring the camera during the audio test, and `--no-status` avoids
+status polling. The temporary `PI_SERVER_URL` points to an unused local port only for this command;
+it prevents the normal end-of-visit `/go_to` home command from reaching `rover.drive`.
+
+```bash
+CALL_ID=$(curl -fsS -X POST "$API/calls" \
+  -H 'Content-Type: application/json' \
+  -d '{"room":"12"}' | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+echo "Call: $CALL_ID"
+PI_SERVER_URL=http://127.0.0.1:9 .venv/bin/python -m rover.speech \
+  --call "$CALL_ID" --room 12 --no-face --no-status
+```
+
+Wait for the greeting before speaking. Press `Ctrl-C` to stop the voice process. Restore the usual
+`PI_SERVER_URL` from `.env` only when the drive safety checklist has passed and a physical drive
+test is intended.
+
 ## Integration
 
 **Vision message.** `rover.vision` sends one JSON per frame over UDP to `127.0.0.1:5005` (voice) and `127.0.0.1:5006` (driving):
