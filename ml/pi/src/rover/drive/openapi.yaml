@@ -23,7 +23,8 @@ paths:
               properties:
                 room:
                   type: string
-                  enum: ["lobby", "12", "14"]
+                  minLength: 1
+                  description: Configured logical room name or direct ArUco marker ID (0-249).
       responses:
         "202":
           description: Accepted, driving started
