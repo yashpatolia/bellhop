@@ -1,0 +1,18 @@
+[Unit]
+Description=Bellhop speech and visit loop
+After=network-online.target bellhop-drive.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/ml
+EnvironmentFile=/etc/bellhop/env
+ExecStart=/home/pi/ml/.venv/bin/python -m rover.speech
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

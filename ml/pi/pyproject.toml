@@ -1,0 +1,70 @@
+[project]
+name = "rover"
+version = "0.1.0"
+description = "Bellhop robot: on-robot vision, speech, agent context and triage"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # Python 3.11 (Bookworm Pi, laptop): numpy 1.x keeps apt's picamera2 working there.
+    # Python 3.13 (Trixie Pi): fastembed needs numpy >= 2.1, and 3.13 wheels need numpy 2 anyway.
+    "numpy>=1.26,<2; python_version < '3.12'",
+    "numpy>=2.1; python_version >= '3.12'",
+    "opencv-python==4.11.0.86",
+    "ultralytics==8.4.184",
+    "lap==0.5.13",
+    "ncnn==1.0.20261020",
+    "torch==2.14.1",
+    "torchvision==0.29.1",
+    "pysilero-vad==3.4.0",
+    "deepgram-sdk==7.14.0",
+    "moonshine-voice==0.1.5",
+    "piper-tts==1.8.0",
+    "sounddevice==0.5.6",
+    "anthropic==2.2.0",
+    "typesafe-sdk==0.7.5",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.4",
+    "fastembed>=0.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+    "pnnx==20260526",
+]
+fuzz = [
+    "schemathesis>=4.32.4",
+]
+train = [
+    "apify-client>=3.3.0",
+    "huggingface-hub>=1.33.0",
+    "polars>=2.0.0",
+    "scikit-learn>=1.9.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+# torch on PyPI pulls CUDA packages on any Linux; the Pi needs the CPU-only wheels
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "../tests", "../dev"]
+cache-dir = "../.ruff_cache"  # keep pi/ to what the Pi needs
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["../tests"]  # tests stay on the Mac, outside the folder sent to the Pi
+addopts = "-q"
+cache_dir = "../.pytest_cache"
