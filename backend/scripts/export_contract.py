@@ -59,6 +59,7 @@ def main() -> None:
     dump(ex / "speech_settings.json", c.get(f"{r}/speech-settings").json())
     container.care_signals.raise_flag("res_margaret", "pain", "pain mentioned 3 days in a row")
     dump(ex / "flags.json", c.get("/flags").json())
+    dump(ex / "reminiscence.json", c.get(f"{r}/reminiscence", params={"k": 3}).json())
     c.post(f"{r}/memory", json={"text": "Has a grandson named Theo", "confidence": 0.3})
     dump(ex / "memory_pending.json", c.get(f"{r}/memory/pending").json())
 

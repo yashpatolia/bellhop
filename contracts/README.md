@@ -36,6 +36,9 @@ Demo data: residents Margaret (room 12, falls risk) and Arthur (room 14), nurses
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
 | `GET /robots` | Robots with `status`, `battery`, `room` |
 | `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created. An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
+| `PUT /residents/{id} {birth_year}` | Set the resident's birth year (1880 to 2015, else 422; unknown id 404). Needed for reminiscence |
+| `GET /residents/{id}/reminiscence?k=3` | Era-appropriate `ContentItem`s `{id, kind song|film|news|event, year, title, blurb}` from the resident's youth (ages 15-25); empty list without a birth year. Source chosen by `BELLHOP_CONTENT` (`local` default, `wikipedia`, `apify`). See `examples/reminiscence.json` |
+| `POST /residents/{id}/reminiscence/ingest?k=5` | Store the era items as memory facts tagged `reminiscence`; returns the 201 list of `MemoryFact`s. Run it at ingest time, not in the voice loop |
 | `GET /alerts` | Alerts for nurses, newest first |
 | `POST /alerts/{id}/ack {nurse_id}` | Nurse taps "on my way" |
 | `GET /metrics` | Savings counter: `resolved_without_nurse`, `minutes_saved`, `share_answered_within_10min`, `calls_by_hour/room/category` |

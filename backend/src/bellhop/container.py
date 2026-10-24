@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from bellhop.adapters.apify_content import ApifyContentFeed
 from bellhop.adapters.care_store import InMemoryCareStore
 from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
 from bellhop.adapters.event_bus import InMemoryEventBus
@@ -18,13 +19,16 @@ from bellhop.adapters.guards import (
     SerializedSubscriptions,
 )
 from bellhop.adapters.http_robot_gateway import HttpRobotGateway
+from bellhop.adapters.local_content import LocalContentFeed
 from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.adapters.moss_memory import MossMemoryIndex
 from bellhop.adapters.notifiers import RecordingNotifier
 from bellhop.adapters.robot_gateway import RecordingRobotGateway
 from bellhop.adapters.spacetimedb_store import SpacetimeDBStore
 from bellhop.adapters.system import SystemClock, UuidIds
+from bellhop.adapters.wikipedia_content import WikipediaContentFeed
 from bellhop.ports import Clock, EventBus, MemoryIndex, Notifier, RobotGateway
+from bellhop.ports.content import ContentFeed
 from bellhop.seed import seed_demo
 from bellhop.services.analytics import Analytics
 from bellhop.services.call_service import CallService
@@ -36,6 +40,7 @@ from bellhop.services.liaison import Liaison
 from bellhop.services.memory_guard import MemoryGuard
 from bellhop.services.memory_service import MemoryService
 from bellhop.services.preferences_service import PreferencesService
+from bellhop.services.reminiscence import ReminiscenceService
 from bellhop.services.robot_signals import RobotSignals
 from bellhop.services.triage_guard import TriageGuard
 from bellhop.services.visit_notes import VisitNotes
@@ -59,6 +64,8 @@ class Settings:
     gateway_timeout: float = 2.0
     memory_budget_ms: float = 50
     robot_url: str | None = None
+    content: str = "local"  # local | wikipedia | apify
+    apify_token: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -74,6 +81,8 @@ class Settings:
             moss_project_key=env.get("MOSS_PROJECT_KEY"),
             guard_timeouts=env.get("BELLHOP_GUARDS", "1") != "0",
             robot_url=env.get("BELLHOP_ROBOT_URL") or None,
+            content=env.get("BELLHOP_CONTENT", "local"),
+            apify_token=env.get("APIFY_TOKEN") or None,
         )
 
 
@@ -98,6 +107,7 @@ class Container:
     preferences: PreferencesService
     memory_guard: MemoryGuard
     triage_guard: TriageGuard
+    reminiscence: ReminiscenceService
     # Guarded wrappers actually injected into services (None when guards are off).
     guarded_notifier: GuardedNotifier | None = None
     guarded_gateway: GuardedRobotGateway | None = None
@@ -114,6 +124,17 @@ def _memory_index(
             return GuardedMemoryIndex(moss, local, settings.memory_budget_ms), local
         return moss, local
     return local, local
+
+
+def _content_feed(settings: Settings) -> ContentFeed:
+    local = LocalContentFeed()
+    if settings.content == "local":
+        return local
+    if settings.content == "wikipedia":
+        return WikipediaContentFeed(local)
+    if settings.content == "apify":
+        return ApifyContentFeed(local, settings.apify_token)
+    raise ValueError(f"unsupported content feed: {settings.content}")
 
 
 def _build_store(
@@ -197,6 +218,7 @@ def build_container(
         preferences=PreferencesService(care_store.preferences, clock),
         memory_guard=MemoryGuard(memory, local_index),
         triage_guard=TriageGuard(),
+        reminiscence=ReminiscenceService(_content_feed(settings), memory, store.residents),
         guarded_notifier=guarded_notifier,
         guarded_gateway=guarded_gateway,
     )

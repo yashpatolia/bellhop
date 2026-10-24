@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import httpx
 
-from bellhop.adapters.apify_content import ApifyContentFeed, map_item
+from bellhop.adapters.apify_content import ApifyContentFeed
 from bellhop.ports.content import ContentItem
 
+REAL_MD = (Path(__file__).resolve().parents[1] / "fixtures" / "1955_in_music.md").read_text()
 FALLBACK_ITEM = ContentItem(id="f1", kind="song", year=1960, title="Fallback", blurb="local")
 
 
@@ -30,26 +33,38 @@ def make(handler, token="secret-token"):
 
 
 def ok(request):
+    # Shape of the real actor output: one dataset item holding the whole page.
     return httpx.Response(
         200,
         json=[
-            {"title": "Rock Around the Clock", "text": "A hit record. " * 30, "year": 1955},
-            {"metadata": {"title": "Peter Pan opens"}, "text": "Short blurb."},
-            {"url": "no title or text"},
+            {
+                "url": "https://en.wikipedia.org/wiki/1955_in_music",
+                "text": "nav " * 50,
+                "markdown": REAL_MD,
+            }
         ],
     )
 
 
-def test_success_maps_items():
+def test_success_parses_the_page_markdown_into_many_items():
     feed, fb, calls = make(ok)
     items = feed.for_era(1935, limit=5)
-    assert [i.title for i in items] == ["Rock Around the Clock", "Peter Pan opens"]
-    assert all(isinstance(i, ContentItem) for i in items)
-    assert len(items[0].blurb) <= 200
-    assert fb.calls == 0
+    assert len(items) == 5 and fb.calls == 0
+    assert all(isinstance(i, ContentItem) and i.year == 1955 for i in items)
+    assert all("Wikipedia" not in i.title + i.blurb and len(i.blurb) <= 200 for i in items)
+    assert items[0].id.startswith("apify-1955-")
     req = calls[0]
     assert "/v2/acts/user~actor/run-sync-get-dataset-items" in req.url.path
     assert req.headers["authorization"] == "Bearer secret-token"
+
+
+def test_default_timeout_allows_a_slow_crawl():
+    assert ApifyContentFeed(FakeFallback(), token="t")._timeout == 60.0
+
+
+def test_item_without_markdown_gives_nothing_and_falls_back():
+    feed, _, _ = make(lambda r: httpx.Response(200, json=[{"url": "x", "text": "no bullets"}]))
+    assert feed.for_era(1935) == [FALLBACK_ITEM]
 
 
 def test_cache_means_one_http_call_per_birth_year():
@@ -94,9 +109,3 @@ def test_missing_token_falls_back_with_zero_http_calls():
         feed, fb, calls = make(ok, token=token)
         assert feed.for_era(1935) == [FALLBACK_ITEM]
         assert calls == []
-
-
-def test_map_item_skips_unusable():
-    assert map_item({}, 1955, 0) is None
-    item = map_item({"title": "T", "text": "B"}, 1955, 3)
-    assert item is not None and item.year == 1955 and item.id == "apify-1955-3"
