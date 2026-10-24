@@ -117,3 +117,54 @@ def test_no_retry_when_the_budget_is_spent():
     flaky = Flaky(None, CLAUDE)
     result = triage(TRANSCRIPT, [], ask_claude=flaky, clock=lambda: next(now, 100.0))
     assert result is None and flaky.calls == 1
+
+
+def test_jev_can_escalate_but_never_overwrites_claudes_summary():
+    jev = TriageResult(4, "cardiac", "", 0.95, "jev")
+    result = triage(
+        TRANSCRIPT,
+        [],
+        ask_claude=answer(CLAUDE),
+        ask_jev=answer(jev),
+        ask_local=lambda _: None,
+    )
+    assert result == TriageResult(4, "cardiac", CLAUDE.summary, CLAUDE.confidence, "claude+jev")
+
+
+def test_jev_only_result_is_conservative_and_uses_a_plain_quote():
+    jev = TriageResult(3, "dizziness", "", 0.9, "jev")
+    result = triage(
+        TRANSCRIPT,
+        [],
+        ask_claude=answer(None),
+        claude_retries=0,
+        ask_jev=answer(jev),
+        ask_local=lambda _: None,
+    )
+    assert result == TriageResult(
+        3,
+        "dizziness",
+        "Resident said: \"I went down by the bed and can't get up.\"",
+        0.5,
+        "jev",
+    )
+
+
+def test_slow_jev_does_not_delay_claude_or_offline_triage(monkeypatch):
+    monkeypatch.setattr(config, "TRIAGE_TIMEOUT_S", 0.1)
+    release = threading.Event()
+
+    def slow_jev(transcript, risk_flags):
+        release.wait(2)
+        return TriageResult(4, "cardiac", "", 1.0, "jev")
+
+    try:
+        assert triage(
+            TRANSCRIPT,
+            [],
+            ask_claude=answer(CLAUDE),
+            ask_jev=slow_jev,
+            ask_local=lambda _: None,
+        ) == CLAUDE
+    finally:
+        release.set()
