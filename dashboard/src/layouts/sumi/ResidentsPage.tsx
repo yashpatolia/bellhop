@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Sparkline } from '../../components/Charts'
-import type { BellhopData, Call, EntryCategory, FactKind, FactSource, LearnedFact, RefinedEntry, Resident } from '../../data/types'
+import type { BellhopData, Call, EntryCategory, FactKind, FactSource, LearnedFact, RefinedEntry, Resident, ReviewDecision } from '../../data/types'
 import { ENTRY_LABEL } from '../../data/staffEntries'
 import { CATEGORY_LABEL, clock, initials, isOpen, statusText } from '../../lib'
 import { findTendencies } from '../../tendencies'
@@ -100,7 +100,7 @@ function ResidentList({ data, selectedId }: { data: BellhopData; selectedId: str
   )
 }
 
-function FactRow({ fact, now }: { fact: LearnedFact; now: number }) {
+function FactRow({ fact, now, onReview }: { fact: LearnedFact; now: number; onReview?: (decision: ReviewDecision) => void }) {
   return (
     <li className={fact.status === 'pending' ? 'pending' : ''}>
       <span className="sm-fact">{fact.text}</span>
@@ -109,11 +109,21 @@ function FactRow({ fact, now }: { fact: LearnedFact; now: number }) {
         {fact.timesSeen === 1 ? 'time' : 'times'}, last confirmed {ago(fact.lastConfirmed, now)}
       </span>
       {fact.quote && <q className="sm-quote">{fact.quote}</q>}
+      {onReview && (
+        <span className="sm-actions">
+          <button className="sb-btn primary" onClick={() => onReview('approve')}>
+            Approve
+          </button>
+          <button className="sb-btn" onClick={() => onReview('reject')}>
+            Reject
+          </button>
+        </span>
+      )}
     </li>
   )
 }
 
-function Learned({ resident, now }: { resident: Resident; now: number }) {
+function Learned({ data, resident, now }: { data: BellhopData; resident: Resident; now: number }) {
   const active = resident.learned.filter((f) => f.status === 'active')
   const pending = resident.learned.filter((f) => f.status === 'pending')
   return (
@@ -137,10 +147,10 @@ function Learned({ resident, now }: { resident: Resident; now: number }) {
       {pending.length > 0 && (
         <div className="sm-kind sm-pending">
           <h3>Waiting for a nurse to review ({pending.length})</h3>
-          <p className="sm-empty">Bellhop is not using these yet.</p>
+          <p className="sm-empty">Bellhop is not using these yet. Approve a fact to start using it, or reject it to forget it.</p>
           <ul>
             {pending.map((f) => (
-              <FactRow key={f.id} fact={f} now={now} />
+              <FactRow key={f.id} fact={f} now={now} onReview={(d) => data.actions.reviewFact(resident.id, f.id, d)} />
             ))}
           </ul>
         </div>
@@ -432,7 +442,7 @@ export function ResidentsPage({ data, residentId, callId }: { data: BellhopData;
         ) : (
           <>
             <Habits resident={resident} calls={calls} now={data.now} />
-            <Learned resident={resident} now={data.now} />
+            <Learned data={data} resident={resident} now={data.now} />
             <AddNote data={data} resident={resident} />
             <Medical resident={resident} now={data.now} />
             <CallHistory resident={resident} calls={calls} now={data.now} />

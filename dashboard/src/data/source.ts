@@ -22,7 +22,7 @@ export function createMockSource(): DataSource {
   return {
     subscribe: sim.subscribe,
     getSnapshot: sim.getSnapshot,
-    actions: { nurseOnMyWay: sim.nurseOnMyWay, resolve: sim.resolve, refineEntry: sim.refineEntry, addEntry: sim.addEntry },
+    actions: { nurseOnMyWay: sim.nurseOnMyWay, resolve: sim.resolve, refineEntry: sim.refineEntry, addEntry: sim.addEntry, reviewFact: sim.reviewFact },
     start: () => sim.start(),
     stop: () => sim.stop(),
   }
@@ -49,5 +49,5 @@ export function useData(): BellhopData {
 
 const noop = () => {}
 export function useStaticData(): BellhopData {
-  return useMemo(() => ({ ...staticSnapshot(), actions: { nurseOnMyWay: noop, resolve: noop, refineEntry: refineLocally, addEntry: noop } }), [])
+  return useMemo(() => ({ ...staticSnapshot(), actions: { nurseOnMyWay: noop, resolve: noop, refineEntry: refineLocally, addEntry: noop, reviewFact: noop } }), [])
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEntry, refineLocally } from './staffEntries'
+import { applyEntry, applyReview, refineLocally } from './staffEntries'
 import type { Resident } from './types'
 
 const NOW = Date.UTC(2026, 9, 24, 12, 0, 0)
@@ -101,5 +101,31 @@ describe('applyEntry', () => {
     const after = applyEntry(resident(), { category: 'mobility', text: 'Walks with a frame', notes: [] }, NOW)
     expect(after.medical.mobility).toBe('Walks with a frame')
     expect(applyEntry(after, { category: 'diet', text: 'Soft foods', notes: [] }, NOW).medical.diet).toBe('Soft foods')
+  })
+})
+
+describe('applyReview', () => {
+  const withPending = (): Resident => {
+    const base = resident()
+    const fact = (id: string, status: 'active' | 'pending') => ({
+      id, kind: 'like' as const, text: id, source: 'resident' as const, confidence: 0.5,
+      quote: null, learnedAt: 0, lastConfirmed: 0, timesSeen: 1, status,
+    })
+    return { ...base, learned: [fact('a', 'pending'), fact('b', 'pending'), fact('c', 'active')] }
+  }
+
+  it('approving makes only that fact active and stamps it confirmed', () => {
+    const after = applyReview(withPending(), 'a', 'approve', NOW)
+    expect(after.learned.map((f) => [f.id, f.status])).toEqual([['a', 'active'], ['b', 'pending'], ['c', 'active']])
+    expect(after.learned[0].lastConfirmed).toBe(NOW)
+  })
+
+  it('rejecting removes only that pending fact', () => {
+    const after = applyReview(withPending(), 'a', 'reject', NOW)
+    expect(after.learned.map((f) => f.id)).toEqual(['b', 'c'])
+  })
+
+  it('never removes an already active fact', () => {
+    expect(applyReview(withPending(), 'c', 'reject', NOW).learned).toHaveLength(3)
   })
 })
