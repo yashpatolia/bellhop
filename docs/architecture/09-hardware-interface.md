@@ -10,10 +10,12 @@ Owner on the hardware side: Jeremy. Backend side: Aditya. Status: **backend half
 | Call finished | `POST /calls/{id}/resolve` | Done |
 | Backend commands robot | `RobotGateway.go_to`, `set_led` | Done: `HttpRobotGateway` when `BELLHOP_ROBOT_URL` is set, else a recording stub |
 | Robot reports status, battery, room | `PUT /robots/{id}`, `GET /robots` | Done |
+| Dashboard manual controller | `POST /robots/{id}/navigate`, `POST /robots/{id}/stop` | Done: authenticated and pushed to `robot.updated` SSE |
 
 ## What the backend added (DONE)
 1. `GET /robots`, `PUT /robots/{id} {status, battery, room}` so the Pi can report in (every 5 s is enough). `status` is one of `idle`, `busy`, `charging`, `fault`. `battery` is 0 to 1 (else 422). Unknown ids are created. A robot reporting `charging` or `fault` is skipped by dispatch. An `idle` report is **ignored for status** while the robot holds an open call (resolving the call frees it); battery and room still apply.
 2. `HttpRobotGateway`: the backend calls an HTTP server on the Pi. Wrapped in the existing timeout guard; on failure the call falls back to a nurse. Wire format: `POST {BELLHOP_ROBOT_URL}/go_to {"room"}`, `POST {BELLHOP_ROBOT_URL}/led {"state"}` and `POST {BELLHOP_ROBOT_URL}/stop {}`; any non-2xx is a failure. `RobotSignals` sets the LED on the call's robot only; LED failures are logged and ignored.
+3. Dashboard manual controls: `POST /robots/{id}/navigate {"target"}` and `POST /robots/{id}/stop`. A navigation target is an opaque, trimmed 1–32 character label. The backend relays it as the gateway's `room` value; it does not own or hardcode marker/room mappings. The Pi remains authoritative for resolving it and for reporting actual position. Navigation only starts for an existing idle robot (409 otherwise); a gateway failure returns 503 without changing stored state. Stop marks the robot idle unless it still owns an open care call. Both emit `robot.updated` on `GET /events` for the dashboard.
 
 ## Failure handling (backend)
 - A failed or timed-out `go_to` (2 s guard, `Settings.gateway_timeout`, not env-driven) always falls back to the least-loaded on-shift nurse, whatever the resident's risk flags, and raises a level 3 alert to that nurse ("The robot could not be sent to room N"). The call's urgency is untouched.

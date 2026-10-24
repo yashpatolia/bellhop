@@ -29,15 +29,17 @@ class Controller:
         clock: Callable[[], float] = time.monotonic,
         watchdog_s: float = WATCHDOG_S,
         drive_timeout_s: float = DRIVE_TIMEOUT_S,
+        manual_timeout_s: float = config.MANUAL_TIMEOUT_S,
         led_hold_s: float = config.LED_HOLD_S,
         power_reader: Callable[[], dict | None] = power.read_power,
     ) -> None:
         self._car, self._nav, self._clock, self._watchdog_s = car, navigator, clock, watchdog_s
         self._drive_timeout_s = max(drive_timeout_s, watchdog_s)
+        self._manual_timeout_s = max(0.05, manual_timeout_s)
         self._lock = threading.RLock()
         self._room = HOME_ROOM
         self._target: str | None = None
-        self._mode = "idle"  # idle, going, following, facing
+        self._mode = "idle"  # idle, going, manual, following, facing
         self._led = "idle"
         self._last_command: float | None = None
         self._led_hold_s = led_hold_s
@@ -60,6 +62,12 @@ class Controller:
         if config.marker_for_room(room) is None:
             raise UnknownRoom(room)
         with self._lock:
+            # A person holding the deadman controller has deliberate, immediate control. Do not
+            # let a delayed backend dispatch restart marker navigation underneath that input.
+            # stop() remains unconditional and therefore wins over both modes.
+            if self._mode == "manual":
+                obslog.event("drive.go_to_ignored", room=room, reason="manual_active")
+                return
             self._fresh()
             self._target, self._mode = room, "going"
             self._nav.start(room)
@@ -70,6 +78,15 @@ class Controller:
             self._fresh()
             self._halt()
         obslog.event("drive.stop")
+
+    def manual_drive(self, left: int, right: int) -> None:
+        """Manual control wins over autonomous motion; it expires unless continuously refreshed."""
+        with self._lock:
+            self._nav.cancel()
+            self._target, self._mode = None, "manual"
+            self._fresh()
+            self._car.drive(left, right)
+        obslog.event("drive.manual", left=left, right=right)
 
     def set_led(self, state: str) -> None:
         if state not in LED_STATES:
@@ -119,7 +136,12 @@ class Controller:
             self._expire_led()
             if self._mode == "idle":
                 return
-            limit = self._drive_timeout_s if self._mode == "going" else self._watchdog_s
+            if self._mode == "going":
+                limit = self._drive_timeout_s
+            elif self._mode == "manual":
+                limit = self._manual_timeout_s
+            else:
+                limit = self._watchdog_s
             if self._clock() - (self._last_command or 0.0) > limit:
                 print(f"drive: no fresh command for {limit:.0f}s, stopping")
                 obslog.event("drive.watchdog_stop", mode=self._mode, target=self._target)
@@ -147,7 +169,7 @@ class Controller:
                 "room": self._room,
                 "target": self._target,
                 "mode": self._mode,
-                "moving": self._mode == "going",
+                "moving": self._mode in ("going", "manual"),
                 "battery": battery,
                 "led": self._led,
                 "last_command_age_s": age,

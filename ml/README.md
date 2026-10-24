@@ -117,6 +117,23 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 | `MIC_NAME`, `SPEAKER_NAME` | empty (default device) | part of the USB device names (required: the default is HDMI) |
 | `BELLHOP_API_KEY` | only if the backend sets one | same |
 
+### Optional Jev assessment and tone
+
+Jev is deliberately off by default. Moonshine, Claude, Piper, the local urgency floor, marker
+navigation and the manual controller all work without it. To enable its advisory triage and reply
+tone choices on the Pi, add the sandbox key only to `~/ml/.env` (never commit it):
+
+```bash
+TYPESAFE_API_KEY=<your-key>
+```
+
+The adapter uses the existing HTTP client—there is no SDK or model download. `JEV_TIMEOUT_S`
+(default `1.5`) bounds an individual request. The first spoken reply never waits for Jev's optional
+tone; it uses Claude's tag when the background decision is not already ready. Network/API errors
+and malformed answers are ignored. Claude remains the primary triage narrative; Jev can only add
+an urgency escalation.
+Set `TYPESAFE_API_KEY=` or remove it to disable Jev immediately.
+
 On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:<robot server port>`.
 
 ### Safe stationary conversation test
@@ -185,6 +202,23 @@ test is intended.
 - `GET /snapshot` also returns `power` (Pi throttle flags, `null` off the Pi) and `wifi_rssi_dbm`. Undervoltage now makes the status heartbeat report `fault`; earlier flags only warn in the log (`status.power`). `PUT /robots/{id}` still sends only `status`, `battery`, `room`.
 - SIGTERM/SIGINT/SIGHUP on `rover.drive` stop the wheels, set the LED idle and exit 0 (`rover.safety`).
 - `GET /snapshot` serves `~/ml/runs/latest.jpg`, which vision rewrites about once a second (atomic rename, never half a file).
+
+**Optional manual controller backup.** `rover.drive --controller` reads the standard Linux
+joystick device in `BELLHOP_MANUAL_DEVICE` (default `/dev/input/js0`), which is how most wired
+and Bluetooth PS2 adapters appear on the Pi. It has no third-party controller-library dependency:
+if the adapter is absent or its driver exposes a different interface, the server stays up and
+manual input is unavailable rather than crashing. Check the actual device before configuring it:
+
+```bash
+ls -l /dev/input/js*
+```
+
+Movement requires continuously holding the configured deadman button. Releasing it, unplugging
+the device, ending the process, or missing the short refresh timeout stops the motors. Manual input
+cancels marker navigation, and an autonomous dispatch received while manual input is active is
+ignored; `POST /stop`, process signals, and the motor watchdog still stop immediately. Axis/button
+numbers, duty cap, and timeout are deployment settings in `.env` (`BELLHOP_MANUAL_*`), not room or
+controller-model hardcodes. Verify the mapping with wheels raised before any floor test.
 
 **Rooms.** Printed markers are ids 201-210 (`DICT_4X4_250`, 15 cm). `config.MARKER_ROOMS` maps marker id to the backend's room string: 201 = `"12"` (Margaret), 202 = `"14"` (Arthur), 203 = `"lobby"` (home/start). If rooms change, update `MARKER_ROOMS`, the bell button and the backend residents together.
 
