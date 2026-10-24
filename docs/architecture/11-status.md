@@ -59,7 +59,7 @@ Admin routes, SSE and research notes are merged on master (eb62be9, with the das
 | --- | --- |
 | Triage keyword guard is weak | Recall on independent fresh batches: 20/24, 19/24, then 11/24 on the paraphrase-heavy batch. Gordon's model is the real safety net; the guard is a backstop (ADR-13) |
 | No auth by default | `BELLHOP_API_KEY` is optional; unset means open. CORS default is `*` |
-| In-memory default store | State is lost on restart unless `BELLHOP_STORE=spacetimedb` works |
+| In-memory default store | State is lost on restart unless `BELLHOP_STORE=spacetimedb` works. With it, calls, residents, memory facts, the review queue, care data and medical history persist (tested against a fake server; the module typechecks, but it has not been published to a real server since these tables were added) |
 | `POST /calls` blocks while `go_to` hangs | The Dispatcher runs synchronously in the bell request, so a hung Pi costs up to the 2 s guard timeout (and holds the `CallService` lock). Not fixed: an async dispatch needs its completion to share that lock and reorders `call.assigned` and the LED signal. Details in [09-hardware-interface.md](09-hardware-interface.md) |
 | Ghost drive is only mitigated | After a `go_to` timeout the backend sends `/stop` now and once more one guard window later (heuristic). The Pi should reject stale `go_to`; a late `/stop` can also cut a legitimate drive started in that window |
 | Other synchronous event handlers | The SSE fan-out is bounded and non-blocking; unrelated synchronous bus handlers can still delay a request |

@@ -1152,7 +1152,7 @@ def test_approving_pending_that_became_duplicate_is_409(client):
 def test_approve_reruns_safety_rules(container):
     guard = container.memory_guard
     guard.propose("res_margaret", "Enjoys the garden roses", confidence=0.3)
-    guard._pending["pending-1"].text = "prescribed 10 mg daily"  # tampered after queueing
+    guard._pending.get("pending-1").text = "prescribed 10 mg daily"  # tampered after queueing
     result = guard.approve("pending-1", "res_margaret")
     assert result.reason == "clinical_claim"
     assert guard.pending("res_margaret") == []
@@ -1160,7 +1160,7 @@ def test_approve_reruns_safety_rules(container):
 
 def test_approve_unsafe_pending_is_422_over_http(client, container):
     _remember(client, "Enjoys the garden roses", confidence=0.3)
-    container.memory_guard._pending["pending-1"].text = "prescribed 10 mg daily"
+    container.memory_guard._pending.get("pending-1").text = "prescribed 10 mg daily"
     r = client.post(f"{RES}/memory/pending/pending-1/approve")
     assert r.status_code == 422 and r.json()["detail"] == "clinical_claim"
 
