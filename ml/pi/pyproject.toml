@@ -2,10 +2,12 @@
 name = "rover"
 version = "0.1.0"
 description = "Bellhop robot: on-robot vision, speech, agent context and triage"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 dependencies = [
-    # numpy 1.x keeps apt's picamera2 working on the Pi; opencv 4.11 is the last that accepts it
-    "numpy>=1.26,<2",
+    # Python 3.11 (Bookworm Pi, laptop): numpy 1.x keeps apt's picamera2 working there.
+    # Python 3.13 (Trixie Pi): fastembed needs numpy >= 2.1, and 3.13 wheels need numpy 2 anyway.
+    "numpy>=1.26,<2; python_version < '3.12'",
+    "numpy>=2.1; python_version >= '3.12'",
     "opencv-python==4.11.0.86",
     "ultralytics==8.4.184",
     "lap==0.5.13",
@@ -21,6 +23,7 @@ dependencies = [
     "typesafe-sdk==0.7.5",
     "httpx==0.28.1",
     "python-dotenv==1.2.4",
+    "fastembed>=0.9.0",
 ]
 
 [dependency-groups]
@@ -28,6 +31,15 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.2",
     "pnnx==20260526",
+]
+fuzz = [
+    "schemathesis>=4.32.4",
+]
+train = [
+    "apify-client>=3.3.0",
+    "huggingface-hub>=1.33.0",
+    "polars>=2.0.0",
+    "scikit-learn>=1.9.1",
 ]
 
 [build-system]

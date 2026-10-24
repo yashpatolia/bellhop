@@ -92,8 +92,12 @@ def test_failures_return_empty_values():
 
 def test_find_assigned_call_picks_newest_active_call_for_this_robot():
     def call(call_id, robot_id, status, hour):
-        return {"id": call_id, "robot_id": robot_id, "status": status,
-                "created_at": f"2026-10-24T0{hour}:00:00Z"}
+        return {
+            "id": call_id,
+            "robot_id": robot_id,
+            "status": status,
+            "created_at": f"2026-10-24T0{hour}:00:00Z",
+        }
 
     calls = [
         call("old", "robot_1", "assigned", 1),
