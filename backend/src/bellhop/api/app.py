@@ -336,7 +336,7 @@ def create_app(container: Container) -> FastAPI:
         responses={200: {"content": {"text/event-stream": {}}}, 503: {"description": "too many"}},
     )
     async def stream_events() -> StreamingResponse:
-        """Server-Sent Events: call.*, alert.raised, robot.updated. See contracts/README.md."""
+        """Server-Sent Events: call.*, alert.raised, robot.updated. See components/contracts.md."""
         try:
             client = container.events.connect()
         except TooManyClients as exc:

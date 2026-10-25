@@ -166,7 +166,7 @@ def _persistent_data(store: object) -> PersistentData | None:
     except (httpx.HTTPError, ValueError, KeyError) as exc:
         log.warning(
             "SpacetimeDB module lacks the memory and care tables (%s): that data is not "
-            "persisted until the module is published again (see spacetimedb/README.md)",
+            "persisted until the module is published again (see components/spacetimedb.md)",
             type(exc).__name__,
         )
         return None

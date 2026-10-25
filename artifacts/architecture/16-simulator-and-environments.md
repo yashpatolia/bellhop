@@ -24,7 +24,7 @@ The dashboard reads only the backend. Whatever writes to the backend, the simula
 
 ## Driving a robot by hand
 
-The dashboard's Dispatch tab drives a chosen robot to a room with `POST /robots/{id}/navigate {target}` and halts it with `POST /robots/{id}/stop` (both in `backend/src/bellhop/api/app.py`, see `contracts/README.md`). It only drives: no call is made and the robot does not start a visit. The target is an opaque label (up to 32 characters) that the Pi resolves against its own room and marker configuration, so a resident's room number is treated as a marker id unless the Pi maps it. The backend accepts only an idle robot (409 otherwise) and answers 503 when the Pi cannot be reached. In the mock environment the simulator follows a drive for ten seconds (the simulator has no map), and a stop frees the robot at once.
+The dashboard's Dispatch tab drives a chosen robot to a room with `POST /robots/{id}/navigate {target}` and halts it with `POST /robots/{id}/stop` (both in `backend/src/bellhop/api/app.py`, see `artifacts/components/contracts.md`). It only drives: no call is made and the robot does not start a visit. The target is an opaque label (up to 32 characters) that the Pi resolves against its own room and marker configuration, so a resident's room number is treated as a marker id unless the Pi maps it. The backend accepts only an idle robot (409 otherwise) and answers 503 when the Pi cannot be reached. In the mock environment the simulator follows a drive for ten seconds (the simulator has no map), and a stop frees the robot at once.
 
 ## Adding a home by hand (empty environment)
 
@@ -35,7 +35,7 @@ curl -X POST localhost:8000/nurses     -H 'Content-Type: application/json' -d '{
 curl -X PUT  localhost:8000/robots/robot_1 -H 'Content-Type: application/json' -d '{"status":"idle","battery":0.9,"room":"dock"}'
 ```
 
-Or start the backend with a scenario file (`BELLHOP_SEED_FILE=my.json`, format in `backend/scenarios/README.md`). The dashboard needs at least one nurse on shift for "I'm on my way" to work.
+Or start the backend with a scenario file (`BELLHOP_SEED_FILE=my.json`, format in `artifacts/components/backend-scenarios.md`). The dashboard needs at least one nurse on shift for "I'm on my way" to work.
 
 ## What the dashboard shows when something is wrong
 
@@ -52,4 +52,4 @@ Or start the backend with a scenario file (`BELLHOP_SEED_FILE=my.json`, format i
 
 ## Contract checks
 
-`cd dashboard && npm run gen:api` regenerates `src/api/schema.d.ts` from `contracts/openapi.json`. `src/data/adapt.test.ts` and `store.test.ts` run the wire adapter and the live store against `contracts/examples/*.json`, so a contract change that breaks the dashboard fails a test.
+`cd frontend && npm run gen:api` regenerates `src/api/schema.d.ts` from `contracts/openapi.json`. `src/data/adapt.test.ts` and `store.test.ts` run the wire adapter and the live store against `contracts/examples/*.json`, so a contract change that breaks the dashboard fails a test.

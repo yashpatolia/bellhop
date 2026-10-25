@@ -1,6 +1,6 @@
-# CONTEXT.md: read this first
+# artifacts/context.md: read this first
 
-Single-file handoff for any agent or teammate who starts with no chat history. Snapshot: 2026-10-24. Deeper docs: [AGENTS.md](AGENTS.md) (rules and commands), [docs/architecture/README.md](docs/architecture/README.md) (index), [11-status.md](docs/architecture/11-status.md) (checklist).
+Single-file handoff for any agent or teammate who starts with no chat history. Snapshot: 2026-10-24. Deeper docs: [AGENTS.md](../AGENTS.md) (rules and commands), [architecture/README.md](architecture/README.md) (index), [11-status.md](architecture/11-status.md) (checklist).
 
 ## 1. Product and team
 **Bellhop**: a care-home robot that answers the call bell, talks with the resident, triages urgency and escalates to a nurse only when needed. Prototype for CalHacks; no real patient data, no diagnosis, lean toward escalation.
@@ -8,7 +8,7 @@ Single-file handoff for any agent or teammate who starts with no chat history. S
 | Person | Lane |
 | --- | --- |
 | Aditya (the user) | Backend, database, RAG/memory, data, contracts |
-| Yash | Frontend nurse dashboard (`dashboard/`), integration |
+| Yash | Frontend nurse dashboard (`frontend/`), integration |
 | Gordon | ML: triage, voice, vision (`origin/ml`). Gordon said they could not finish it, so **the team now owns it and has autonomy** to rework it |
 | Jeremy | Hardware, Raspberry Pi robot server |
 
@@ -18,7 +18,7 @@ Repo `yashpatolia/calhacks-13`. Push over SSH: `git push git@github.com:yashpato
 - `origin/ml` is Gordon's original work; `ml-work` (merged) is where it was finished. `origin/dashboard` and `origin/backend` are old and merged.
 - Rules: commit/push only when the user says so; never push to `master` without being told; **no AI attribution in commits or repo files** (no Co-Authored-By trailer).
 
-Layout: `backend/` (Python), `dashboard/` (Vite/React), `contracts/` (openapi + examples), `spacetimedb/` (TypeScript module), `docs/architecture/`, `docs/plan/`, `artifacts/` (static HTML), `tools/` (git-ignored local Node tooling).
+Layout: `backend/` (Python), `frontend/` (Vite/React), `contracts/` (openapi + examples), `spacetimedb/` (TypeScript module), `simulator/`, `ml/`, and `artifacts/` (all docs: `architecture/`, `plan/`, `components/`, static HTML), `tools/` (git-ignored local Node tooling).
 
 ## 3. Backend (done, verified)
 Hexagonal: `domain` <- `ports` <- `services` <- `adapters`/`api` <- `container.py` (only place concrete classes are wired). TDD, `uv`, `backend/.venv`.
@@ -31,10 +31,10 @@ Hexagonal: `domain` <- `ports` <- `services` <- `adapters`/`api` <- `container.p
 - Verified live: SpacetimeDB module on a local 2.13.0 server (write-through store). **Never run with real services:** Moss (guessed SDK, falls back to local), Fetch.ai agent (`uagents` not installed), Apify adapter (CLI run only), `HttpRobotGateway` (no Pi yet).
 - Room ids (decision): 12 = Margaret, 14 = Arthur, lobby = robot home. The user was to send this to Jeremy; confirm it was received.
 
-## 4. Frontend (`dashboard/`, Yash) and the simulator (`simulator/`)
+## 4. Frontend (`frontend/`, Yash) and the simulator (`simulator/`)
 Vite 8, React 19, TypeScript 6, `motion`, vitest; hash views `#/` Live, `#/insights`, `#/residents`, `#/residents/<id>`, `#/residents/<id>/<callId>`. The dashboard has **no mock data**: it reads the backend only (`VITE_BELLHOP_API_URL`, default `http://127.0.0.1:8000`, optional `VITE_BELLHOP_API_KEY`). `src/api/schema.d.ts` is generated from `contracts/openapi.json` (`npm run gen:api`); `src/data/adapt.ts` maps wire to view model and is tested against `contracts/examples`; `src/data/store.ts` does REST, SSE, polling and the actions (acknowledge alert, resolve, approve or reject pending facts, tidy and save staff notes). It shows "Cannot reach Bellhop" when offline and "This home is empty" for an empty backend.
 - `simulator/` is a separate Python service (`uv run bellhop-sim seed|run|bell`) that plays the care home through the backend's public routes: it seeds staff, robots, twelve residents (facts with provenance, review queue, medical history, mood and pain), fourteen days of imported calls, then rings bells and acts as the robot. Fictional data only, in `simulator/data/*.json`.
-- Run everything: `scripts/dev.sh mock` (backend + simulator + dashboard) or `scripts/dev.sh empty` (backend + dashboard). See `docs/architecture/16-simulator-and-environments.md`.
+- Run everything: `scripts/dev.sh mock` (backend + simulator + dashboard) or `scripts/dev.sh empty` (backend + dashboard). See `artifacts/architecture/16-simulator-and-environments.md`.
 - Verified 2026-10-24: both environments in a browser, the live actions against the real backend, `npm run test` (adapter and store), `simulator` pytest against the real backend, backend suite.
 - Backend routes added for this: provenance fields on memory facts, `GET /residents/{id}/memory/all`, `POST /calls/import`, care `at` and `GET .../care/history`, `GET/PUT .../medical`, `POST .../medical/entries`, `POST .../notes/refine`, `Call.resolved_by_robot`.
 - Not done: login for staff, a UI to add residents (use the API), persistence of memory facts, care data and medical history in SpacetimeDB.
@@ -56,17 +56,17 @@ Code under `ml/pi/src/rover/`: `vision/` (Picamera2, YOLO NCNN, YuNet faces, ArU
 - **Not verified (no hardware yet):** `RealCar`, camera, markers, mic and speaker, ADC battery, real Pi power and Wi-Fi readings; real marker navigation (the navigator is a timed simulation with an ultrasonic stop); the systemd units and `push.sh` on a Pi; `HttpRobotGateway` against a real Pi; live Deepgram and Piper; the Wi-Fi power-save commands; 5 s to 60 s drive authorization on a real car; Pi 5 latency of the local scorer.
 - **Pi bring-up findings (2026-10-24, via Raspberry Pi Connect):** Pi hostname `raspberrypi`, user `pi`, LAN `10.0.16.21`, Tailscale `100.73.9.29` on Gordon's tailnet (our laptop is not on it, and the WSL shell cannot reach the LAN). `throttled=0x0`, camera `imx708` detected, Wi-Fi "Cal Hacks 13.0" 5 GHz -62 dBm, 48 GB free, **only 2 GB RAM**, **Python 3.13.5 (Trixie), not Bookworm 3.11**, `uv` not installed, **no USB mic or speaker detected** yet (`arecord -l` empty, `aplay -l` HDMI only). `setup_pi.sh` stops on non-3.11. A resolver check says all heavy deps resolve for 3.13 aarch64 if numpy 2 is allowed (fastembed needs numpy >= 2.1), but that is untested on the Pi; fallback is reflashing Bookworm.
 - **Hardware report from the user (not verified by me):** vision was tested on the Pi and worked. Details (which code, which markers, what distance, FPS) not yet recorded.
-- **Known remaining gaps:** `POST /calls` still blocks about 2 s while a failing `go_to` times out (async dispatch judged too large; see `11-status.md`); the delayed re-stop is a heuristic and can cut a legitimate drive short (real fix: Pi rejects stale `go_to`); `contracts/README.md` still calls `robot_en_route` optional (Yash's file); marker map and room ids still to confirm with Jeremy; 2 GB RAM may not fit vision, speech and Moonshine together; GPL/AGPL/non-commercial voice licences (fine for a hackathon only).
-- **Ranked plan now:** (1) get the code onto the Pi (needs a pushed `ml-work` branch, not yet authorized) and decide Python 3.13 vs Bookworm reflash; (2) plug in USB mic and speaker, run `scripts/doctor.py`, then a lifted-wheel motor test with `python -m rover.drive` (no `--fake`) and the safe-stop checklist in `ml/pi/deploy/SAFE_STOP_CHECKLIST.md`; (3) real marker navigation (replace `SimNavigator`) and camera/ArUco checks at demo distance; (4) live speech run with Deepgram and Piper; (5) human review of triage labels, then decide whether the local scorer ever goes on; (6) systemd units and Tailscale access for us.
+- **Known remaining gaps:** `POST /calls` still blocks about 2 s while a failing `go_to` times out (async dispatch judged too large; see `11-status.md`); the delayed re-stop is a heuristic and can cut a legitimate drive short (real fix: Pi rejects stale `go_to`); `artifacts/components/contracts.md` still calls `robot_en_route` optional (Yash's file); marker map and room ids still to confirm with Jeremy; 2 GB RAM may not fit vision, speech and Moonshine together; GPL/AGPL/non-commercial voice licences (fine for a hackathon only).
+- **Ranked plan now:** (1) get the code onto the Pi (needs a pushed `ml-work` branch, not yet authorized) and decide Python 3.13 vs Bookworm reflash; (2) plug in USB mic and speaker, run `scripts/doctor.py`, then a lifted-wheel motor test with `python -m rover.drive` (no `--fake`) and the safe-stop checklist in `artifacts/components/robot-safe-stop.md`; (3) real marker navigation (replace `SimNavigator`) and camera/ArUco checks at demo distance; (4) live speech run with Deepgram and Piper; (5) human review of triage labels, then decide whether the local scorer ever goes on; (6) systemd units and Tailscale access for us.
 
 ## 6. Open items, ranked
 1. ML-to-backend end-to-end run on the Pi (section 5). The dashboard live mode is done (section 4).
 2. (done) The robot code is merged into master through `ml-work`; run its tests in `ml/pi` (`uv run pytest`).
 3. Jeremy: Pi server (`/go_to`, `/led`, `/stop`, `/snapshot`), room ids, marker map, battery.
-4. Dev tooling quick wins from [12-research-dev-tooling.md](docs/architecture/12-research-dev-tooling.md): import-linter (fixes 4 layering violations), Schemathesis, vulture, pytest-xdist + coverage floor, openapi-typescript/Prism for the frontend.
-5. Deploy plan (Tailscale, Pi watchdog, SSE) in [14-research-deploy-and-connectivity.md](docs/architecture/14-research-deploy-and-connectivity.md); set `BELLHOP_API_KEY` and narrow CORS for the demo.
+4. Dev tooling quick wins from [12-research-dev-tooling.md](architecture/12-research-dev-tooling.md): import-linter (fixes 4 layering violations), Schemathesis, vulture, pytest-xdist + coverage floor, openapi-typescript/Prism for the frontend.
+5. Deploy plan (Tailscale, Pi watchdog, SSE) in [14-research-deploy-and-connectivity.md](architecture/14-research-deploy-and-connectivity.md); set `BELLHOP_API_KEY` and narrow CORS for the demo.
 6. Deferred cleanup: simplify over-engineered guards (GuardedNotifier, GuardedRobotGateway, SerializedSubscriptions, CompositeNotifier), SpacetimeDB writes to a background worker.
-7. Triage stretch: embedding floor (fastembed, raise-only), see [13-research-policy-and-triage.md](docs/architecture/13-research-policy-and-triage.md).
+7. Triage stretch: embedding floor (fastembed, raise-only), see [13-research-policy-and-triage.md](architecture/13-research-policy-and-triage.md).
 8. User-side: `uv sync --extra fetch` to try the Fetch.ai agent; Moss project id/key (optional); `APIFY_TOKEN` in `backend/.env` (optional).
 
 ## 7. Working rules (do not break)
@@ -78,4 +78,4 @@ Code under `ml/pi/src/rover/`: `vision/` (Picamera2, YOLO NCNN, YuNet faces, ArU
 
 ## 8. Repo-level rules from CLAUDE.md (dashboard and docs)
 - Never use em dashes or en dashes in code, copy, comments or docs.
-- Dashboard: build top down with mock data first; all data goes through `dashboard/src/data/source.ts`; fill the full page width; readable and calm for nurses, urgency always shown in words as well as colour; no amber; theme tokens live in `dashboard/src/theme/themes.css`.
+- Dashboard: no mock data in the frontend (it reads the backend only, through `frontend/src/data/source.ts`; example data comes from `simulator/`); fill the full page width; readable and calm for nurses, urgency always shown in words as well as colour; no amber; theme tokens live in `frontend/src/theme/themes.css`.

@@ -3,7 +3,7 @@
 Two ways to set up a care home: a JSON scenario file at startup, or the admin routes at runtime. Both go through the same rules (names 1 to 80 chars, rooms 1 to 32, ids 1 to 64, one resident per room).
 
 ## Scenario files
-Full format and a minimal example: [backend/scenarios/README.md](../../backend/scenarios/README.md). Summary:
+Full format and a minimal example: [artifacts/components/backend-scenarios.md](../components/backend-scenarios.md). Summary:
 - JSON with optional top-level `residents`, `nurses`, `robots`. A resident has `id`, `name`, `room`, optional `risk_flags`, `birth_year`, `facts` (`{text, tags}`) and `preferences`. A nurse has `id`, `name`, optional `on_shift`. A robot has `id`, optional `status`, `battery` (0 to 1), `room`.
 - Unknown keys, duplicate ids and shared rooms are rejected; a bad file stops startup with a message naming the problem.
 - `scenarios/demo.json` is the demo home; `scenarios/empty.json` starts with nothing.
@@ -31,4 +31,4 @@ BELLHOP_SEED_FILE=scenarios/demo.json uv run uvicorn bellhop.api.main:app --port
 - `PUT /residents/{id}` (`birth_year` only) remains for backward compatibility.
 - Same auth and limits as every route (`X-API-Key` when `BELLHOP_API_KEY` is set, 1 MB body limit). Tests: `tests/integration/test_admin_api.py`, `tests/unit/test_admin_service.py`.
 
-Robots are not created here: `PUT /robots/{id}` registers them (unless `BELLHOP_ALLOW_NEW_ROBOTS=0`), and each report is pushed to dashboards as `robot.updated` on `GET /events` (see [contracts/README.md](../../contracts/README.md#live-updates)).
+Robots are not created here: `PUT /robots/{id}` registers them (unless `BELLHOP_ALLOW_NEW_ROBOTS=0`), and each report is pushed to dashboards as `robot.updated` on `GET /events` (see [artifacts/components/contracts.md](../components/contracts.md#live-updates)).

@@ -3,10 +3,10 @@
 | Role | Does | Must not |
 | --- | --- | --- |
 | **Manager** | Splits work into packages, assigns file ownership, merges, runs the full suite, reports | Write feature code that a builder owns |
-| **Architect** | Owns `domain/`, `ports/`, and `docs/architecture/`. Changes a port only with an ADR line in `04-decisions.md` | Implement services |
+| **Architect** | Owns `domain/`, `ports/`, and `artifacts/architecture/`. Changes a port only with an ADR line in `04-decisions.md` | Implement services |
 | **Builder** (one per work package) | TDD-implements the files listed for its package in `01-module-map.md` | Edit files outside its package, edit `domain/` or `ports/`, add dependencies |
 | **Tester** | Writes cross-module integration tests and probes edge cases and invariants after builders finish | Change production code; report bugs to the manager with a failing test |
-| **Researcher** | Reads docs and sponsor APIs, writes findings into `docs/architecture/` | Write production code |
+| **Researcher** | Reads docs and sponsor APIs, writes findings into `artifacts/architecture/` | Write production code |
 | **Tech Scout** | Finds libraries and data-pipeline options, hunts bottlenecks and inefficiencies, writes ADOPT NOW / LATER / SKIP verdicts into `07-tech-scout.md` | Write production code or add dependencies; the manager adopts |
 
 ## Handoff rules

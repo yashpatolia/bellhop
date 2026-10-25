@@ -1,6 +1,6 @@
 # Status
 
-Snapshot of 2026-10-24. Single-file handoff: [../../CONTEXT.md](../../CONTEXT.md). Read [01-module-map.md](01-module-map.md) for what exists and [09-hardware-interface.md](09-hardware-interface.md) for the Pi contract.
+Snapshot of 2026-10-24. Single-file handoff: [context.md](../context.md). Read [01-module-map.md](01-module-map.md) for what exists and [09-hardware-interface.md](09-hardware-interface.md) for the Pi contract.
 
 ## Numbers (from `cd backend && .venv/bin/python -m pytest -q -p no:warnings`)
 | Check | Result |
@@ -82,11 +82,11 @@ Admin routes, SSE and research notes are merged on master (eb62be9, with the das
 5. Try SpacetimeDB with a token, then Maincloud; decide whether persistence is needed for the demo.
 6. Set `BELLHOP_API_KEY` and a narrow `BELLHOP_CORS_ORIGINS` for the demo deployment.
 7. On demo hardware, test Tailscale inside WSL plus Pi/Yash devices; run with `--host 0.0.0.0`, seed demo data, phone hotspot and backup hotspot. Confirm the Pi's five-second stop-and-idle watchdog.
-8. Run the real robot against the backend (`scripts/dev.sh empty`) and check the dashboard shows it. The dashboard live mode and the ML merge are done (see CONTEXT.md sections 4 and 5).
+8. Run the real robot against the backend (`scripts/dev.sh empty`) and check the dashboard shows it. The dashboard live mode and the ML merge are done (see artifacts/context.md sections 4 and 5).
 
 ## Team handoff
 | Person | Owns | Needs from the backend or from them |
 | --- | --- | --- |
-| Yash | Dashboard; [contracts/](../../contracts/README.md) consumer | Use `GET /events` first and poll `GET /calls`, `/alerts`, `/metrics` after reconnect or as fallback; regenerate types when `openapi.json` changes |
+| Yash | Dashboard; [contracts/](../components/contracts.md) consumer | Use `GET /events` first and poll `GET /calls`, `/alerts`, `/metrics` after reconnect or as fallback; regenerate types when `openapi.json` changes |
 | Gordon | Triage model | `POST /calls/{id}/score` with `confidence`; `POST /calls/{id}/triage-failed` on model failure; the labelled set (`python -m bellhop.labelled`, `GET /labelled-examples`) |
 | Jeremy | Pi, bell button, LEDs | Everything in [09-hardware-interface.md](09-hardware-interface.md) |

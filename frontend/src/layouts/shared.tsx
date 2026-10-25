@@ -373,7 +373,7 @@ export function ConnectionBanner({ data }: { data: BellhopData }) {
   if (empty) {
     return (
       <p className="sb-banner" role="status">
-        This home is empty. Add residents on the Residents tab (nurses go in through the Bellhop backend), or run the simulator to fill it with example data (see simulator/README.md).
+        This home is empty. Add residents on the Residents tab (nurses go in through the Bellhop backend), or run the simulator to fill it with example data (see artifacts/components/simulator.md).
       </p>
     )
   }

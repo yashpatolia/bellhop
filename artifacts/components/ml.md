@@ -242,7 +242,7 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 (Mac) uv run python ../dev/eval_triage.py     # default: GET /labelled-examples (BELLHOP_API, BELLHOP_API_KEY) + dev/hard_cases.jsonl; pass JSONL files to use those instead; --mock runs offline with a fake triager (CI)
 ```
 
-Full API: `calhacks-13-backend/contracts/README.md` and `contracts/openapi.json`.
+Full API: `artifacts/components/contracts.md` and `contracts/openapi.json`.
 
 ## Settings card
 

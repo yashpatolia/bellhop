@@ -30,7 +30,7 @@
     "/events": {
       "get": {
         "summary": "Stream Events",
-        "description": "Server-Sent Events: call.*, alert.raised, robot.updated. See contracts/README.md.",
+        "description": "Server-Sent Events: call.*, alert.raised, robot.updated. See components/contracts.md.",
         "operationId": "stream_events_events_get",
         "security": [
           {
