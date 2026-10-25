@@ -177,6 +177,8 @@ class MarkerNavigator:
         self._search_expired = False
         self._following = False
         self._holding_distance = False
+        self._on_junction, self._line_error = False, 0.0
+        self._crossing_since: float | None = None
 
     def start(self, room: str) -> None:
         self._begin(room, following=False)
@@ -193,6 +195,7 @@ class MarkerNavigator:
         self._search_expired = False
         self._following = following
         self._holding_distance = False
+        self._on_junction, self._line_error, self._crossing_since = False, 0.0, None
         self._reset_search()
 
     def cancel(self) -> None:
@@ -276,13 +279,39 @@ class MarkerNavigator:
             car.drive(config.FORWARD_DUTY, config.FORWARD_DUTY)
             return False
         bits = car.line()
-        error = config.LINE_ERROR.get(bits)
-        if error is None:
-            print(f"fallback: line sensors read {bits} (0 tape lost, 7 end strip), not advancing")
+        junction = bits == config.LINE_JUNCTION
+        if junction and not self._on_junction:
+            # A room's branch tape crosses the hallway line here: stop and look both ways.
+            self._on_junction, self._crossing_since = True, None
             car.stop()
             self._turns = 0
             self._scan_again()
             return False
+        if junction:
+            if self._crossing_since is None:
+                self._crossing_since = now
+            if now - self._crossing_since > config.LINE_JUNCTION_MAX_S:
+                print(
+                    f"fallback: line sensors read 7 for over {config.LINE_JUNCTION_MAX_S:g}s "
+                    "(tape wider than the sensors, or an end strip), not advancing"
+                )
+                car.stop()
+                self._scan_again()
+                return False
+        self._on_junction = junction
+        error = 0.0 if junction else config.LINE_ERROR.get(bits)
+        if error is None and bits == 0 and self._line_error:
+            error = self._line_error  # slid off one edge: keep turning back toward the tape
+        if error is None:
+            print(
+                f"fallback: line sensors read {bits} (0 tape ended, 5 or None unreadable), "
+                "not advancing"
+            )
+            car.stop()
+            self._turns = 0
+            self._scan_again()
+            return False
+        self._line_error = error
         correction = config.LINE_GAIN * error
         car.drive(config.LINE_DUTY + correction, config.LINE_DUTY - correction)
         return False

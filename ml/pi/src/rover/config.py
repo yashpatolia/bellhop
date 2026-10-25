@@ -217,11 +217,17 @@ if (
     raise ValueError("marker search settings must be positive and within motor range")
 # Hallway mode: the search's forward steps follow a tape line with Freenove's 3 IR sensors
 # (bits left<<2 | middle<<1 | right, 1 = tape under that sensor) instead of driving blind.
-# Error -1 = tape far left .. +1 = far right; any other reading (0 lost, 7 end strip) stops.
+# Error -1 = tape far left .. +1 = far right. All three on tape is a room's branch crossing the
+# hallway line: stop there and look both ways, then cross. 0 after drifting keeps steering back
+# toward the tape (as Freenove's line mode does); 0 after driving centred means the tape ended.
 LINE_FOLLOW = os.environ.get("BELLHOP_LINE_FOLLOW", "0") == "1"
 LINE_DUTY = int(os.environ.get("BELLHOP_LINE_DUTY", "900"))
 LINE_GAIN = int(os.environ.get("BELLHOP_LINE_GAIN", "900"))  # extra duty per unit of line error
 LINE_ERROR = {2: 0.0, 6: -0.5, 4: -1.0, 3: 0.5, 1: 1.0}
+LINE_JUNCTION = 7
+# Crossing a 5 cm branch takes well under this. Longer means tape wider than the sensor span
+# (it would drive blind) or an end strip, so it stops.
+LINE_JUNCTION_MAX_S = 1.0
 if not 0 < LINE_DUTY <= 4095 or not 0 <= LINE_GAIN <= 4095:
     raise ValueError("line follow duties must be within motor range")
 # Following remains authorised only for a bounded period after its single dashboard command.  It

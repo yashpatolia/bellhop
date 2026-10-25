@@ -342,6 +342,66 @@ def test_hallway_step_follows_the_tape_and_stops_off_it(bits):
         )
 
 
+def hallway_at_its_first_step(clock, car):
+    """A hallway navigator past its first scan, following the tape."""
+    nav = MarkerNavigator(
+        receiver(clock, []),
+        scanner=HeadScanner(clock, pans=(90,), tilts=(90,), dwell_s=0.1),
+        clock=clock,
+        search_turns_per_lap=0,
+        search_advance_s=5.0,
+        line_follow=True,
+    )
+    nav.start("210")
+    nav.step(car)
+    clock.now = 0.1
+    nav.step(car)  # scan done -> advance
+    clock.now = SETTLE + 0.1
+    nav.step(car)
+    return nav
+
+
+def test_hallway_junction_stops_once_to_look_then_crosses():
+    clock, car = Clock(), Car(line=2)
+    nav = hallway_at_its_first_step(clock, car)
+    straight = (config.LINE_DUTY, config.LINE_DUTY)
+    assert car._last["drive"] == straight
+
+    car.line_bits = config.LINE_JUNCTION
+    clock.now += 0.05
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)  # stopped to look both ways
+    for _ in range(3):  # the one-pose scan and its dwell
+        clock.now += 0.1
+        nav.step(car)
+    clock.now += 0.05
+    nav.step(car)
+    assert car._last["drive"] == straight  # still on the junction tape: crosses it
+
+    car.line_bits = 2
+    clock.now += 0.05
+    nav.step(car)
+    car.line_bits = config.LINE_JUNCTION  # the next room's branch
+    clock.now += 0.05
+    nav.step(car)
+    assert car._last["drive"] == (0, 0)
+
+
+def test_hallway_drift_off_one_edge_keeps_steering_back():
+    clock, car = Clock(), Car(line=4)
+    nav = hallway_at_its_first_step(clock, car)
+    back_left = (
+        int(config.LINE_DUTY - config.LINE_GAIN),
+        int(config.LINE_DUTY + config.LINE_GAIN),
+    )
+    assert car._last["drive"] == back_left
+
+    car.line_bits = 0
+    clock.now += 0.05
+    nav.step(car)
+    assert car._last["drive"] == back_left
+
+
 def test_marker_search_timeout_is_a_failure_not_an_arrival():
     clock = Clock()
     stream = receiver(clock, [])
