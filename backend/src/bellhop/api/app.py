@@ -237,7 +237,14 @@ class BodyLimit:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        declared = dict(scope["headers"]).get(b"content-length", b"0")
+        declared = dict(scope["headers"]).get(b"content-length")
+        # ASGI servers are not required to send an http.request message for a bodyless GET.
+        # Waiting for one here deadlocks read-only dashboard requests under TestClient and some
+        # proxies. A declared GET body still takes the bounded streaming path below.
+        if scope["method"] in {"GET", "HEAD", "OPTIONS"} and declared in {None, b"0"}:
+            await self.app(scope, receive, send)
+            return
+        declared = declared or b"0"
         too_big = declared.isdigit() and int(declared) > MAX_BODY_BYTES
         messages: list[Message] = []
         size = 0
