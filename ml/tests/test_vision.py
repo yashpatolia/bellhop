@@ -3,6 +3,7 @@ import math
 import cv2
 import numpy as np
 import pytest
+
 from rover import config
 from rover.vision.faces import FaceFinder, SeenCounter, is_facing, to_frame
 from rover.vision.markers import MarkerFinder, distance_m, side_px
@@ -42,6 +43,8 @@ def test_blank_frame_has_no_markers():
 def test_distance_math():
     assert distance_m(100.0) == pytest.approx(config.MARKER_SIZE_M * config.MARKER_FOCAL_PX / 100)
     assert side_px(np.array([[0, 0], [10, 0], [10, 10], [0, 10]], float)) == pytest.approx(10)
+    # Looked at from below, the vertical sides shrink; the full-width sides still give the size.
+    assert side_px(np.array([[0, 0], [10, 0], [10, 6], [0, 6]], float)) == pytest.approx(10)
 
 
 @pytest.mark.parametrize("side", [0.0, -5.0, math.nan, math.inf])

@@ -17,6 +17,7 @@ from rover import config
 
 MAX_DUTY = 4095  # Freenove motor duty range is -4095..4095
 FAKE_DISTANCE_CM = 300.0  # FakeCar: nothing in the way, so the loop can be tried on the Mac
+FAKE_LINE = 2  # FakeCar: tape under the middle IR sensor only, i.e. centred on the line
 ADC_ADDRESS = 0x48  # ADS7830 on the Freenove board
 ADC_BATTERY_CHANNEL = 2
 ADC_READ_TRIES = 5  # two equal reads in a row count as stable
@@ -75,6 +76,9 @@ class FakeCar:
 
     def distance_cm(self) -> float | None:
         return FAKE_DISTANCE_CM
+
+    def line(self) -> int | None:
+        return FAKE_LINE
 
     def battery_volts(self) -> float | None:
         return config.BATTERY_FULL_V
@@ -140,6 +144,12 @@ class RealCar:
         self._motors = motors
         self._servos = _try("opening servos", lambda: _freenove("servo").Servo())
         self._sonar = _try("opening ultrasonic", lambda: _freenove("ultrasonic").Ultrasonic())
+        # Only claim the IR pins (GPIO 14/15 double as the UART) when line following is on.
+        self._ir = (
+            _try("opening infrared", lambda: _freenove("infrared").Infrared())
+            if config.LINE_FOLLOW
+            else None
+        )
         self._adc = _try("opening battery adc", _BatteryAdc)
         self._leds = _try("opening leds", _open_leds)
 
@@ -169,6 +179,16 @@ class RealCar:
             print(f"car: ultrasonic read failed: {type(exc).__name__}: {exc}")
             return None
 
+    def line(self) -> int | None:
+        """Freenove's 3 IR line sensors as bits left<<2 | middle<<1 | right; None if unavailable."""
+        if self._ir is None:
+            return None
+        try:
+            return self._ir.read_all_infrared()
+        except Exception as exc:
+            print(f"car: infrared read failed: {type(exc).__name__}: {exc}")
+            return None
+
     def battery_volts(self) -> float | None:
         if self._adc is None:
             return None
@@ -191,6 +211,7 @@ class RealCar:
         finally:
             for name, close in (
                 ("ultrasonic", self._sonar and self._sonar.close),
+                ("infrared", self._ir and self._ir.close),
                 ("battery adc", self._adc and self._adc.close),
                 ("leds", self._leds and self._leds.led_close),
             ):

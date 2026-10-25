@@ -48,7 +48,11 @@ FACE_SYMMETRY = 0.35  # max nose offset from the eye midpoint, as a share of eye
 ARUCO_DICT = "DICT_4X4_250"
 MARKER_SIZE_M = 0.15
 MARKER_FOCAL_PX = 470.0  # from scripts/check_marker.py with the marker at 1.0 m
-ARRIVE_DISTANCE_M = 1.0
+# Straight-line camera-to-marker distance, not floor distance: a face-height marker ~1.3 m above
+# the camera is never closer than 1.3 m, so 1 m out on the floor reads about 1.6 here.
+ARRIVE_DISTANCE_M = float(os.environ.get("BELLHOP_ARRIVE_DISTANCE_M", "1.0"))
+if ARRIVE_DISTANCE_M <= 0:
+    raise ValueError("BELLHOP_ARRIVE_DISTANCE_M must be positive")
 def _marker_rooms() -> dict[int, str]:
     """Load physical-marker-to-backend-room names from deployment configuration."""
     raw = os.environ.get("BELLHOP_MARKER_ROOMS", "{}").strip()
@@ -102,6 +106,12 @@ DRIVE_PORT = 8080  # backend BELLHOP_ROBOT_URL and PI_SERVER_URL point here
 DRIVE_LOOP_HZ = 20
 STOP_DISTANCE_CM = 25.0  # ultrasonic: nothing moves forward closer than this
 VISION_WATCHDOG_S = 0.5  # no fresh vision message this long -> stop
+# A go_to is sent once (by the backend dispatcher) and nobody repeats it, so a drive in progress
+# is authorised for this long after it, then the robot stops: a backend that went away cannot
+# leave it driving. A stop-scan-go hallway search needs longer than the 60 s default.
+DRIVE_TIMEOUT_S = float(os.environ.get("BELLHOP_DRIVE_TIMEOUT_S", "60"))
+if DRIVE_TIMEOUT_S <= 0:
+    raise ValueError("BELLHOP_DRIVE_TIMEOUT_S must be positive")
 # Motor wiring differs between Freenove builds. +1 preserves the standard mapping; set -1 in
 # the Pi's uncommitted .env when a positive logical forward command physically reverses.
 MOTOR_FORWARD_SIGN = int(os.environ.get("BELLHOP_MOTOR_FORWARD_SIGN", "1"))
@@ -118,7 +128,6 @@ MANUAL_MAX_DUTY = int(os.environ.get("BELLHOP_MANUAL_MAX_DUTY", "1000"))
 MANUAL_TIMEOUT_S = float(os.environ.get("BELLHOP_MANUAL_TIMEOUT_S", "0.35"))
 MANUAL_REFRESH_S = 0.1
 PAN_CENTER = 90
-TILT_DRIVE = 90  # level: door markers are mounted low
 # Freenove's servo client applies a +10-degree calibration error. Although its UI permits
 # pan 0..180, those end values overrun a normal servo's pulse range. Stock obstacle avoidance
 # uses this proven 30/90/150 sweep. Tilt below 80 can hit the chassis.
@@ -126,6 +135,19 @@ HEAD_PAN_MIN = 30
 HEAD_PAN_MAX = 150
 HEAD_TILT_MIN = 80
 HEAD_TILT_MAX = 180
+# The ultrasonic sits on the camera head and tilts with it, so the head is level whenever the
+# rover drives without a marker to steer by. Approaching a face-height door marker needs the
+# camera tilted up (higher = up) or the marker leaves the top of the frame inside ~2.5 m.
+TILT_DRIVE = int(os.environ.get("BELLHOP_TILT_DRIVE", "90"))
+TILT_APPROACH = int(os.environ.get("BELLHOP_TILT_APPROACH", "90"))
+if not all(HEAD_TILT_MIN <= tilt <= HEAD_TILT_MAX for tilt in (TILT_DRIVE, TILT_APPROACH)):
+    raise ValueError(f"head tilts must be from {HEAD_TILT_MIN} through {HEAD_TILT_MAX}")
+# +1: pan above PAN_CENTER looks right (Freenove stock: 30 left, 150 right). Set -1 if
+# `rover.drive --head-test` shows the opposite, or a side sighting turns the body the wrong way.
+HEAD_PAN_RIGHT_SIGN = int(os.environ.get("BELLHOP_HEAD_PAN_RIGHT_SIGN", "1"))
+if HEAD_PAN_RIGHT_SIGN not in (-1, 1):
+    raise ValueError("BELLHOP_HEAD_PAN_RIGHT_SIGN must be 1 or -1")
+HEAD_SETTLE_S = 0.3  # a vision frame this soon after a head move may still show the old pose
 
 
 def _head_scan_angles(name: str, raw: str, minimum: int, maximum: int) -> tuple[int, ...]:
@@ -162,17 +184,30 @@ if HEAD_SCAN_DWELL_S <= 0:
 ACTIVE_MARKER_SEARCH = os.environ.get("BELLHOP_ACTIVE_MARKER_SEARCH", "1") == "1"
 SEARCH_TURN_DUTY = int(os.environ.get("BELLHOP_SEARCH_TURN_DUTY", "900"))
 SEARCH_TURN_S = float(os.environ.get("BELLHOP_SEARCH_TURN_S", "0.35"))
+# 0 = never spin in place: scan, advance, scan (a hallway, where spinning loses the tape).
 SEARCH_TURNS_PER_LAP = int(os.environ.get("BELLHOP_SEARCH_TURNS_PER_LAP", "8"))
 SEARCH_ADVANCE_S = float(os.environ.get("BELLHOP_SEARCH_ADVANCE_S", "0.35"))
 SEARCH_MAX_S = float(os.environ.get("BELLHOP_SEARCH_MAX_S", "45"))
+# Longest in-place turn toward a target that a sideways-panned head saw, before scanning again.
+SEARCH_FACE_MAX_S = float(os.environ.get("BELLHOP_SEARCH_FACE_MAX_S", "3"))
 if (
     not 0 < SEARCH_TURN_DUTY <= 4095
     or SEARCH_TURN_S <= 0
-    or SEARCH_TURNS_PER_LAP < 1
+    or SEARCH_TURNS_PER_LAP < 0
     or SEARCH_ADVANCE_S <= 0
     or SEARCH_MAX_S <= 0
+    or SEARCH_FACE_MAX_S <= 0
 ):
     raise ValueError("marker search settings must be positive and within motor range")
+# Hallway mode: the search's forward steps follow a tape line with Freenove's 3 IR sensors
+# (bits left<<2 | middle<<1 | right, 1 = tape under that sensor) instead of driving blind.
+# Error -1 = tape far left .. +1 = far right; any other reading (0 lost, 7 end strip) stops.
+LINE_FOLLOW = os.environ.get("BELLHOP_LINE_FOLLOW", "0") == "1"
+LINE_DUTY = int(os.environ.get("BELLHOP_LINE_DUTY", "900"))
+LINE_GAIN = int(os.environ.get("BELLHOP_LINE_GAIN", "900"))  # extra duty per unit of line error
+LINE_ERROR = {2: 0.0, 6: -0.5, 4: -1.0, 3: 0.5, 1: 1.0}
+if not 0 < LINE_DUTY <= 4095 or not 0 <= LINE_GAIN <= 4095:
+    raise ValueError("line follow duties must be within motor range")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)

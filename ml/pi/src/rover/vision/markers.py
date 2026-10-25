@@ -9,8 +9,13 @@ from rover import config
 
 
 def side_px(corners: np.ndarray) -> float:
-    """Mean length of the 4 sides of one marker's (4, 2) corner array."""
-    return float(np.linalg.norm(corners - np.roll(corners, -1, axis=0), axis=1).mean())
+    """Longest of the 4 sides of one marker's (4, 2) corner array.
+
+    Seeing a marker at an angle (looking up at face height, or across at a door frame) only
+    shortens some sides, so the longest is the truest size cue. Face on it equals the mean, so
+    MARKER_FOCAL_PX, calibrated face on, still holds.
+    """
+    return float(np.linalg.norm(corners - np.roll(corners, -1, axis=0), axis=1).max())
 
 
 def distance_m(side: float) -> float | None:
