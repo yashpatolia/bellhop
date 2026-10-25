@@ -1,5 +1,6 @@
 """Piper voice (Poppy): one sentence at a time, tone tags set speed, pitch and expressiveness."""
 
+import atexit
 import time
 from collections.abc import Callable
 
@@ -57,6 +58,7 @@ class Voice:
         # a visit mutes its mic: on_play(when the sound ends) as it starts, on_play(None) at the end
         self.on_play: Callable[[float | None], None] = lambda until: None
         self._stream = None  # the sentence playing now, until wait() sees it end
+        self._keepalive = None  # held so the silent stream is never garbage collected
         self._ends_by = 0.0
         self._voice: PiperVoice | None = None
         self._device: int | None = None
@@ -74,6 +76,43 @@ class Voice:
         except Exception as exc:
             print(f"tts: no output device ({exc}); printing lines only")
             self._voice = None
+            return
+        if config.AUDIO_KEEPALIVE:
+            self._keepalive = self._keep_awake()
+
+    def _keep_awake(self):
+        """A silent stream for the life of the process; sentences play over it (PipeWire mixes)."""
+        import sounddevice as sd
+
+        def silence(outdata, frames, at, status) -> None:
+            outdata.fill(0)
+
+        try:
+            stream = sd.OutputStream(
+                samplerate=self._device_rate,
+                device=self._device,
+                channels=1,
+                dtype="float32",
+                latency="high",
+                blocksize=config.KEEPALIVE_BLOCK,
+                callback=silence,
+            )
+            stream.start()
+        except Exception as exc:
+            print(f"fallback: could not keep the speaker awake ({exc})")
+            return None
+        try:  # a speaker that plays one sound at a time (raw ALSA) would now refuse every sentence
+            sd.OutputStream(
+                samplerate=self._device_rate, device=self._device, channels=1, dtype="float32"
+            ).close()
+        except Exception as exc:
+            stream.close(ignore_errors=True)
+            print(f"fallback: the speaker plays one sound at a time ({exc}); not keeping it awake")
+            return None
+        # stopped before sounddevice's own exit handler: closing a running stream can hang
+        atexit.register(lambda: (stream.stop(ignore_errors=True), stream.close(ignore_errors=True)))
+        print("tts: keeping the speaker awake with a silent stream (AUDIO_KEEPALIVE)")
+        return stream
 
     def say(self, sentence: str, tone: str) -> None:
         """Make one sentence, then play it once the sentence before it has finished. It returns as

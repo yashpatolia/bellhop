@@ -368,3 +368,49 @@ def test_closing_flux_on_a_stuck_network_does_not_hang_the_visit(monkeypatch):
     flux.close()
     assert time.monotonic() - started < 1 and not socket.closed_stream and events == []
     socket.release.set()
+
+
+def test_a_silent_stream_keeps_the_speaker_awake(monkeypatch, capsys):
+    opened = []
+
+    class FakeOutputStream:
+        def __init__(self, **kwargs):
+            opened.append(kwargs)
+
+        def start(self):
+            opened.append("started")
+
+        def stop(self, ignore_errors=True):
+            pass
+
+        def close(self, ignore_errors=True):
+            opened.append("closed")
+
+    monkeypatch.setitem(sys.modules, "sounddevice", SimpleNamespace(OutputStream=FakeOutputStream))
+    voice = Voice.__new__(Voice)
+    voice._device, voice._device_rate = 3, 48000
+    assert voice._keep_awake() is not None
+    settings, started, probe, probe_closed = opened
+    assert settings["device"] == 3 and settings["samplerate"] == 48000 and started == "started"
+    assert probe["device"] == 3 and probe_closed == "closed"  # a sentence can still open it
+    block = np.ones((8, 1), np.float32)
+    settings["callback"](block, 8, None, None)
+    assert not block.any()  # silence
+
+    def broken(**kwargs):
+        raise OSError("device busy")
+
+    monkeypatch.setitem(sys.modules, "sounddevice", SimpleNamespace(OutputStream=broken))
+    assert voice._keep_awake() is None
+    assert "fallback: could not keep the speaker awake" in capsys.readouterr().out
+
+    class OneAtATime(FakeOutputStream):  # raw ALSA: a second open is refused
+        def __init__(self, **kwargs):
+            if opened and opened[-1] == "started":
+                raise OSError("Device unavailable")
+            super().__init__(**kwargs)
+
+    opened.clear()
+    monkeypatch.setitem(sys.modules, "sounddevice", SimpleNamespace(OutputStream=OneAtATime))
+    assert voice._keep_awake() is None and opened[-1] == "closed"  # sentences get the device
+    assert "plays one sound at a time" in capsys.readouterr().out

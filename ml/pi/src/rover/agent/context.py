@@ -24,8 +24,9 @@ GREETING = (
     "then add in a few words that you can also play games on your screen.)"
 )
 CHAT_GREETING = (
-    "(Someone has just called you over for a chat. Greet them and ask how you can help, then add "
-    "in a few words that you can also play games on your screen.)"
+    "(Someone has just called you over by name for a chat; they did not press a call bell. Greet "
+    "them and ask how you can help, then add in a few words that you can also play games on your "
+    "screen.)"
 )
 GAMES_QUERY = "knows how to play a game"  # recalls the facts start_game saved
 
@@ -86,6 +87,7 @@ def build_system_prompt(
     now: datetime,
     known_games: Sequence[str] = (),
     game_status: str | None = None,
+    actions: Sequence[str] = (),
 ) -> str:
     parts = [load_persona(), _resident_block(resident, preferences, memories, known_games)]
     if scene_note:
@@ -99,6 +101,16 @@ def build_system_prompt(
             f"{game_status}\n"
             "You opened it with start_game. Call start_game again only to switch to a different "
             "game.\nKeep each reply to one short sentence while they play."
+        )
+    if actions:
+        done = "\n".join(f"- {action}" for action in actions[-config.ACTIONS_SHOWN :])
+        parts.append(
+            "## What you have done this visit\n"
+            "Your tool calls and what each returned, oldest first. Trust these results: never say "
+            "one that worked did not happen, and never say one worked if its result says it "
+            "failed. Do not repeat one unless it failed, the resident asks, or something new "
+            "happens (use request_staff again for a new problem, and stop whenever needed):\n"
+            f"{done}"
         )
     return "\n\n".join(part.strip() for part in parts)
 

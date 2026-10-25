@@ -161,6 +161,10 @@ class Visit:
         self.transcribing: list[Future] = []  # in turn order; each turn then goes to the worker
         self.submitted = 0  # jobs handed to the worker; more than started = a turn is waiting
         self.started = 0
+        self.turns_submitted = 0  # the same for turns only: they are answered together
+        self.turns_started = 0
+        self.reply_quiet = False  # a reply is being written and has said nothing yet
+        self.waiting_face_ok = False  # a skipped turn was said to the robot (worker only)
         self.lock = threading.Lock()
         self.triage_threads: list[threading.Thread] = []
         self.latest_call: dict | None = None
@@ -306,9 +310,11 @@ class Visit:
             if draft is not None:
                 draft.cancel.set()
             return
-        if wake_text(text) is not None and not self.idle():
-            # its name comes first: stop the reply being written and answer this turn instead
-            print("visit: heard the robot's name; cutting the reply in progress short")
+        named = wake_text(text) is not None
+        if not self.idle() and (named or (self.reply_quiet and face_ok)):
+            # its name, or more words before the reply began: stop it, answer them all at once
+            why = "the robot's name" if named else "more speech before the reply began"
+            print(f"visit: heard {why}; cutting the reply in progress short")
             self.interrupt.set()
         if self.transcribing:  # Moonshine is still on an earlier turn: this one goes after it
             if draft is not None:
@@ -318,7 +324,7 @@ class Visit:
             self.transcribing.append(heard)
             return
         stt_s = at - speech_end
-        self.submit(self.handle_turn, text, "flux", audio, stt_s, speech_end, draft, face_ok)
+        self.submit_turn(text, "flux", audio, stt_s, speech_end, draft, face_ok)
 
     def check_timers(self, now: float) -> None:
         if stt_fallback_due(self.turn_pending, self.flux_ok, now - self.speech_end):
@@ -389,6 +395,18 @@ class Visit:
         self.submitted += 1
         self.job = self.pool.submit(self.guarded, job, *args)
 
+    def submit_turn(self, *turn) -> None:
+        self.turns_submitted += 1
+        self.submit(self.queued_turn, *turn)
+
+    def queued_turn(self, *turn) -> None:
+        """A heard turn on the worker: answered, unless more turns already wait behind it."""
+        self.turns_started += 1
+        answer = self.turns_submitted == self.turns_started
+        face_ok = turn[-1] or self.waiting_face_ok  # joined like their words: any said to it
+        self.waiting_face_ok = False if answer else face_ok
+        self.handle_turn(*turn[:-1], face_ok, answer=answer)
+
     def guarded(self, job, *args) -> None:
         self.started += 1
         self.interrupt = threading.Event()
@@ -414,6 +432,7 @@ class Visit:
             datetime.now(),
             self.games_known,
             self.games.status() if self.games is not None else None,
+            self.tool_ctx.done,
         )
 
     def greet(self) -> None:
@@ -449,7 +468,7 @@ class Visit:
             print(f"visit: dropped {source} turn {text!r}: {reason}")
             return
         stt_s = at - speech_end
-        self.submit(self.handle_turn, text, source, audio, stt_s, speech_end, None, face_ok)
+        self.submit_turn(text, source, audio, stt_s, speech_end, None, face_ok)
 
     def handle_turn(
         self,
@@ -460,6 +479,7 @@ class Visit:
         speech_end: float,
         draft: Draft | None,
         face_ok: bool,
+        answer: bool = True,
     ) -> None:
         if self.done:
             print(f"visit: dropped turn {text!r}: the call is already resolved")
@@ -471,6 +491,13 @@ class Visit:
         self.history.add("resident", text)
         self.backend.add_turn(self.call_id, "resident", text)  # before triage reads the transcript
         self.start_triage()
+        if not answer:
+            # the history joins it to the turns waiting behind it, and the last one replies
+            print("visit: more speech is waiting; answering it all together")
+            if draft is not None:
+                draft.cancel.set()
+            self.last_activity = time.monotonic()
+            return
         if not face_ok:
             # posted and triaged anyway, so a call for help from the floor is never lost
             print("visit: no one was facing the robot during that turn; triaged it, no reply")
@@ -482,9 +509,11 @@ class Visit:
         self.eyes.base = "thinking"  # until the first sentence brings the reply's tone
         if self.ask_tone is not None:
             self.tone_pick = TonePick(self.history.transcript(), self.ask_tone)
+        self.reply_quiet = True  # until its first sentence: more speech restarts the reply
         try:
             full = self.reply_to(text, draft)
         finally:
+            self.reply_quiet = False
             self.eyes.base = "listening"
             self.tone_pick = None
         self.record_robot(full)
@@ -541,6 +570,7 @@ class Visit:
         return full
 
     def speak(self, tone: str, sentence: str) -> None:
+        self.reply_quiet = False
         if self.first_text_at is None:
             self.first_text_at = time.monotonic()
         if self.tone_pick is not None:

@@ -17,7 +17,7 @@ from collections.abc import Callable
 
 from rover import config
 from rover.games.bingo import Bingo
-from rover.games.draw import ACCENT, AGAIN, BG, DIM, FINISH, INK, H, W, canvas, text
+from rover.games.draw import ACCENT, AGAIN, BG, FINISH, INK, H, W, canvas, text
 from rover.games.memory import Memory
 from rover.games.tictactoe import TicTacToe, next_slip
 from rover.touch import Touch
@@ -224,7 +224,7 @@ class Games:
             self._draw_intro(img, now)
         else:
             self.game.draw(img)
-            FINISH.draw(img, DIM)
+            FINISH.draw(img, INK)  # white: dim read as greyed out
             if self.game.over:
                 AGAIN.draw(img)
         screen = self.screen

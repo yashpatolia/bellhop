@@ -259,6 +259,11 @@ def test_look_returns_a_fresh_image_only(tmp_path, monkeypatch):
     old = time.time() - config.LOOK_MAX_AGE_S - 5
     os.utime(jpg, (old, old))
     assert run_tool("look", {}, ctx) == "camera image not available"
+    assert ctx.done == [
+        "look: camera image not available",
+        "look: looked through the camera (that picture is gone now: look again to see)",
+        "look: camera image not available",
+    ]
 
 
 def test_request_staff_without_call_reports_failure():
@@ -497,3 +502,13 @@ def test_claude_client_keeps_connections_alive_for_the_whole_visit(monkeypatch):
     assert first is not None and brain.claude_client() is first  # one shared pool
     pool = seen["http_client"]._transport._pool
     assert pool._keepalive_expiry == config.CLAUDE_KEEPALIVE_S >= 20
+
+
+def test_the_prompt_lists_what_the_robot_did_so_it_does_not_redo_it():
+    actions = [f"end_game: closed {i}" for i in range(config.ACTIONS_SHOWN + 2)]
+    prompt = build_system_prompt(MARGARET, PREFS, [], "", None, NOW, actions=actions)
+    assert "## What you have done this visit" in prompt and "Do not repeat one" in prompt
+    assert "never say one worked if its result says it failed" in prompt  # no false "nurse coming"
+    assert "- end_game: closed 2" in prompt and f"- end_game: closed {len(actions) - 1}" in prompt
+    assert "- end_game: closed 1\n" not in prompt and "- end_game: closed 0" not in prompt
+    assert "## What you have done" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)

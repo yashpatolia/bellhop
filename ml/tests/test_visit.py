@@ -936,3 +936,98 @@ def test_a_flux_turn_waits_behind_an_earlier_moonshine_turn(tmp_path, monkeypatc
         visit.job.result(timeout=5)
     said = [text for speaker, text in visit.history.transcript() if speaker == "resident"]
     assert said == ["first thing I said", "second thing I said"]
+
+
+class QuietBrain(FakeBrain):
+    """The first reply thinks (says nothing) until it is cancelled; later ones answer."""
+
+    def __init__(self, sentences=("Okay.",)):
+        super().__init__(sentences)
+        self.thinking = threading.Event()
+        self.heard = []
+
+    def reply(self, system, messages, on_sentence, tool_ctx, allow_tools=True, cancel=None):
+        self.heard.append(messages[-1]["content"])
+        if self.calls == 0:
+            self.calls += 1
+            self.thinking.set()
+            assert cancel.wait(5)
+            return "", False
+        return super().reply(system, messages, on_sentence, tool_ctx, allow_tools, cancel)
+
+
+def test_more_speech_before_the_reply_begins_is_answered_with_it(tmp_path, monkeypatch, capsys):
+    brain = QuietBrain()
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), brain)
+    visit.turn_face_ok = True
+    visit.end_of_turn("Can we play", time.monotonic())
+    assert brain.thinking.wait(5)
+    visit.turn_face_ok = True
+    visit.end_of_turn("tic-tac-toe please", time.monotonic())
+    visit.job.result(timeout=5)
+    assert visit.voice.said == ["Okay."]  # one answer, to both
+    assert brain.heard[-1] == "Can we play tic-tac-toe please"
+    assert "more speech before the reply began" in capsys.readouterr().out
+
+
+def test_turns_waiting_behind_a_reply_get_one_answer(tmp_path, monkeypatch):
+    brain = FakeBrain(("Sure.",))
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), brain)
+    gate = threading.Event()
+
+    def busy():
+        gate.wait(5)  # the robot is still answering something else
+
+    visit.submit(busy)
+    for words in ("Can we", "play bingo"):
+        visit.turn_face_ok = True
+        visit.end_of_turn(words, time.monotonic())
+    gate.set()
+    visit.job.result(timeout=5)
+    assert brain.calls == 1 and visit.voice.said == ["Sure."]
+    assert [line for _, line in visit.history.transcript()] == ["Can we", "play bingo", "Sure."]
+
+
+def test_the_prompt_carries_what_the_robot_did_this_visit(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.tool_ctx.done.append("end_game: the game is closed")
+    assert "- end_game: the game is closed" in visit.system_prompt()
+
+
+def make_facing_visit(tmp_path, monkeypatch, brain):
+    """A real visit's face gate: turns can be said to the robot or not."""
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), brain)
+    visit.face = FaceGate(None)  # not disabled
+    return visit
+
+
+def test_speech_not_said_to_the_robot_does_not_cut_a_reply_or_lose_a_turn(tmp_path, monkeypatch):
+    brain = QuietBrain()
+    visit = make_facing_visit(tmp_path, monkeypatch, brain)
+    visit.turn_face_ok = True
+    visit.end_of_turn("Can you get me some water", time.monotonic())
+    assert brain.thinking.wait(5)
+    visit.turn_face_ok = False  # a nurse in the doorway answers someone else
+    visit.end_of_turn("yes dear, in a minute", time.monotonic())
+    assert not visit.interrupt.is_set()  # the resident's reply is not cut
+    visit.interrupt.set()  # end the QuietBrain's first reply so the test can finish
+    visit.job.result(timeout=5)
+
+
+def test_a_waiting_turn_said_to_the_robot_is_answered_even_if_the_next_is_not(
+    tmp_path, monkeypatch
+):
+    brain = FakeBrain(("Of course.",))
+    visit = make_facing_visit(tmp_path, monkeypatch, brain)
+    gate = threading.Event()
+
+    def busy():
+        gate.wait(5)
+
+    visit.submit(busy)
+    for words, facing in (("Can you get me some water", True), ("yes dear, in a minute", False)):
+        visit.turn_face_ok = facing
+        visit.end_of_turn(words, time.monotonic())
+    gate.set()
+    visit.job.result(timeout=5)
+    assert brain.calls == 1 and visit.voice.said == ["Of course."]

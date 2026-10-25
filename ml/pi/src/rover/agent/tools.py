@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import base64
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -143,6 +143,7 @@ class ToolContext:
     call_id: str | None
     resident_id: str | None = None
     games: Games | None = None
+    done: list[str] = field(default_factory=list)  # "tool: result", for the prompt
 
 
 def _look() -> str | list[dict]:
@@ -218,7 +219,14 @@ def _start_game(args: dict, ctx: ToolContext) -> str:
 
 
 def run_tool(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
-    """Return the content for the tool_result block."""
+    """Return the content for the tool_result block, and note the call in ctx.done."""
+    result = _run(name, args, ctx)
+    seen = "looked through the camera (that picture is gone now: look again to see)"
+    ctx.done.append(f"{name}: {result if isinstance(result, str) else seen}")
+    return result
+
+
+def _run(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
     if name == "look":
         return _look()
     if name == "request_staff":

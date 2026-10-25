@@ -222,6 +222,10 @@ PREROLL_S = 0.5
 ECHO_TAIL_S = 0.3  # mic stays muted this long after the robot stops talking
 MIC_NAME = os.environ.get("MIC_NAME", "")  # part of the device name; empty = default
 SPEAKER_NAME = os.environ.get("SPEAKER_NAME", "")
+# an idle speaker goes to sleep, and waking an HDMI screen's speaker blanks some screens for
+# seconds: a silent stream keeps it awake. 0 turns it off
+AUDIO_KEEPALIVE = os.environ.get("AUDIO_KEEPALIVE", "1") != "0"
+KEEPALIVE_BLOCK = 4096  # frames per silent callback: few Python calls a second
 # PortAudio opens ALSA "plughw" (converts rate and channels) instead of raw "hw", so a USB mic
 # that only records at 44.1/48 kHz still opens at 16 kHz. Read when sounddevice is imported.
 os.environ.setdefault("PA_ALSA_PLUGHW", "1")
@@ -254,6 +258,7 @@ TRIAGE_MODEL = "claude-haiku-5-5"
 FIRST_TEXT_TIMEOUT_S = 6.0
 CLAUDE_KEEPALIVE_S = 60.0  # keep the TLS connection to Claude between turns (SDK default is 5 s)
 HISTORY_EXCHANGES = 20
+ACTIONS_SHOWN = 8  # the latest tool calls listed in the prompt (the history keeps only words)
 MAX_REPLY_TOKENS = 300
 BRAIN_EFFORT = "low"  # chat: low keeps the time to first spoken word short
 BRAIN_MAX_TOOL_ROUNDS = 3
