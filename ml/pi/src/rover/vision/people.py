@@ -61,15 +61,28 @@ class PersonTracker:
     def update(self, frame: np.ndarray, now: float) -> dict | None:
         if self.model is None:
             return None
-        results = self.model.track(
-            frame,
-            persist=True,
-            classes=[0],
-            imgsz=config.YOLO_IMGSZ,
-            conf=config.YOLO_CONF,
-            tracker=config.TRACKER,
-            verbose=False,
-        )
+        # Ultralytics defers some backend validation until the first inference.  A partially
+        # copied NCNN directory therefore used to kill the entire vision process here, taking
+        # down otherwise independent ArUco navigation.  Person/face following is optional:
+        # turn it off after one failure and leave the camera + marker pipeline alive.
+        try:
+            results = self.model.track(
+                frame,
+                persist=True,
+                classes=[0],
+                imgsz=config.YOLO_IMGSZ,
+                conf=config.YOLO_CONF,
+                tracker=config.TRACKER,
+                verbose=False,
+            )
+        except Exception as error:  # model backends expose several non-uniform error types
+            print(
+                "vision: person model failed; person and face detection disabled "
+                f"({type(error).__name__}: {error})"
+            )
+            self.model = None
+            self.target = None
+            return None
         boxes = results[0].boxes.numpy()
         tracks: dict[int, Box] = {}
         if boxes.id is not None:

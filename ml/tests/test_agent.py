@@ -98,8 +98,38 @@ def test_history_keeps_last_exchanges(monkeypatch):
     history.add("resident", "last")
     messages = history.messages()
     assert messages[0]["role"] == "user"
-    assert [m["content"] for m in messages] == ["r4", "b4", "last"]
+    assert "r3" in messages[0]["content"] and messages[0]["content"].endswith("r4")
+    assert [m["content"] for m in messages[1:]] == ["b4", "last"]
     assert len(history.transcript()) == 12
+
+
+def test_history_keeps_a_compact_reminder_when_a_visit_runs_long(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_EXCHANGES", 1)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    history.add("resident", "My daughter Ana visits on Sundays.")
+    history.add("robot", "I will remember that Ana visits on Sundays.")
+    history.add("resident", "What did I tell you about my daughter?")
+
+    messages = history.messages()
+    assert messages[0]["role"] == "user"
+    assert "daughter Ana visits on Sundays" in messages[0]["content"]
+    assert "What did I tell you" in messages[-1]["content"]
+
+
+def test_a_very_long_visit_keeps_how_it_began(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_EXCHANGES", 2)
+    monkeypatch.setattr(config, "HISTORY_CONTEXT_CHARS", 200)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    history.add("resident", "My daughter Ana visits on Sundays.")
+    for n in range(20):
+        history.add("robot", f"Tell me more, part {n}.")
+        history.add("resident", f"Here is chatter number {n} about the weather.")
+    first = history.messages()[0]["content"]
+    assert "daughter Ana visits on Sundays" in first  # the start of the visit is kept
+    assert "chatter number 17" in first and "(...)" in first  # and what led into the window
+    assert len(first) < 200 + 200  # the reminder stays bounded
 
 
 def test_split_tone():
@@ -621,3 +651,21 @@ def test_prompt_shows_the_open_book():
     prompt = build_system_prompt(None, None, [], "", None, NOW, reading=status)
     assert "## A story is open\nEmma, stopped about 20% through." in prompt
     assert "A story is open" not in build_system_prompt(None, None, [], "", None, NOW)
+
+
+def test_game_facts_leave_room_for_real_ones():
+    games = [{"text": f"Knows how to play {g}.", "tags": ["game", g]} for g in ("bingo", "memory")]
+    facts = [*games, {"text": "Likes tea."}, {"text": "Ana visits on Sundays."}]
+    prompt = build_system_prompt(MARGARET, None, facts, "", None, NOW, ["bingo", "memory"])
+    assert "Ana visits on Sundays" in prompt and "Knows how to play" not in prompt
+    assert "Games they already know how to play: bingo, memory match" in prompt
+
+
+def test_unanswered_turns_cannot_grow_one_message_without_bound(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_CONTEXT_CHARS", 200)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    for n in range(500):  # a TV talking: every turn answered WAIT, so no robot line
+        history.add("resident", f"the television says line {n}")
+    last = history.messages()[-1]["content"]
+    assert len(last) < 250 and last.endswith("line 499")

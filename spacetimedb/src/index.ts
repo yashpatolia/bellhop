@@ -65,6 +65,7 @@ const robot = table(
     status: t.string(),
     battery: t.f64(),
     room: t.string(), // "" = none
+    target: t.string(), // "" = no active navigation target
   }
 );
 
@@ -279,7 +280,13 @@ export const save_nurse = spacetimedb.reducer(
 );
 
 export const save_robot = spacetimedb.reducer(
-  { id: t.string(), status: t.string(), battery: t.f64(), room: t.string() },
+  {
+    id: t.string(),
+    status: t.string(),
+    battery: t.f64(),
+    room: t.string(),
+    target: t.string(),
+  },
   (ctx, row) => {
     if (ctx.db.robot.id.find(row.id)) ctx.db.robot.id.update(row);
     else ctx.db.robot.insert(row);

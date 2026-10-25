@@ -216,17 +216,17 @@ def test_reads_never_touch_the_network(server, clock):
 
 def test_save_robot_posts_positional_args_to_reducer_route(server):
     store = _make(server)
-    store.robots.save(Robot(id="b1", status=RobotStatus.BUSY, battery=0.5, room="12"))
+    store.robots.save(Robot(id="b1", status=RobotStatus.BUSY, battery=0.5, room="12", target="210"))
     (req,) = server.requests
     assert req.method == "POST"
     assert str(req.url) == f"{URL}/v1/database/{DB}/call/save_robot"
     assert req.headers["authorization"] == f"Bearer {TOKEN}"
-    assert json.loads(req.content) == ["b1", "busy", 0.5, "12"]
+    assert json.loads(req.content) == ["b1", "busy", 0.5, "12", "210"]
 
 
 def test_robot_without_room_sends_empty_string(server):
     _make(server).robots.save(Robot(id="b1"))
-    assert server.calls() == [("save_robot", ["b1", "idle", 1.0, ""])]
+    assert server.calls() == [("save_robot", ["b1", "idle", 1.0, "", ""])]
 
 
 def test_no_token_means_no_authorization_header(server):

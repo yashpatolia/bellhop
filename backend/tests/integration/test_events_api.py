@@ -94,6 +94,8 @@ def test_call_lifecycle_streams_named_events_with_full_objects_in_order(app, con
     subscriber = container.events.connect()
 
     call = http.post("/calls", json={"room": "12"}).json()
+    http.post(f"/calls/{call['id']}/in-visit")
+    http.post(f"/calls/{call['id']}/turns", json={"speaker": "resident", "text": "my hip hurts"})
     http.post(
         f"/calls/{call['id']}/score",
         json={"urgency": 3, "category": "pain", "summary": "hip"},
@@ -104,14 +106,24 @@ def test_call_lifecycle_streams_named_events_with_full_objects_in_order(app, con
         messages.append(message)
     events = [parse_frame(container.events.frame(message)) for message in messages]
     names = [event[1] for event in events]
-    assert names == ["call.raised", "call.assigned", "call.scored", "alert.raised", "call.resolved"]
+    assert names == [
+        "call.raised",
+        "call.assigned",
+        "call.updated",
+        "call.updated",
+        "call.scored",
+        "alert.raised",
+        "call.resolved",
+    ]
     ids = [e[0] for e in events]
     assert ids == sorted(ids) and len(set(ids)) == len(ids)
 
-    raised, assigned, scored, alert, resolved = (e[2] for e in events)
+    raised, assigned, in_visit, turn, scored, alert, resolved = (e[2] for e in events)
     assert raised["call_id"] == call["id"] and raised["room"] == "12"
     assert raised["call"]["id"] == call["id"]
     assert assigned["robot_id"] == "robot_1" and "call" in assigned
+    assert in_visit["call"]["status"] == "in_visit"
+    assert turn["call"]["transcript"][-1]["text"] == "my hip hurts"
     assert scored["urgency"] == 3 and scored["category"] == "pain"
     assert scored["call"]["summary"] == "hip"
     assert alert["level"] == 3 and alert["alert"]["id"] == alert["alert_id"]
@@ -128,7 +140,13 @@ def test_put_robot_emits_robot_updated(app, container):
     _, name, data = parse_frame(container.events.frame(message))
     assert name == "robot.updated"
     assert data["robot_id"] == "robot_1"
-    assert data["robot"] == {"id": "robot_1", "status": "charging", "battery": 0.4, "room": "dock"}
+    assert data["robot"] == {
+        "id": "robot_1",
+        "status": "charging",
+        "battery": 0.4,
+        "room": "dock",
+        "target": None,
+    }
     container.events.disconnect(subscriber)
 
 

@@ -31,6 +31,7 @@ from rover.agent.context import (
     CHAT_GREETING,
     GAMES_QUERY,
     GREETING,
+    MAX_MEMORY_FACTS,
     VisitHistory,
     activity_for,
     build_system_prompt,
@@ -40,7 +41,7 @@ from rover.agent.tone import AskTone, TonePick, ask_jev_tone
 from rover.agent.tools import ToolContext, post_pi
 from rover.backend import Backend
 from rover.eyes import Eyes
-from rover.games import Games
+from rover.games import GAMES, Games
 from rover.speech import ledguard
 from rover.speech.flux import FluxStream
 from rover.speech.gates import FaceGate, Gates, VisionListener
@@ -204,7 +205,8 @@ class Visit:
             return
         self.resident = self.backend.resident(resident_id)
         self.preferences = self.backend.preferences(resident_id)
-        self.memories = self.backend.memory(resident_id, q="")
+        # game facts are left out of the prompt's facts, so ask for enough to leave three others
+        self.memories = self.backend.memory(resident_id, q="", k=MAX_MEMORY_FACTS + len(GAMES))
         self.games_known = games_known(self.backend.memory(resident_id, q=GAMES_QUERY, k=10))
         self.voice.settings = self.backend.speech_settings(resident_id)
         self.risk_flags = list((self.resident or {}).get("risk_flags") or [])

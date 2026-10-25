@@ -54,6 +54,19 @@ Read from the environment by `Settings.from_env` in `src/bellhop/container.py`.
 
 Keep secrets in env vars or a git-ignored `.env`, never in the repo.
 
+## Storage and resident memory
+
+Markdown is not used as a database. The JSON scenario files only seed a demo home; they are not
+changed at runtime. The default `memory` store is intentionally ephemeral for local development.
+For a demo that must survive a backend restart, start and publish the local SpacetimeDB module,
+then set `BELLHOP_STORE=spacetimedb` (the exact commands are in
+[../spacetimedb/README.md](../spacetimedb/README.md)).
+
+Resident facts are always recalled from a local, resident-scoped lexical index. An empty query is
+the rover's bounded newest-first briefing before a visit. `BELLHOP_MEMORY=moss` is an optional
+semantic ranking layer, not the source of truth: it is guarded by a 50 ms budget and falls back to
+the local index. Do not make it a demo dependency until it has been exercised with real credentials.
+
 ## Layout
 
 - `src/bellhop/domain/`: models, events and rules; no I/O.

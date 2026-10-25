@@ -2,7 +2,6 @@ import json
 import math
 
 import httpx
-
 from rover.backend import Backend
 
 
@@ -13,11 +12,15 @@ def make_backend(handler, api_key: str = "secret"):
         seen.append(request)
         return handler(request)
 
-    return Backend("http://backend.test", api_key, transport=httpx.MockTransport(record)), seen
+    return Backend(
+        "http://backend.test", api_key, transport=httpx.MockTransport(record)
+    ), seen
 
 
 def ok(body=None):
-    return lambda request: httpx.Response(200, json={"id": "c1"} if body is None else body)
+    return lambda request: httpx.Response(
+        200, json={"id": "c1"} if body is None else body
+    )
 
 
 def test_score_clamps_every_field_and_sends_key():
@@ -90,6 +93,21 @@ def test_failures_return_empty_values():
     assert server_error.calls() == []
 
 
+def test_safe_get_retries_once_after_a_transient_network_failure():
+    attempts = 0
+
+    def flaky(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx.ReadTimeout("brief stall", request=request)
+        return httpx.Response(200, json=[])
+
+    backend, _ = make_backend(flaky)
+    assert backend.calls() == []
+    assert attempts == 2
+
+
 def test_find_assigned_call_picks_newest_active_call_for_this_robot():
     def call(call_id, robot_id, status, hour):
         return {
@@ -110,14 +128,24 @@ def test_find_assigned_call_picks_newest_active_call_for_this_robot():
     assert backend.find_assigned_call("robot_3") is None
 
 
-def test_report_robot_puts_status_and_clamps_battery():
+def test_report_robot_puts_status_target_and_clamps_battery():
     backend, seen = make_backend(ok({"id": "robot_1", "status": "idle"}))
-    assert backend.report_robot("robot_1", "busy", 1.3, "lobby") is not None
-    backend.report_robot("robot_1", "idle", None, None)
+    assert backend.report_robot("robot_1", "busy", 1.3, "lobby", "210") is not None
+    backend.report_robot("robot_1", "idle", None, None, None)
     full, unknown = seen
     assert full.method == "PUT" and full.url.path == "/robots/robot_1"
-    assert json.loads(full.content) == {"status": "busy", "battery": 1.0, "room": "lobby"}
-    assert json.loads(unknown.content) == {"status": "idle", "battery": 1.0, "room": None}
+    assert json.loads(full.content) == {
+        "status": "busy",
+        "battery": 1.0,
+        "room": "lobby",
+        "target": "210",
+    }
+    assert json.loads(unknown.content) == {
+        "status": "idle",
+        "battery": 1.0,
+        "room": None,
+        "target": None,
+    }
 
 
 def test_turns_resolve_and_triage_failed_requests():

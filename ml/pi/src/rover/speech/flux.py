@@ -18,7 +18,9 @@ class FluxStream:
 
     Events: "StartOfTurn", "EagerEndOfTurn", "TurnResumed", "EndOfTurn", and "Error" (once,
     with the reason as the text; the stream is dead after it). Audio goes out from its own
-    thread, so a slow network never stalls the mic loop; one FLUX_BACKLOG_S behind is an Error.
+    thread, so a slow network never stalls the mic loop. A short stall only delays it; a full
+    send queue (FLUX_SEND_QUEUE_BLOCKS, about 4 s behind) is an Error, so Moonshine takes the
+    turns instead of Flux answering stale or broken speech.
     """
 
     def __init__(self, keyterms: list[str], on_event: Callable[[str, str], None]) -> None:
@@ -28,7 +30,7 @@ class FluxStream:
         self._socket = None
         self._live = False
         self._lock = threading.Lock()  # one Error, even when sending and listening both fail
-        self._outbox: queue.SimpleQueue[bytes | None] = queue.SimpleQueue()  # None: stop sending
+        self._media: queue.Queue[bytes | None] = queue.Queue(maxsize=config.FLUX_SEND_QUEUE_BLOCKS)
         self._sender: threading.Thread | None = None
 
     def start(self) -> bool:
@@ -52,7 +54,7 @@ class FluxStream:
             return False
         self._live = True
         threading.Thread(target=self._listen, daemon=True, name="flux-listen").start()
-        self._sender = threading.Thread(target=self._send_queued, daemon=True, name="flux-send")
+        self._sender = threading.Thread(target=self._send_loop, daemon=True, name="flux-send")
         self._sender.start()
         return True
 
@@ -60,15 +62,15 @@ class FluxStream:
         """Queue int16 16 kHz mono audio; send zeros for gated blocks to keep the socket alive."""
         if not self._live:
             return
-        if self._outbox.qsize() * len(pcm) > config.FLUX_BACKLOG_S * config.SAMPLE_RATE * 2:
-            self._fail(f"Flux send fell {config.FLUX_BACKLOG_S:g} s behind")
-            return
-        self._outbox.put(pcm)
+        try:
+            self._media.put_nowait(pcm)
+        except queue.Full:  # a dead or too slow network: dropping audio would garble the turn
+            self._fail(f"Flux send fell {self._media.maxsize} messages behind")
 
     def close(self) -> None:
         with self._lock:
             was_live, self._live = self._live, False
-        self._outbox.put(None)  # what is queued goes out first
+        self._stop_sender()  # what is queued goes out first
         if self._sender is not None:
             self._sender.join(config.FLUX_CLOSE_S)
             if self._sender.is_alive():
@@ -86,8 +88,19 @@ class FluxStream:
         except Exception as exc:
             print(f"flux: close failed: {exc}")
 
-    def _send_queued(self) -> None:
-        while (pcm := self._outbox.get()) is not None:
+    def _stop_sender(self) -> None:
+        """None ends the sender after what is queued; a full queue (a stuck network) gives up its
+        oldest block to make room."""
+        while True:
+            try:
+                self._media.put_nowait(None)
+                return
+            except queue.Full:
+                with contextlib.suppress(queue.Empty):
+                    self._media.get_nowait()
+
+    def _send_loop(self) -> None:
+        while (pcm := self._media.get()) is not None:
             try:
                 self._socket.send_media(pcm)
             except Exception as exc:
@@ -114,6 +127,6 @@ class FluxStream:
             if not self._live:  # already failed or closed on purpose
                 return
             self._live = False
-        self._outbox.put(None)  # stops the sender
+        self._stop_sender()
         print(f"flux: {reason}")
         self.on_event("Error", reason)

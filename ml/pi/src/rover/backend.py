@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from typing import Any
 
 import httpx
@@ -38,7 +39,7 @@ class Backend:
         self._http = httpx.Client(
             base_url=base_url,
             headers=headers,
-            timeout=config.HTTP_TIMEOUT_S,
+            timeout=config.BACKEND_HTTP_TIMEOUT_S,
             transport=transport,
         )
 
@@ -47,12 +48,22 @@ class Backend:
         call_id = match.group(1) if match else None
         response: httpx.Response | None = None
         error: str | None = None
+        # GETs are safe to replay: a transient Tailscale/WSL stall should not make the rover
+        # forget an assigned call. Writes are deliberately never retried, because a timeout can
+        # mean the backend applied a non-idempotent update just before the response was lost.
+        attempts = 2 if method.upper() == "GET" else 1
         with obslog.Timer() as timer:
-            try:
-                response = self._http.request(method, path, **kwargs)
-            except httpx.HTTPError as exc:
-                error = type(exc).__name__
-                print(f"backend: {method} {path} failed: {error}: {exc}")
+            for attempt in range(attempts):
+                try:
+                    response = self._http.request(method, path, **kwargs)
+                    error = None
+                    break
+                except httpx.HTTPError as exc:
+                    error = type(exc).__name__
+                    if attempt + 1 < attempts:
+                        time.sleep(0.1)
+                        continue
+                    print(f"backend: {method} {path} failed: {error}: {exc}")
         obslog.event(
             "backend.request",
             method=method,
@@ -154,7 +165,12 @@ class Backend:
         return self._dict("POST", f"/calls/{call_id}/resolve", json={"by_robot": by_robot})
 
     def report_robot(
-        self, robot_id: str, status: str, battery: float | None, room: str | None
+        self,
+        robot_id: str,
+        status: str,
+        battery: float | None,
+        room: str | None,
+        target: str | None = None,
     ) -> dict | None:
         """PUT /robots/{id}. The backend requires a battery, so an unknown one is sent as full:
         an unreadable gauge must not take the robot out of dispatch (the caller prints why)."""
@@ -162,6 +178,8 @@ class Backend:
             "status": status,
             "battery": _clamp(battery if battery is not None else 1.0, 0.0, 1.0, if_not_finite=1.0),
             "room": room,
+            # Include null on arrival/stop, so the dashboard stops showing a stale destination.
+            "target": target,
         }
         return self._dict("PUT", f"/robots/{robot_id}", json=body)
 

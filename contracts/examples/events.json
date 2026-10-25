@@ -3,28 +3,25 @@
     "id": 1,
     "event": "call.raised",
     "data": {
-      "call_id": "call_bb5962d6",
+      "call_id": "call_d4c48d82",
       "room": "12",
       "call": {
-        "id": "call_bb5962d6",
+        "id": "call_d4c48d82",
         "room": "12",
         "resident_id": "res_margaret",
-        "urgency": 1,
-        "category": "social",
-        "status": "resolved",
+        "urgency": null,
+        "category": null,
+        "status": "ringing",
         "transcript": [],
         "summary": null,
-        "assigned_to": [
-          "robot_1",
-          "nurse_priya"
-        ],
-        "robot_id": "robot_1",
+        "assigned_to": [],
+        "robot_id": null,
         "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:50.878013Z",
-        "assigned_at": "2026-10-24T22:35:50.878125Z",
+        "created_at": "2026-10-25T04:53:49.581351Z",
+        "assigned_at": null,
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:50.881905Z",
-        "resolved_by_robot": true
+        "resolved_at": null,
+        "resolved_by_robot": null
       }
     }
   },
@@ -32,16 +29,16 @@
     "id": 2,
     "event": "call.assigned",
     "data": {
-      "call_id": "call_bb5962d6",
+      "call_id": "call_d4c48d82",
       "robot_id": "robot_1",
       "nurse_id": "nurse_priya",
       "call": {
-        "id": "call_bb5962d6",
+        "id": "call_d4c48d82",
         "room": "12",
         "resident_id": "res_margaret",
-        "urgency": 1,
-        "category": "social",
-        "status": "resolved",
+        "urgency": null,
+        "category": null,
+        "status": "robot_en_route",
         "transcript": [],
         "summary": null,
         "assigned_to": [
@@ -49,12 +46,14 @@
           "nurse_priya"
         ],
         "robot_id": "robot_1",
-        "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:50.878013Z",
-        "assigned_at": "2026-10-24T22:35:50.878125Z",
+        "nurse_tasks": [
+          "nurse_priya"
+        ],
+        "created_at": "2026-10-25T04:53:49.581351Z",
+        "assigned_at": "2026-10-25T04:53:49.581647Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:50.881905Z",
-        "resolved_by_robot": true
+        "resolved_at": null,
+        "resolved_by_robot": null
       }
     }
   },
@@ -62,16 +61,16 @@
     "id": 3,
     "event": "call.scored",
     "data": {
-      "call_id": "call_bb5962d6",
+      "call_id": "call_d4c48d82",
       "urgency": 1,
       "category": "social",
       "call": {
-        "id": "call_bb5962d6",
+        "id": "call_d4c48d82",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
         "category": "social",
-        "status": "resolved",
+        "status": "robot_en_route",
         "transcript": [],
         "summary": null,
         "assigned_to": [
@@ -79,12 +78,14 @@
           "nurse_priya"
         ],
         "robot_id": "robot_1",
-        "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:50.878013Z",
-        "assigned_at": "2026-10-24T22:35:50.878125Z",
+        "nurse_tasks": [
+          "nurse_priya"
+        ],
+        "created_at": "2026-10-25T04:53:49.581351Z",
+        "assigned_at": "2026-10-25T04:53:49.581647Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:50.881905Z",
-        "resolved_by_robot": true
+        "resolved_at": null,
+        "resolved_by_robot": null
       }
     }
   },
@@ -92,10 +93,10 @@
     "id": 4,
     "event": "call.resolved",
     "data": {
-      "call_id": "call_bb5962d6",
+      "call_id": "call_d4c48d82",
       "by_robot": true,
       "call": {
-        "id": "call_bb5962d6",
+        "id": "call_d4c48d82",
         "room": "12",
         "resident_id": "res_margaret",
         "urgency": 1,
@@ -108,35 +109,73 @@
           "nurse_priya"
         ],
         "robot_id": "robot_1",
-        "nurse_tasks": [],
-        "created_at": "2026-10-24T22:35:50.878013Z",
-        "assigned_at": "2026-10-24T22:35:50.878125Z",
+        "nurse_tasks": [
+          "nurse_priya"
+        ],
+        "created_at": "2026-10-25T04:53:49.581351Z",
+        "assigned_at": "2026-10-25T04:53:49.581647Z",
         "first_response_at": null,
-        "resolved_at": "2026-10-24T22:35:50.881905Z",
+        "resolved_at": "2026-10-25T04:53:49.589340Z",
         "resolved_by_robot": true
       }
     }
   },
+  "call.updated": {
+    "id": 7,
+    "event": "call.updated",
+    "data": {
+      "call_id": "call_98a749b9",
+      "call": {
+        "id": "call_98a749b9",
+        "room": "12",
+        "resident_id": "res_margaret",
+        "urgency": null,
+        "category": null,
+        "status": "robot_en_route",
+        "transcript": [
+          {
+            "speaker": "resident",
+            "text": "My hip aches",
+            "at": "2026-10-25T04:53:49.599371Z"
+          }
+        ],
+        "summary": null,
+        "assigned_to": [
+          "robot_1",
+          "nurse_priya"
+        ],
+        "robot_id": "robot_1",
+        "nurse_tasks": [
+          "nurse_priya"
+        ],
+        "created_at": "2026-10-25T04:53:49.596316Z",
+        "assigned_at": "2026-10-25T04:53:49.596497Z",
+        "first_response_at": null,
+        "resolved_at": null,
+        "resolved_by_robot": null
+      }
+    }
+  },
   "alert.raised": {
-    "id": 8,
+    "id": 9,
     "event": "alert.raised",
     "data": {
-      "alert_id": "alert_fdb46633",
-      "call_id": "call_6bdb875b",
+      "alert_id": "alert_12036359",
+      "call_id": "call_98a749b9",
       "level": 3,
       "alert": {
-        "id": "alert_fdb46633",
-        "call_id": "call_6bdb875b",
+        "id": "alert_12036359",
+        "call_id": "call_98a749b9",
         "nurse_id": "nurse_priya",
         "level": 3,
         "message": "Hip pain since last night",
-        "created_at": "2026-10-24T22:35:50.887538Z",
+        "created_at": "2026-10-25T04:53:49.603024Z",
         "acked_at": null
       }
     }
   },
   "robot.updated": {
-    "id": 13,
+    "id": 14,
     "event": "robot.updated",
     "data": {
       "robot_id": "robot_1",
@@ -144,7 +183,8 @@
         "id": "robot_1",
         "status": "busy",
         "battery": 0.9,
-        "room": "12"
+        "room": "12",
+        "target": null
       }
     }
   }

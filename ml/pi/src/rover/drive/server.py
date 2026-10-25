@@ -1,4 +1,4 @@
-"""The robot's HTTP server: POST /go_to /led /stop /follow /face, GET /snapshot.
+"""The robot's HTTP server: POST /go_to /follow_marker /led /stop /follow /face, GET /snapshot.
 
 Commands answer at once (202 for those that start work) and never wait for the drive.
 Any problem with the request is a 4xx so the backend treats it as a failure.
@@ -114,7 +114,7 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(room, str) or not room:
             return self._error(HTTPStatus.BAD_REQUEST, "room must be a non-empty string")
         try:
-            ctl.go_to(room)
+            (ctl.follow_marker if self.path == "/follow_marker" else ctl.go_to)(room)
         except UnknownRoom:
             return self._error(HTTPStatus.NOT_FOUND, f"unknown room {room!r}")
         self._send(HTTPStatus.ACCEPTED, {"ok": True, "room": room})
@@ -146,7 +146,7 @@ _Handler.__getattr__ = _any_other_method  # type: ignore[method-assign]
 
 
 class _Server(ThreadingHTTPServer):
-    POST_PATHS = ("/go_to", "/led", "/stop", "/follow", "/face")
+    POST_PATHS = ("/go_to", "/follow_marker", "/led", "/stop", "/follow", "/face")
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], ctl: Controller) -> None:

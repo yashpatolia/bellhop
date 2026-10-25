@@ -64,6 +64,17 @@ class VisionReceiver:
                 return None
             return list(self._message["markers"])
 
+    def clear(self) -> None:
+        """Drop the current frame before a new navigation command.
+
+        A target can be moved between dashboard selection and ``POST /go_to``.  Reusing a
+        pre-command near-marker frame could otherwise claim an immediate arrival at the target's
+        previous position.  The next UDP frame becomes the command's first observation.
+        """
+        with self._lock:
+            self._message = None
+            self._received_at = None
+
     def _listen(self) -> None:
         assert self._socket is not None
         while not self._stop.is_set():

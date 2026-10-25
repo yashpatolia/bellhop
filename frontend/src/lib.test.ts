@@ -47,3 +47,11 @@ describe('formatMetric', () => {
     expect(formatMetric(428, 'minutes_saved')).toBe('428')
   })
 })
+
+describe('an offline robot', () => {
+  it('is not free and says why', async () => {
+    const { robotAvailability } = await import('./lib')
+    const r = { id: 'robot_7', name: 'Robot 7', state: 'offline', battery: 0, room: null, targetRoom: null, callId: null } as unknown as Robot
+    expect(robotAvailability(r)).toEqual({ free: false, words: 'Not reporting yet' })
+  })
+})

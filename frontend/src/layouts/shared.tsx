@@ -34,13 +34,14 @@ export function Chip({ u }: { u: Urgency }) {
 
 /** A nurse call can be answered the moment it exists. Staff tasks wait until they are handed over. */
 export function Action({ call, data, big }: { call: Call; data: BellhopData; big?: boolean }) {
+  const [busy, setBusy] = useState(false)
   if (call.status === 'resolved') return null
   const nurse = call.handledBy === 'nurse'
   let label = ''
-  let run: () => void = () => {}
+  let run: () => Promise<void> = async () => {}
   let primary = false
   if (nurse && call.status !== 'nurse_en_route') {
-    label = "I'm on my way"
+    label = 'I’m on my way'
     primary = true
     run = () => data.actions.nurseOnMyWay(call.id)
   } else if (nurse || call.status === 'nurse_notified') {
@@ -52,10 +53,13 @@ export function Action({ call, data, big }: { call: Call; data: BellhopData; big
       className={`sb-btn ${primary ? 'primary' : ''} ${big ? 'big' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
-        run()
+        if (busy) return
+        setBusy(true)
+        void run().finally(() => setBusy(false))
       }}
+      disabled={busy}
     >
-      {label}
+      {busy ? 'Saving…' : label}
     </button>
   )
 }
@@ -88,7 +92,8 @@ export function Robots({ data }: { data: BellhopData }) {
   return (
     <ul className="sb-robots" aria-label="Robots">
       {data.robots.map((r) => {
-        const low = r.battery < 30 && r.state !== 'charging'
+        const offline = r.state === 'offline'
+        const low = r.battery < 30 && r.state !== 'charging' && !offline
         return (
           <li key={r.id} className={low ? 'low' : ''}>
             <b>{r.name}</b>
@@ -96,10 +101,14 @@ export function Robots({ data }: { data: BellhopData }) {
               {ROBOT_WORDS[r.state]}
               {r.targetRoom ? `, room ${r.targetRoom}` : ''}
             </span>
-            <em>
-              <Battery pct={r.battery} charging={r.state === 'charging'} />
-              {Math.round(r.battery)}%{low ? ' low' : ''}
-            </em>
+            {offline ? (
+              <em>No battery report</em>
+            ) : (
+              <em>
+                <Battery pct={r.battery} charging={r.state === 'charging'} />
+                {Math.round(r.battery)}%{low ? ' low' : ''}
+              </em>
+            )}
           </li>
         )
       })}

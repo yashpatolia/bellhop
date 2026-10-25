@@ -160,7 +160,7 @@ def print_machine() -> None:
     missing = [key for key in KEYS if not os.environ.get(key)]
     print(f"  .env keys missing: {', '.join(missing) or 'none'} (code falls back and says so)")
     try:
-        response = httpx.get(f"{config.BELLHOP_API}/health", timeout=config.HTTP_TIMEOUT_S)
+        response = httpx.get(f"{config.BELLHOP_API}/health", timeout=config.BACKEND_HTTP_TIMEOUT_S)
         print(f"  backend {config.BELLHOP_API}/health -> {response.status_code}")
     except httpx.HTTPError as error:
         print(f"  backend {config.BELLHOP_API} unreachable: {error!r} (check BELLHOP_API in .env)")

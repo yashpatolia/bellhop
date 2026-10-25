@@ -67,6 +67,15 @@ def test_stopword_only_utterance_returns_empty():
     assert top(seeded(), "can I get some of the") == []
 
 
+def test_empty_query_returns_a_newest_first_resident_briefing():
+    idx = LocalMemoryIndex()
+    idx.add(fact("old", "Takes tea with lemon", age=1))
+    idx.add(fact("new", "Grandson visits on Sundays", age=2))
+    idx.add(fact("other", "Likes black coffee", rid="r2", age=3))
+
+    assert top(idx, "", k=2) == ["new", "old"]
+
+
 def test_tag_match_outranks_plain_text_match():
     idx = LocalMemoryIndex()
     idx.add(fact("plain", "mentioned a walk once", age=5))

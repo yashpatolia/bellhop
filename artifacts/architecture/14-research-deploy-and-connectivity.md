@@ -113,7 +113,7 @@ Library: FastAPI 0.135.0 and later ships native SSE (`from fastapi.sse import Ev
 | Event name | Trigger | `data` payload |
 | --- | --- | --- |
 | `snapshot` | on connect | `{"calls": [Call...], "alerts": [Alert...], "robots": [...]}` (same shape as the `GET` endpoints) |
-| `call` | `CallRaised`, `CallAssigned`, `CallScored`, `CallResolved` | `Call` JSON (`model_dump(mode="json")`); `id:` is `call.id` |
+| `call` | `CallRaised`, `CallAssigned`, `CallUpdated`, `CallScored`, `CallResolved` | `Call` JSON (`model_dump(mode="json")`); `CallUpdated` covers visit start and live transcript turns; `id:` is `call.id` |
 | `alert` | `AlertRaised` | `Alert` JSON |
 | `robot` | `PUT /robots/{id}` | robot JSON |
 | `ping` | every 15 s | comment line `: ping` |

@@ -57,7 +57,7 @@ COLUMNS: dict[str, tuple[str, ...]] = {
     ),
     "resident": ("id", "name", "room", "risk_flags", "birth_year"),
     "nurse": ("id", "name", "on_shift", "open_tasks"),
-    "robot": ("id", "status", "battery", "room"),
+    "robot": ("id", "status", "battery", "room", "target"),
     "alert": ("id", "call_id", "nurse_id", "level", "message", "created_at", "acked_at"),
     "visit": (
         "id",
@@ -171,7 +171,7 @@ def _nurse_from(r: dict[str, Any]) -> Nurse:
 
 
 def _robot_args(r: Robot) -> list[Any]:
-    return [r.id, r.status.value, r.battery, _s(r.room)]
+    return [r.id, r.status.value, r.battery, _s(r.room), _s(r.target)]
 
 
 def _robot_from(r: dict[str, Any]) -> Robot:
@@ -180,6 +180,7 @@ def _robot_from(r: dict[str, Any]) -> Robot:
         status=RobotStatus(r["status"]),
         battery=r["battery"],
         room=r["room"] or None,
+        target=r.get("target", "") or None,
     )
 
 

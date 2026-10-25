@@ -155,6 +155,7 @@ class RobotStatus(StrEnum):
     BUSY = "busy"
     CHARGING = "charging"
     FAULT = "fault"
+    OFFLINE = "offline"  # added by staff, has not reported in yet: never given a call
 
 
 class LedState(StrEnum):
@@ -169,6 +170,8 @@ class Robot(BaseModel):
     status: RobotStatus = RobotStatus.IDLE
     battery: float = 1.0  # 0..1
     room: str | None = None
+    # Requested destination. Unlike `room`, this is an intent until the Pi reports arrival.
+    target: str | None = None
 
 
 class Alert(BaseModel):

@@ -149,6 +149,36 @@ def test_stop_cancels_drive():
     assert ("drive", 0, 0) in car.calls
 
 
+def test_failed_navigation_stops_without_claiming_the_target_room():
+    class FailedNavigator:
+        def start(self, room):
+            return None
+
+        def step(self, car):
+            car.stop()
+            return False
+
+        def failed(self):
+            return True
+
+        def cancel(self):
+            return None
+
+    clock, car = Clock(), RecordingCar()
+    ctl = Controller(car, FailedNavigator(), clock=clock)
+    car.calls.clear()
+    ctl.go_to("12")
+    ctl.tick()
+
+    snap = ctl.snapshot()
+    assert (snap["room"], snap["target"], snap["mode"], snap["moving"]) == (
+        config.HOME_ROOM,
+        None,
+        "idle",
+        False,
+    )
+
+
 def test_obstacle_halts_forward_motion():
     ctl, car, _ = make(distance=config.STOP_DISTANCE_CM - 1)
     ctl.go_to("12")

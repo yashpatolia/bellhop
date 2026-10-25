@@ -131,6 +131,7 @@ export function toRobot(r: ApiRobot, calls: Call[]): Robot {
   let state: RobotState = 'idle'
   if (r.status === 'charging') state = 'charging'
   else if (r.status === 'fault') state = 'fault'
+  else if (r.status === 'offline') state = 'offline'
   else if (call) state = call.status === 'robot_en_route' ? 'en_route' : 'with_resident'
   else if (r.status === 'busy') state = 'en_route'
   return {
@@ -141,7 +142,9 @@ export function toRobot(r: ApiRobot, calls: Call[]): Robot {
     state,
     battery: Math.round((r.battery ?? 0) * 100),
     room: r.room ?? null,
-    targetRoom: call?.room ?? null,
+    // A call's room is authoritative while the robot is serving it. For a manual drive, use the
+    // target persisted by the backend so a dashboard refresh cannot lose the destination.
+    targetRoom: call?.room ?? r.target ?? null,
     callId: call?.id ?? null,
   }
 }

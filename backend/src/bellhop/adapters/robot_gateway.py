@@ -12,6 +12,9 @@ class RecordingRobotGateway:
     def go_to(self, robot_id: str, room: str) -> None:
         self.commands.append(("go_to", robot_id, room))
 
+    def follow_marker(self, robot_id: str, marker: str) -> None:
+        self.commands.append(("follow_marker", robot_id, marker))
+
     def set_led(self, robot_id: str, state: str) -> None:
         self.commands.append(("set_led", robot_id, state))
 

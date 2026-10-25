@@ -29,6 +29,7 @@ def test_navigate_sends_opaque_target_marks_robot_busy_and_emits_update(client, 
     assert response.json()["id"] == "robot_1"
     assert response.json()["status"] == "busy"
     assert response.json()["room"] == "lobby"  # target is not claimed as a physical location
+    assert response.json()["target"] == "210"
     assert isinstance(container.gateway, RecordingRobotGateway)
     assert container.gateway.commands[-1] == ("go_to", "robot_1", "210")
     message = stream_client.pop()
@@ -39,6 +40,17 @@ def test_navigate_sends_opaque_target_marks_robot_busy_and_emits_update(client, 
     }
 
 
+def test_follow_marker_keeps_a_moving_marker_separate_from_room_arrival(client, container):
+    response = client.post("/robots/robot_1/follow-marker", json={"target": "208"})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "busy"
+    assert response.json()["room"] == "lobby"
+    assert response.json()["target"] == "208"
+    assert isinstance(container.gateway, RecordingRobotGateway)
+    assert container.gateway.commands[-1] == ("follow_marker", "robot_1", "208")
+
+
 def test_stop_stops_robot_marks_it_idle_and_emits_update(client, container):
     client.post("/robots/robot_1/navigate", json={"target": "210"})
     stream_client = container.events.connect()
@@ -47,6 +59,7 @@ def test_stop_stops_robot_marks_it_idle_and_emits_update(client, container):
 
     assert response.status_code == 200
     assert response.json()["status"] == "idle"
+    assert response.json()["target"] is None
     assert container.gateway.commands[-1] == ("stop", "robot_1", "")
     message = stream_client.pop()
     assert message is not None and message.name == "robot.updated"
@@ -96,4 +109,25 @@ def test_navigation_gateway_failure_returns_503_without_claiming_movement():
     response = client.post("/robots/robot_1/navigate", json={"target": "210"})
 
     assert response.status_code == 503
-    assert client.get("/robots").json()[0]["status"] == "idle"
+    robot = client.get("/robots").json()[0]
+    assert robot["status"] == "idle"
+    assert robot["target"] is None
+
+
+def test_pi_target_report_preserves_an_omitted_dashboard_target_and_clears_on_arrival(client):
+    """Only the Pi reports target state, so a dashboard-style report cannot erase it by omission."""
+    client.post("/robots/robot_1/navigate", json={"target": "210"})
+
+    omitted = client.put(
+        "/robots/robot_1", json={"status": "busy", "battery": 0.9, "room": "lobby"}
+    )
+    assert omitted.status_code == 200
+    assert omitted.json()["target"] == "210"
+
+    arrived = client.put(
+        "/robots/robot_1",
+        json={"status": "idle", "battery": 0.9, "room": "12", "target": None},
+    )
+    assert arrived.status_code == 200
+    assert arrived.json()["room"] == "12"
+    assert arrived.json()["target"] is None

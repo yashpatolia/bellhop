@@ -69,7 +69,9 @@ def _resident_block(
         wanted.append(f"favourite drink: {prefs['favourite_drink']}")
     if wanted:
         lines.append(f"Preferences: {', '.join(wanted)}")
-    facts = [m["text"] for m in memories if m.get("text")][:MAX_MEMORY_FACTS]
+    # the games line below already says which games they know
+    facts = [m["text"] for m in memories if m.get("text") and "game" not in (m.get("tags") or ())]
+    facts = facts[:MAX_MEMORY_FACTS]
     if facts:
         lines.append("Things you know about them:")
         lines += [f"- {fact}" for fact in facts]
@@ -121,6 +123,15 @@ def build_system_prompt(
     return "\n\n".join(part.strip() for part in parts)
 
 
+def _clip(text: str) -> str:
+    """The start (who they are, why they called) and the end (what leads into now) of a text
+    over HISTORY_CONTEXT_CHARS."""
+    if len(text) <= config.HISTORY_CONTEXT_CHARS:
+        return text
+    half = config.HISTORY_CONTEXT_CHARS // 2
+    return f"{text[:half]}\n(...)\n{text[-half:]}"
+
+
 class VisitHistory:
     """This visit's lines, resent to the brain on every turn."""
 
@@ -141,14 +152,31 @@ class VisitHistory:
                 merged[-1]["content"] += f" {text}"
             else:
                 merged.append({"role": role, "content": text})
-        # shortcut: older exchanges are dropped; summarise them if visits get long
-        recent = merged[-2 * config.HISTORY_EXCHANGES :]
-        if recent and recent[0]["role"] == "assistant":
-            if len(recent) < len(merged):
-                recent = recent[1:]  # the cut split an exchange: drop its orphaned robot line
+        # Keep the normal request bounded, but retain a compact deterministic reminder of what
+        # happened before that window. Dropping it outright made long live conversations look
+        # like a new conversation to the model.
+        limit = 2 * config.HISTORY_EXCHANGES
+        cut = max(0, len(merged) - limit)
+        if cut and merged[cut]["role"] == "assistant":
+            cut += 1  # never begin a request with an orphaned assistant response
+        earlier = merged[:cut]
+        # turns with no reply (WAIT, a TV) pile into one message, so each is clipped too
+        recent = [{**row, "content": _clip(row["content"])} for row in merged[cut:]]
+        if earlier:
+            context = _clip(
+                "\n".join(f"{SPEAKER_BY_ROLE[row['role']]}: {row['content']}" for row in earlier)
+            )
+            reminder = (
+                "Earlier in this visit. Keep this context and do not repeat questions already "
+                f"answered:\n{context}"
+            )
+            if recent and recent[0]["role"] == "user":
+                recent[0] = {"role": "user", "content": f"{reminder}\n\n{recent[0]['content']}"}
             else:
-                # The API needs a user turn first; keep the robot's greeting rather than drop it.
-                recent.insert(0, {"role": "user", "content": VISIT_START})
+                recent.insert(0, {"role": "user", "content": reminder})
+        if recent and recent[0]["role"] == "assistant":
+            # The API needs a user turn first; keep the robot's greeting rather than drop it.
+            recent.insert(0, {"role": "user", "content": VISIT_START})
         return recent
 
     def transcript(self) -> list[tuple[str, str]]:

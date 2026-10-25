@@ -193,12 +193,22 @@ function AddNote({ data, resident }: { data: BellhopData; resident: Resident }) 
       setBusy(false)
     }
   }
-  const save = () => {
+  const save = async () => {
     if (!refined || !edited.trim()) return
-    data.actions.addEntry(resident.id, { ...refined, text: edited.trim() })
-    setAdded(`Added to ${resident.name.split(' ')[0]}'s profile: ${ENTRY_LABEL[refined.category].toLowerCase()}, "${edited.trim()}".`)
-    reset()
-    setOpen(false)
+    setBusy(true)
+    setError('')
+    try {
+      await data.actions.addEntry(resident.id, { ...refined, text: edited.trim() })
+      setAdded(`Added to ${resident.name.split(' ')[0]}’s profile: ${ENTRY_LABEL[refined.category].toLowerCase()}, “${edited.trim()}”.`)
+      reset()
+      setOpen(false)
+    } catch (e) {
+      // A profile note is clinical-adjacent information. Never say it was saved until the
+      // backend confirms it; leave the reviewed wording on screen so staff can retry.
+      setError(e instanceof Error ? e.message : 'Could not save that note.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!open) {
@@ -282,14 +292,19 @@ function AddNote({ data, resident }: { data: BellhopData; resident: Resident }) 
               ))}
             </ul>
           )}
+          {error && (
+            <p className="sm-error" role="alert">
+              {error}
+            </p>
+          )}
           <div className="sm-actions">
-            <button className="sb-btn primary" onClick={save} disabled={!edited.trim()}>
-              Add to profile
+            <button className="sb-btn primary" onClick={() => void save()} disabled={busy || !edited.trim()}>
+              {busy ? 'Saving…' : 'Add to profile'}
             </button>
-            <button className="sb-btn" onClick={() => setRefined(null)}>
+            <button className="sb-btn" onClick={() => setRefined(null)} disabled={busy}>
               Edit my note
             </button>
-            <button className="sb-btn" onClick={() => { setOpen(false); reset() }}>
+            <button className="sb-btn" onClick={() => { setOpen(false); reset() }} disabled={busy}>
               Cancel
             </button>
           </div>

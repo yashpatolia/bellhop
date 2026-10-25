@@ -343,7 +343,11 @@ def test_recall_for_resident_without_facts_is_empty(app):
 
 
 def test_recall_edge_inputs_do_not_crash(app):
-    assert app.memory.recall("res_margaret", "") == []
+    # An empty query is how the rover loads a small resident briefing before it starts
+    # talking.  It must return the newest known facts rather than silently making the
+    # conversation forget the resident.
+    facts = app.memory.recall("res_margaret", "")
+    assert facts and all(f.resident_id == "res_margaret" for f in facts)
     assert app.memory.recall("res_margaret", "tea", k=0) == []
     assert app.memory.recall("res_margaret", "tea", k=-1) == []
     assert app.memory.recall("res_margaret", "zzzz qqqq") == []

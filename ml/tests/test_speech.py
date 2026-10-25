@@ -220,6 +220,44 @@ def test_mic_half_duplex_mute_and_echo_tail():
     assert not mic.muted(stopped + config.ECHO_TAIL_S + 0.05)
 
 
+def test_mic_discards_stale_blocks_when_the_consumer_falls_behind(monkeypatch):
+    """A busy cloud reply must not make the next heard sentence several seconds old."""
+    monkeypatch.setattr(config, "MIC_QUEUE_BLOCKS", 2)
+    mic = Mic()
+    for value in (1, 2, 3):
+        mic._on_audio(np.full((config.BLOCK_SAMPLES, 1), value, dtype=np.int16), 0, None, None)
+
+    assert [mic.read()[0], mic.read()[0]] == [2, 3]
+
+
+def test_flux_send_never_blocks_the_microphone_loop():
+    class SlowSocket:
+        def __init__(self):
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def send_media(self, pcm):
+            self.started.set()
+            self.release.wait(1)
+
+    flux = FluxStream([], lambda *_: None)
+    socket = SlowSocket()
+    flux._socket, flux._live = socket, True
+    flux._sender = threading.Thread(target=flux._send_loop, daemon=True)
+    flux._sender.start()
+
+    flux.send(b"first")
+    assert socket.started.wait(0.2)
+    started = time.monotonic()
+    flux.send(b"second")
+    assert time.monotonic() - started < 0.05
+
+    socket.release.set()
+    flux._live = False
+    flux._media.put_nowait(None)
+    flux._sender.join(1)
+
+
 def test_moonshine_requires_a_complete_cached_model(tmp_path):
     group = {
         "base_url": "https://download.moonshine.ai/models/en/small-streaming",
@@ -327,7 +365,7 @@ def live_flux(socket):
     events = []
     flux = FluxStream([], lambda event, text: events.append((event, text)))
     flux._socket, flux._live = socket, True
-    flux._sender = threading.Thread(target=flux._send_queued, daemon=True)
+    flux._sender = threading.Thread(target=flux._send_loop, daemon=True)
     flux._sender.start()
     return flux, events
 
@@ -344,15 +382,21 @@ def test_flux_sends_from_its_own_thread_and_flushes_on_close():
     assert len(socket.sent) == 3 and socket.closed_stream and events == []
 
 
-def test_flux_that_falls_behind_is_an_error_once(monkeypatch):
-    monkeypatch.setattr(config, "FLUX_BACKLOG_S", 0.2)
+def test_flux_that_falls_a_full_queue_behind_is_an_error_once(monkeypatch):
+    """A dead or too slow network: Moonshine takes the turns, not a Flux missing their words."""
+    monkeypatch.setattr(config, "FLUX_SEND_QUEUE_BLOCKS", 2)
     monkeypatch.setattr(config, "FLUX_CLOSE_S", 0.05)
     socket = SlowSocket()
     flux, events = live_flux(socket)
-    pcm = b"\0" * 2048  # 64 ms
-    for _ in range(10):
+    for pcm in (b"a", b"b", b"c"):
         flux.send(pcm)
-    assert events == [("Error", "Flux send fell 0.2 s behind")]
+        time.sleep(0.02)  # "a" is in send_media; "b" and "c" fill the queue
+    assert events == []
+    started = time.monotonic()
+    flux.send(b"d")
+    flux.send(b"e")
+    assert time.monotonic() - started < 0.05  # the mic loop never waits
+    assert events == [("Error", "Flux send fell 2 messages behind")]
     flux.close()  # already failed: no goodbye on the socket
     assert not socket.closed_stream
     socket.release.set()

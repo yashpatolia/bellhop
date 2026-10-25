@@ -49,7 +49,9 @@ describe('loading', () => {
     const store = make(fakeBackend())
     await Promise.all([store.loadLive(), store.loadResidents()])
     const snap = store.getSnapshot()
-    expect(snap.calls.map((c) => c.id).sort()).toEqual((callsList as { id: string }[]).map((c) => c.id).sort())
+    // Contract examples are exported with the current clock. The dashboard deliberately puts
+    // older resolved calls in history, so verify the whole fetched set across both panes.
+    expect([...snap.calls, ...snap.pastCalls].map((c) => c.id).sort()).toEqual((callsList as { id: string }[]).map((c) => c.id).sort())
     expect(snap.alerts).toHaveLength(alertsJson.length)
     expect(snap.robots[0]).toMatchObject({ id: 'robot_1', battery: 100 })
     expect(snap.nurses).toHaveLength(nursesJson.length)
@@ -92,19 +94,118 @@ describe('connection', () => {
     expect(store.getSnapshot().connection.problem).toBeNull()
     store.stop()
   })
+
+  it('keeps robot controls live when a resident profile endpoint fails', async () => {
+    const b = fakeBackend({
+      'GET /residents/res_margaret/memory/all': () =>
+        new Response(JSON.stringify({ detail: 'memory store unavailable' }), { status: 503 }),
+    })
+    const store = make(b)
+    store.start()
+    await vi.waitFor(() => expect(store.getSnapshot().connection.state).toBe('live'))
+    expect(store.getSnapshot().robots).not.toHaveLength(0)
+    await vi.waitFor(() =>
+      expect(store.getSnapshot().connection.problem).toMatch(/Resident details could not be loaded/),
+    )
+    store.stop()
+  })
+
+  it('times out a stalled manual command instead of leaving the control stuck', async () => {
+    vi.useFakeTimers()
+    const b = fakeBackend()
+    const fetchFn = ((url: string, init: RequestInit = {}) => {
+      if (new URL(url).pathname === '/robots/robot_1/navigate') {
+        return new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        })
+      }
+      return b.fetchFn(url, init)
+    }) as typeof fetch
+    const store = new LiveStore({ baseUrl: 'http://bellhop.test', fetchFn, now: () => NOW })
+    const pending = store.actions.driveRobot('robot_1', '12')
+    await vi.advanceTimersByTimeAsync(5_000)
+    await expect(pending).resolves.toBe(false)
+    expect(store.getSnapshot().connection.problem).toMatch(/timed out/)
+  })
+
+  it('coalesces simultaneous live-refresh requests', async () => {
+    let releaseCalls: ((value: Response) => void) | undefined
+    const b = fakeBackend()
+    const fetchFn = ((url: string, init: RequestInit = {}) => {
+      if (new URL(url).pathname === '/calls') {
+        return new Promise<Response>((resolve) => {
+          releaseCalls = resolve
+        })
+      }
+      return b.fetchFn(url, init)
+    }) as typeof fetch
+    const store = new LiveStore({ baseUrl: 'http://bellhop.test', fetchFn, now: () => NOW })
+    const refresh = (store as unknown as { refresh: () => Promise<void> }).refresh.bind(store)
+    const first = refresh()
+    const second = refresh()
+    expect(second).toBe(first)
+    releaseCalls!(new Response(JSON.stringify(callsList), { status: 200 }))
+    await first
+  })
 })
 
 describe('live events', () => {
+  it('shows a visit and each new transcript turn as soon as call.updated arrives', async () => {
+    const store = make(fakeBackend())
+    await store.loadLive()
+    const original = callsList[0] as { id: string }
+    store.onEvent('call.updated', {
+      call: {
+        ...callsList[0],
+        status: 'in_visit',
+        transcript: [
+          { speaker: 'robot', text: "Hello Margaret, I’m here to help.", at: '2026-10-24T21:50:00Z' },
+          { speaker: 'resident', text: 'I feel dizzy.', at: '2026-10-24T21:50:03Z' },
+        ],
+      },
+    })
+    const call = store.getSnapshot().calls.find((item) => item.id === original.id)
+    expect(call).toMatchObject({ status: 'robot_with_resident' })
+    expect(call?.transcript).toEqual([
+      { who: 'robot', text: "Hello Margaret, I’m here to help." },
+      { who: 'resident', text: 'I feel dizzy.' },
+    ])
+  })
+
   it('a resolved call replaces the open one and an alert and robot update land too', async () => {
     const store = make(fakeBackend())
     await store.loadLive()
     const open = callsList[0] as { id: string }
-    store.onEvent('call.resolved', { call: { ...callsList[0], status: 'resolved', resolved_at: '2026-10-24T21:50:00Z', resolved_by_robot: false } })
+    const today = new Date(NOW).toISOString()
+    store.onEvent('call.resolved', { call: { ...callsList[0], created_at: today, status: 'resolved', resolved_at: today, resolved_by_robot: false } })
     expect(store.getSnapshot().calls.find((c) => c.id === open.id)?.status).toBe('resolved')
     store.onEvent('alert.raised', { alert: { id: 'a9', call_id: open.id, nurse_id: 'nurse_sam', level: 3, message: 'New', created_at: '2026-10-24T21:51:00Z', acked_at: null } })
     expect(store.getSnapshot().alerts.some((a) => a.id === 'a9')).toBe(true)
     store.onEvent('robot.updated', { robot: { id: 'robot_1', status: 'charging', battery: 0.2, room: 'dock' } })
     expect(store.getSnapshot().robots[0]).toMatchObject({ state: 'charging', battery: 20 })
+  })
+
+  it('does not let a slow initial REST response overwrite a newer event', async () => {
+    let releaseCalls: ((value: Response) => void) | undefined
+    const b = fakeBackend()
+    const fetchFn = ((url: string, init: RequestInit = {}) => {
+      if (new URL(url).pathname === '/calls') {
+        return new Promise<Response>((resolve) => {
+          releaseCalls = resolve
+        })
+      }
+      return b.fetchFn(url, init)
+    }) as typeof fetch
+    const store = new LiveStore({ baseUrl: 'http://bellhop.test', fetchFn, now: () => NOW })
+    const loading = store.loadLive()
+    const initial = callsList[0] as { id: string }
+    const today = new Date(NOW).toISOString()
+    store.onEvent('call.resolved', {
+      call: { ...callsList[0], created_at: today, status: 'resolved', resolved_at: today },
+    })
+    releaseCalls!(new Response(JSON.stringify(callsList), { status: 200 }))
+    await loading
+    expect(store.getSnapshot().calls.find((call) => call.id === initial.id)?.status).toBe('resolved')
   })
 })
 
@@ -256,7 +357,7 @@ describe('actions', () => {
     const store = make(b)
     store.start()
     await vi.waitFor(() => expect(store.getSnapshot().connection.state).toBe('live'))
-    await store.actions.addEntry('res_margaret', { category: 'like', text: 'Likes tea', notes: [] })
+    await expect(store.actions.addEntry('res_margaret', { category: 'like', text: 'Likes tea', notes: [] })).rejects.toThrow('Bellhop already has that note.')
     expect(store.getSnapshot().connection.problem).toBe('Bellhop already has that note.')
     store.stop()
   })

@@ -28,7 +28,13 @@ def test_list_robots_shows_seeded_robot(client):
 def test_put_updates_existing_robot(client):
     r = put(client, status="charging", battery=0.5, room="dock")
     assert r.status_code == 200
-    assert r.json() == {"id": "robot_1", "status": "charging", "battery": 0.5, "room": "dock"}
+    assert r.json() == {
+        "id": "robot_1",
+        "status": "charging",
+        "battery": 0.5,
+        "room": "dock",
+        "target": None,
+    }
     assert client.get("/robots").json()[0]["status"] == "charging"
 
 
@@ -65,7 +71,10 @@ def test_idle_report_does_not_free_robot_with_open_call(client):
     other = client.post("/calls", json={"room": "14"}).json()
     assert other["robot_id"] is None
     client.post(f"/calls/{call['id']}/resolve", json={})
-    assert client.get("/robots").json()[0]["status"] == "idle"
+    # Freed, the robot goes straight to the call that rang while it was busy.
+    assert client.get("/robots").json()[0]["status"] == "busy"
+    waiting = client.get(f"/calls/{other['id']}").json()
+    assert waiting["robot_id"] == "robot_1" and waiting["status"] == "robot_en_route"
 
 
 def test_idle_report_frees_robot_once_call_resolved(client):
@@ -116,4 +125,42 @@ def test_failing_go_to_pages_a_nurse_and_stops_the_robot_for_a_resident_without_
 
 def test_settings_from_env_reads_robot_url(monkeypatch):
     monkeypatch.setenv("BELLHOP_ROBOT_URL", "http://pi.local:8080")
-    assert Settings.from_env().robot_url == "http://pi.local:8080"
+    monkeypatch.setenv("BELLHOP_GATEWAY_TIMEOUT", "5")
+    settings = Settings.from_env()
+    assert settings.robot_url == "http://pi.local:8080"
+    assert settings.gateway_timeout == 5.0
+
+
+def test_a_robot_back_from_charging_takes_the_call_that_was_waiting(client):
+    put(client, status="charging", battery=0.9)
+    waiting = client.post("/calls", json={"room": "14"}).json()
+    assert waiting["robot_id"] is None  # no robot free: a nurse owns it for now
+    put(client, status="idle", battery=0.9)
+    call = client.get(f"/calls/{waiting['id']}").json()
+    assert call["robot_id"] == "robot_1" and call["status"] == "robot_en_route"
+    assert client.get("/robots").json()[0]["status"] == "busy"
+
+
+def test_the_oldest_waiting_call_goes_first(client):
+    put(client, status="charging", battery=0.9)
+    first = client.post("/calls", json={"room": "14"}).json()
+    second = client.post("/calls", json={"room": "15"}).json()
+    put(client, status="idle", battery=0.9)
+    assert client.get(f"/calls/{first['id']}").json()["robot_id"] == "robot_1"
+    assert client.get(f"/calls/{second['id']}").json()["robot_id"] is None
+
+
+def test_a_robot_low_on_battery_is_not_sent_to_waiting_calls(client):
+    put(client, status="charging", battery=0.1)
+    waiting = client.post("/calls", json={"room": "14"}).json()
+    put(client, status="idle", battery=0.1)
+    assert client.get(f"/calls/{waiting['id']}").json()["robot_id"] is None
+
+
+def test_a_robot_added_by_staff_gets_no_calls_until_it_reports_in(client):
+    put(client, status="charging", battery=0.9)  # the seeded robot is out of the way
+    assert put(client, "robot_7", status="offline", battery=0).json()["status"] == "offline"
+    call = client.post("/calls", json={"room": "14"}).json()
+    assert call["robot_id"] is None
+    put(client, "robot_7", status="idle", battery=0.8)  # its first real report
+    assert client.get(f"/calls/{call['id']}").json()["robot_id"] == "robot_7"

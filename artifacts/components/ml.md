@@ -152,6 +152,7 @@ Without `--call`, the voice process polls `GET /calls` for a call assigned to `R
 | `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY` | same keys | same keys |
 | `MIC_NAME`, `SPEAKER_NAME` | empty (default device) | part of the USB device names (required: the default is HDMI) |
 | `BELLHOP_API_KEY` | only if the backend sets one | same |
+| `BELLHOP_LOCAL_HTTP_TIMEOUT_S`, `BELLHOP_BACKEND_HTTP_TIMEOUT_S` | 2 s, 5 s | same; keep the local drive server responsive while allowing a brief Tailscale/WSL stall |
 
 ### Optional Jev assessment and tone
 
@@ -262,9 +263,26 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 
 **Offline marker mode.** ArUco room detection does not need YOLO or YuNet. If either local person/face model is absent, `rover.vision` logs that those optional detections are disabled and continues with camera, markers, UDP and snapshots; it never starts an implicit model download.
 
-**Active marker search.** When its target is outside the first camera view, the rover stops its wheels for a full two-axis head scan, turns incrementally in place, and after a full turn takes a short ultrasonic-guarded forward frontier step before scanning again. The search has a configurable 45-second cap and stops when that cap or the ultrasonic guard is reached. This is real bounded exploration beyond the initial camera sightline; it is not a surveyed-map/SLAM guarantee because the current rover has no wheel encoders, IMU or lidar.
+**Active marker search.** When its target is outside the first camera view, the rover stops its wheels for a full two-axis head scan, turns incrementally in place, and after a full turn takes a short ultrasonic-guarded forward frontier step before scanning again. A target seen while the head is offset first re-centres the camera and waits for a fresh frame before its x coordinate can steer the body. Every forward approach also requires a finite, clear ultrasonic reading. The search has a configurable 45-second cap and stops without claiming arrival when that cap or the ultrasonic guard is reached. This is real bounded exploration beyond the initial camera sightline; it is not a surveyed-map/SLAM guarantee because the current rover has no wheel encoders, IMU or lidar.
 
-**One-command live stack.** From the laptop, set the Pi's Tailscale SSH host and IP once per venue, then run `BELLHOP_PI_HOST=pi@<pi-ip> BELLHOP_PI_IP=<pi-ip> bash scripts/live-demo.sh`. It syncs the Pi source without touching its `.env`, models or venv; starts the seeded backend wired to the Pi, starts the dashboard when its dependencies are installed, then runs Pi camera, drive and speech in one SSH session. If Jev has no key in the Pi's `.env`, it prompts securely for an in-memory key once; Enter disables Jev for that run. Ctrl-C stops the whole stack safely. On the Pi alone, `bash ~/ml/scripts/run_rover.sh` starts those three rover components in one terminal.
+**One-command live stack.** From the laptop, set the Pi's Tailscale SSH host and IP once per venue, then run `BELLHOP_PI_HOST=pi@<pi-ip> BELLHOP_PI_IP=<pi-ip> bash scripts/live-demo.sh`. It syncs the Pi source without touching its `.env`, models or venv; opens a local SSH tunnel to the Pi drive server, starts the seeded backend through that tunnel, starts the dashboard when its dependencies are installed, then runs Pi camera, drive and speech in one SSH session. This avoids venue/WSL filtering of direct TCP to the Pi. Its dashboard uses API mode `auto`: a laptop browser uses loopback, while a touchscreen that opens `http://<laptop-tailscale-ip>:5173` uses that same Tailscale host for the backend. Set `BELLHOP_DASHBOARD_API_URL=http://<reachable-laptop-ip>:8000` only when the automatic address is not right for the venue. If Jev has no key in the Pi's `.env`, it prompts securely for an in-memory key once; Enter disables Jev for that run. Ctrl-C stops the whole stack safely. On the Pi alone, `bash ~/ml/scripts/run_rover.sh` starts those three rover components in one terminal.
+
+**Password-free SSH.** Do not store the Pi password in the repository or a shell command. Once,
+create a dedicated key on the laptop and authorize its public half on the Pi:
+`ssh-keygen -t ed25519 -f ~/.ssh/bellhop_pi_ed25519 -N "" -C bellhop-demo`, then
+`ssh-copy-id -i ~/.ssh/bellhop_pi_ed25519.pub pi@<pi-ip>`. Launch with
+`BELLHOP_PI_SSH_KEY="$(realpath ~/.ssh/bellhop_pi_ed25519)"`; the live script applies it to
+rsync, its tunnel and its remote rover command.
+
+**Voice reliability.** The microphone callback and Flux sender use bounded queues, so a weak
+cloud connection cannot block audio capture or make the rover answer a stale sentence. A full
+microphone queue keeps the newest audio and drops the oldest. A full Flux send queue means the
+network is down or slower than speech, so Flux stops (`fallback: Flux stopped (Flux send fell 64
+messages behind)`) and Moonshine answers instead of Flux answering words it partly missed.
+Defaults keep about two seconds of microphone blocks and four seconds of paired Flux messages
+(`MIC_QUEUE_BLOCKS=64`, `FLUX_SEND_QUEUE_BLOCKS=64`, under `FLUX_TURN_LIMIT_S`); tune only after a
+real microphone test. Long visits keep a bounded reminder of the earlier conversation, its start
+(who they are, why they called) and the part just before the recent turns, instead of losing it.
 
 **Visit flow** (`rover.speech`):
 1. Find the call: `--call <id>`, or the newest call for `ROBOT_ID` in `assigned` / `robot_en_route`.
@@ -297,7 +315,9 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `EOT_THRESHOLD`, `EAGER_EOT_THRESHOLD`, `EOT_TIMEOUT_MS` | 0.8, 0.5, 3000 | Flux end-of-turn settings |
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
-| `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
+| `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 6.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
+| `MIC_QUEUE_BLOCKS`, `FLUX_SEND_QUEUE_BLOCKS` | 64, 64 | Bounded capture and cloud-STT buffers; newest audio wins if the Pi falls behind |
+| `HISTORY_EXCHANGES`, `HISTORY_CONTEXT_CHARS` | 20, 1200 | Full recent exchanges plus a bounded deterministic reminder of earlier visit context |
 | `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `CHAT_QUIET_S`, `WAKE_STREAM_IDLE_S` | 20, 8 | A chat sleeps after this much quiet (never mid-game); asleep, the wake word's Flux stream closes after this much quiet |
@@ -372,7 +392,7 @@ Work from the bottom layer up.
 | Face | Bellhop icon or `robot.sh open` shows nothing | `tail ~/ml/runs/robot.log` | "already running": stop the other one (`sudo systemctl stop bellhop-speech`); a Python error: fix it, often a missing key in `~/ml/.env` |
 | Face | The screen goes dark for a few seconds when the robot starts talking (then a purple frame, then the face) | `grep 'speaker awake' ~/ml/runs/robot.log` ("keeping the speaker awake" is good; a `fallback:` line says why not); `uv run python scripts/check_power.py` while it talks; `dmesg \| grep -iE 'hdmi\|over-current'` right after | Waking the screen's sleeping HDMI speaker makes it re-sync: keep `AUDIO_KEEPALIVE=1` (the default; once at startup is expected). `fallback: the speaker plays one sound at a time`: a raw USB speaker, so it can't be kept awake (use the PipeWire default). "undervoltage YES" or 5 V below 4.8 V: the screen draws from the Pi's USB, so power it from its own supply (see Face screen) |
 | Face | A game opens but touching never starts it, or taps in a game do nothing | `robot.sh words` (shows `fallback:`, `games: ... opened/closed`, `brain: tool` lines); `uv run python scripts/check_touch.py` (robot closed) | `fallback: touch panel lost`: the panel dropped off USB (power); it is found again by itself. `check_touch.py` names no panel: replug the touch cable. Corners far from (0, 0) and (1023, 599): the taps miss the squares, so report the numbers |
-| Voice | It stops answering after a while | `robot.sh words` | `wake: asleep`: it fell asleep after 20 s without speech, so say "Hey Bellhop". `fallback: the speaker stopped playing`: the speaker (often the screen's HDMI audio) dropped out; it carries on. `fallback: Flux stopped (Flux send fell 4 s behind)`: the Wi-Fi stalled, so Moonshine answers for the rest of the chat (slower). None of these: copy `~/ml/runs/robot.log` |
+| Voice | It stops answering after a while | `robot.sh words` | `wake: asleep`: it fell asleep after 20 s without speech, so say "Hey Bellhop". `fallback: the speaker stopped playing`: the speaker (often the screen's HDMI audio) dropped out; it carries on. `fallback: Flux stopped (Flux send fell 64 messages behind)`: the Wi-Fi stalled, so Moonshine answers for the rest of the chat (slower). None of these: copy `~/ml/runs/robot.log` |
 | Tools | It says the news or trends are "not available" or "still fetching" | `robot.sh words`: `fallback: no APIFY_TOKEN` or `fallback: news refresh failed (...)`; `uv run python scripts/check_feeds.py` | No token: add `APIFY_TOKEN` to `~/ml/.env`. `Apify answered 401`: wrong token; `402`: the Apify account is out of credit. "Still fetching" just after start-up is normal: a news run takes about a minute |
 | Tools | A story is "could not be opened" | `robot.sh words`: `fallback: '<title>' is not in Gutenberg book <n>'s text`; `uv run python scripts/check_stories.py` | Gutenberg changed that book's text: fix the story's `start` or `end` heading in `STORIES`. `the story library could not be reached`: no internet; a book read once is kept in `runs/books/` |
 | Tools | The story never stops | Speak in the 2 s gap between parts: the mic is off while it reads a part, so words said during one are lost | Say it again in the gap; a turn heard as a part starts stops it after that sentence. It also stops by itself after `READ_MAX_S` with no word |
