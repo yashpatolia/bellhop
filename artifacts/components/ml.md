@@ -95,7 +95,43 @@ Then check the hardware one piece at a time (stop `rover.vision` and Freenove's 
 (Pi) uv run python -m sounddevice                    # list audio devices; put part of the names in .env
 (Pi) uv run python scripts/check_level.py            # speech at 30 cm peaks around -12 to -6 dBFS
 (Pi) uv run python scripts/check_marker.py --at 1.0  # marker held at 1.0 m -> MARKER_FOCAL_PX for config.py
+(Pi) uv run python scripts/check_face.py --screen    # cyan eyes on the screen, prints ms a frame
 ```
+
+**Face screen** (7" 1024x600 HDMI touchscreen, landscape). Plug it into the Pi 5's micro-HDMI 0 (next to USB-C; its own cable is full-size HDMI, so use a micro-HDMI adapter) and its touch USB into the Pi. On the desktop, double-click the **Bellhop** icon (`setup_pi.sh` puts it on the desktop and in the menu) to start the robot: the eyes fill the screen and it sleeps until someone says **"Hey Bellhop"**. Then it talks (mic, Flux or Moonshine, Claude, Piper) and plays games on touch. "Hey Bellhop, what games do you have?" answers the question straight away; "Hey Bellhop" alone gets a hello. No need to say the name again: it listens until 20 s of quiet (`CHAT_QUIET_S`) or goodbye, says "Just say hey Bellhop when you need me" and sleeps. It never sleeps while a game is open, and saying its name never closes a game. Saying "Bellhop" while it is still thinking stops that reply and answers the new words instead; while it speaks the mic is off, so it cannot hear itself. This is `rover.speech --chat`. A chat posts nothing to the backend, never triages, calls a nurse or drives. Asleep it also waits for bells as usual, and a bell rung during a chat ends it ("Sorry, someone has rung their bell") so the robot visits that call.
+
+Asleep, no model is loaded for the wake word: the mic and the speech detector run, and a Deepgram Flux stream opens only while someone talks, closing after 8 s without speech (`WAKE_STREAM_IDLE_S`). So it needs Wi-Fi, and Deepgram time is used whenever people talk near it (a TV left on keeps the stream open). The words heard while asleep go to Deepgram but nowhere else. Check it alone with `(Mac/Pi) uv run python scripts/check_wake.py`. To close the robot, swipe down from the very top edge of the screen to at least halfway (or press q or Esc). The same from SSH or the Pi Connect remote shell:
+
+```
+(Pi) bash ~/ml/scripts/robot.sh open    # the robot, asleep, on the Pi's screen (wakes it if running)
+(Pi) bash ~/ml/scripts/robot.sh words   # what each side says and wake/sleep, live (all: runs/robot.log)
+(Pi) bash ~/ml/scripts/robot.sh close   # close the robot: no more chats or bells
+```
+ Without a desktop (SSH, the systemd units, console boot) the eyes draw straight into the console framebuffer instead:
+
+```
+(Pi) sudo systemctl set-default multi-user.target  # boot to the console: no desktop, no icon to click
+(Pi) sudo systemctl set-default graphical.target   # boot to the desktop again (the default)
+```
+
+**Games** (bingo, tic-tac-toe, memory match). The greeting says the robot can play games; after that it only offers them when the resident asks. Claude asks whether they know the game (a "yes" is saved to memory as "Knows how to play bingo.", so it is not asked again), then `start_game` opens it on a "Touch and hold to start" screen. The resident holds for a second to begin; untouched for 30 s, it closes and the eyes come back. Bingo calls a number each time "Next number" is tapped, crosses it off the card if it is there, and strikes through a full line. The tic-tac-toe robot loses about 60% of games: it plays perfectly except for random slips, and tunes how often it slips after every game. A game redraws only when something changes, so one left alone costs no CPU.
+
+```
+(Mac) uv run python ../dev/play_games.py [--talk] [--voice]  # mouse = finger; keys 1-3 open a game
+(Pi)  uv run python scripts/check_touch.py                   # corners read about (0, 0) and (1023, 599)
+```
+
+**News, trends, the web and stories.** Claude has four more tools:
+- `news` and `trends` answer at once from `runs/news.json` and `runs/trends.json`. A background thread refreshes them through Apify: news hourly, Google Trends every 6 hours. Each starts straight away if its cache is missing or old. That costs a few cents a day; mock `--script` runs never spend it. `APIFY_TOKEN` goes in `.env`; without it both tools say so and Claude uses web search instead.
+- `web_search` is Claude's own search, run by Anthropic inside the reply (the basic `web_search_20250305`: about 4 s, against 18 s for the newer version). It costs about 1 cent a search. The persona never searches health questions: it offers a nurse.
+- `read_book` reads one of 12 classic short stories (`STORIES` in `rover/agent/books.py`; O. Henry, Wilde, Saki, Sherlock Holmes, Irving; 8 to 80 minutes), never a whole novel. Each is cut from its Project Gutenberg book between its own heading and the next story's. The book downloads once into `runs/books/`. The story is read 4 sentences at a time with a 2 s gap, when the mic can hear them. Any speech stops it, even from someone not facing the robot, since it may be a call for help. "Go on" makes Claude open it again. A bookmark per resident (`runs/books/bookmarks.json`) carries a story over to the next visit. After about 15 minutes with no word to the robot it stops ("I'll stop there for now"), and the visit ends as a quiet one would.
+
+```
+(Mac/Pi) uv run python scripts/check_feeds.py    # both Apify feeds once (about 2 cents), then FEEDS OK
+(Mac/Pi) uv run python scripts/check_stories.py  # every story found in its book, then STORIES OK
+```
+
+The Pi 5 gives USB only 600 mA in total without a 5 A USB-C supply, and a battery never counts as one. The screen's backlight and speaker draw from that, so a screen powered from a Pi USB port can go dark for seconds when the robot talks. Power it from its own 5 V supply (a power bank or the battery's 5 V, into the screen's power-only port) and keep only the touch cable on the Pi. `(Pi) uv run python scripts/check_power.py` while the robot talks shows whether it is power or memory. Memory: `robot.sh` runs only the voice process (no camera, YOLO or torch); if the systemd units were enabled, `(Pi) sudo systemctl disable --now bellhop-vision bellhop-speech` keeps them from running beside it.
 
 ## Running on the Pi
 
@@ -242,11 +278,11 @@ create a dedicated key on the laptop and authorize its public half on the Pi:
 `BELLHOP_PI_SSH_KEY="$(realpath ~/.ssh/bellhop_pi_ed25519)"`; the live script applies it to
 rsync, its tunnel and its remote rover command.
 
-**Voice reliability.** The microphone callback and Flux sender use bounded queues, so a weak
-cloud connection cannot block audio capture or make the rover answer a stale sentence. When a
-queue fills it retains the newest audio and logs the dropped blocks. Defaults keep about two
-seconds of microphone blocks and four seconds of paired Flux messages (`MIC_QUEUE_BLOCKS=64`,
-`FLUX_SEND_QUEUE_BLOCKS=64`); tune only after a real microphone test. Long visits also retain a
+**Voice reliability.** Neither the microphone callback nor the Flux sender can block audio
+capture on a weak cloud connection. The microphone queue is bounded and retains the newest
+audio, logging dropped blocks (`MIC_QUEUE_BLOCKS=64`, about two seconds; tune only after a
+real microphone test). Flux sends from its own thread; once `FLUX_BACKLOG_S` (4 s) of audio
+is queued behind, the stream reports one Error instead of answering a stale sentence. Long visits also retain a
 bounded earlier-conversation reminder instead of abruptly losing prior context.
 
 **Visit flow** (`rover.speech`):
@@ -281,13 +317,20 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `FLUX_TURN_LIMIT_S` | 5.0 | No Flux result this long after speech -> Moonshine offline |
 | `BRAIN_MODEL`, `TRIAGE_MODEL` | Claude Sonnet, Claude Haiku | Reply model and triage model |
 | `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 6.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
-| `MIC_QUEUE_BLOCKS`, `FLUX_SEND_QUEUE_BLOCKS` | 64, 64 | Bounded capture and cloud-STT buffers; newest audio wins if the Pi falls behind |
+| `MIC_QUEUE_BLOCKS` | 64 | Bounded capture buffer; newest audio wins if the Pi falls behind |
 | `HISTORY_EXCHANGES`, `HISTORY_CONTEXT_CHARS` | 20, 1200 | Full recent exchanges plus a bounded deterministic reminder of earlier visit context |
 | `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
-| `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
-| `OLED_ADDRESS`, `OLED_COLUMN_OFFSET`, `OLED_FLIP` | 0x3C, 0, off | OLED eyes (`rover/eyes.py`): I2C address (`i2cdetect -y 1`), 2 for a 1.3" SH1106, upside-down mount. Check: `scripts/check_face.py [--oled]` |
+| `CHAT_QUIET_S`, `WAKE_STREAM_IDLE_S` | 20, 8 | A chat sleeps after this much quiet (never mid-game); asleep, the wake word's Flux stream closes after this much quiet |
+| `PIPER_SPEAKER_ID`, `TONES`, `MAX_PITCH` | 3 (Poppy), table, 0.03 | Voice; speed and expressiveness per tone tag, with only a small pitch nudge |
+| `VOICE_PITCH` (`.env`) | 0 | The whole voice higher or lower, e.g. -0.03 if it still sounds high |
+| `EYES_FLIP`, `EYES_RGB`, `EYES_FPS` | off, cyan, 20 | Eyes on the HDMI screen (`rover/eyes.py`): upside-down mount, colour, frame rate. Check: `scripts/check_face.py [--screen]` |
+| `GAME_HOLD_S`, `GAME_INTRO_TIMEOUT_S` | 1.0, 30 | Hold this long on a game's start screen to begin; untouched this long, it closes |
+| `TICTACTOE_TARGET_LOSS`, `TICTACTOE_SLIP_STEP` | 0.6, 0.10 | Share of games the robot loses; how fast it adjusts its slips to get there |
 | `EYES_MOOD_HOLD_S` | 3.0 | The reply's tone tag stays on the eyes this long after its last sentence |
+| `FEEDS`, `APIFY_MAX_CHARGE_USD`, `FEED_RETRY_S` | news 1 h, trends 6 h; $0.05; 600 s | Apify actors, inputs and refresh times; the most one run may charge; the wait after a failed run |
+| `WEB_SEARCH_TOOL`, `WEB_SEARCH_MAX_USES` | basic, 2 | Claude's search version (the basic one is 4x faster) and searches per reply |
+| `READ_CHUNK_SENTENCES`, `READ_GAP_S`, `READ_MAX_PARTS` | 4, 2.0, 40 | A story is read this many sentences at a time, with this gap (the mic hears them), and stops after this many parts with no word to the robot |
 
 ## Local triage scorer (optional, offline, raise only)
 
@@ -346,6 +389,17 @@ Work from the bottom layer up.
 | Pi/Python | Low fps, `throttled` is `0x0` | First vision line prints `OMP_NUM_THREADS=` | Try 1-3 via `config.VISION_OMP_THREADS` (or `OMP_NUM_THREADS=` before `uv run`) |
 | Pi/Python | `ImportError: libGL.so.1` on `import cv2` | `dpkg -l libgl1` | `sudo apt install libgl1 libglib2.0-0` (setup does this) |
 | Pi/Python | `rsync: command not found` | `which rsync` on both machines | `sudo apt install rsync` on the Pi |
+| Face | `start_game` says the screen is not available | Log line `fallback: no touch panel`; `check_touch.py` | Plug in the screen's touch USB cable; the `pi` user needs the `input` group (`groups`) |
+| Face | Bellhop icon or `robot.sh open` shows nothing | `tail ~/ml/runs/robot.log` | "already running": stop the other one (`sudo systemctl stop bellhop-speech`); a Python error: fix it, often a missing key in `~/ml/.env` |
+| Face | The screen goes dark for a few seconds when the robot starts talking (then a purple frame, then the face) | `grep 'speaker awake' ~/ml/runs/robot.log` ("keeping the speaker awake" is good; a `fallback:` line says why not); `uv run python scripts/check_power.py` while it talks; `dmesg \| grep -iE 'hdmi\|over-current'` right after | Waking the screen's sleeping HDMI speaker makes it re-sync: keep `AUDIO_KEEPALIVE=1` (the default; once at startup is expected). `fallback: the speaker plays one sound at a time`: a raw USB speaker, so it can't be kept awake (use the PipeWire default). "undervoltage YES" or 5 V below 4.8 V: the screen draws from the Pi's USB, so power it from its own supply (see Face screen) |
+| Face | A game opens but touching never starts it, or taps in a game do nothing | `robot.sh words` (shows `fallback:`, `games: ... opened/closed`, `brain: tool` lines); `uv run python scripts/check_touch.py` (robot closed) | `fallback: touch panel lost`: the panel dropped off USB (power); it is found again by itself. `check_touch.py` names no panel: replug the touch cable. Corners far from (0, 0) and (1023, 599): the taps miss the squares, so report the numbers |
+| Voice | It stops answering after a while | `robot.sh words` | `wake: asleep`: it fell asleep after 20 s without speech, so say "Hey Bellhop". `fallback: the speaker stopped playing`: the speaker (often the screen's HDMI audio) dropped out; it carries on. `fallback: Flux stopped (Flux send fell 4 s behind)`: the Wi-Fi stalled, so Moonshine answers for the rest of the chat (slower). None of these: copy `~/ml/runs/robot.log` |
+| Tools | It says the news or trends are "not available" or "still fetching" | `robot.sh words`: `fallback: no APIFY_TOKEN` or `fallback: news refresh failed (...)`; `uv run python scripts/check_feeds.py` | No token: add `APIFY_TOKEN` to `~/ml/.env`. `Apify answered 401`: wrong token; `402`: the Apify account is out of credit. "Still fetching" just after start-up is normal: a news run takes about a minute |
+| Tools | A story is "could not be opened" | `robot.sh words`: `fallback: '<title>' is not in Gutenberg book <n>'s text`; `uv run python scripts/check_stories.py` | Gutenberg changed that book's text: fix the story's `start` or `end` heading in `STORIES`. `the story library could not be reached`: no internet; a book read once is kept in `runs/books/` |
+| Tools | The story never stops | Speak in the 2 s gap between parts: the mic is off while it reads | Saying "Bellhop" while it reads stops it at once. It also stops by itself after `READ_MAX_PARTS` parts with no word |
+| Voice | It answers bits of a sentence one by one, or says sorry for (and redoes) something it already did | `robot.sh words`: several `resident:` lines in a row, repeated `brain: tool end_game` | Fixed: speech that piles up before or behind a reply is answered once (`visit: more speech is waiting`), and its tool calls are listed in its prompt. Still repeating: copy `~/ml/runs/robot.log` |
+| Voice | "Hey Bellhop" does nothing | `robot.sh words` shows `wake: asleep`; `scripts/check_wake.py` | No `wake:` line: started without `--chat`. A `fallback: no DEEPGRAM_API_KEY` or Flux line: fix the key or Wi-Fi (`robot.sh open` still wakes it) |
+| Face | Started over SSH or systemd, the screen shows the desktop | `systemctl is-active display-manager` | The desktop hides the framebuffer: use the Bellhop icon, or `sudo systemctl stop display-manager` |
 | Camera | `IndexError` from `Picamera2()` | `rpicam-hello -n --list-cameras` shows `imx708` | Reseat the ribbon cable |
 | Camera | Camera busy / no frames | `ps aux \| grep -i -E "freenove\|rpicam\|python"` | Stop the other camera user (Freenove server, `rpicam-*`, a check script) |
 | Camera | Colours swapped (blue faces) | `check_camera.py` image | Camera must use `RGB888` (BGR order) |
@@ -384,5 +438,6 @@ Work from the bottom layer up.
 | Moonshine English model (moonshine-ai) | MIT |
 | Silero VAD via `pysilero-vad` | MIT |
 | Freenove 4WD car drivers (if used) | CC BY-NC-SA 3.0 |
+| Short story texts (Project Gutenberg) | Public domain in the US; only the story text between Gutenberg's markers is read, never redistributed |
 
-Cloud services: Deepgram Flux and Claude (Anthropic). Prototype only: no diagnosis, no real patient data.
+Cloud services: Deepgram Flux, Claude (Anthropic, including its web search) and Apify (news and Google Trends). Prototype only: no diagnosis, no real patient data.

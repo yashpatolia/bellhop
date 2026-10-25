@@ -192,6 +192,11 @@ class Backend:
     def speech_settings(self, resident_id: str) -> dict | None:
         return self._dict("GET", f"/residents/{resident_id}/speech-settings")
 
+    def remember(self, resident_id: str, text: str, tags: list[str]) -> dict | None:
+        """Save a fact about the resident (the backend may hold it for a nurse to approve)."""
+        body = {"text": text, "tags": tags, "source": "robot", "confidence": 1.0}
+        return self._dict("POST", f"/residents/{resident_id}/memory", json=body)
+
     def memory(self, resident_id: str, q: str = "", k: int = 3) -> list[dict]:
         params = {"q": q[:MEMORY_QUERY_MAX_CHARS], "k": k}
         return self._list("GET", f"/residents/{resident_id}/memory", params=params)
