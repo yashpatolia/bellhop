@@ -609,3 +609,52 @@ def test_the_reply_tone_shows_on_the_eyes_and_always_calm_wins(tmp_path, monkeyp
     assert visit.eyes.expression(time.monotonic()) == "calm"
     visit.handle_turn("hello", "flux", block(1), 0.5, time.monotonic(), None, True)
     assert visit.eyes.base == "listening"  # thinking only while the reply is being written
+
+
+class RecordingGames:
+    def __init__(self):
+        self.calls = []
+
+    def attach(self, post):
+        self.calls.append(("attach", post))
+
+    def stop(self):
+        self.calls.append(("stop",))
+        return "closed"
+
+    def status(self):
+        return "Bingo: 2 numbers called."
+
+
+def test_game_events_keep_the_visit_going_and_news_reaches_the_transcript(tmp_path, monkeypatch):
+    backend = FakeBackend()
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.events.put(("GameTouch", "", 123.0))
+    visit.events.put(("GameSay", "N 34", 123.0))
+    visit.handle_events()
+    visit.job.result(timeout=5)
+    visit.events.put(("GameNote", "Bingo! You got a line, well done!", 124.0))
+    visit.handle_events()
+    visit.job.result(timeout=5)
+    assert visit.voice.said == ["N 34", "Bingo! You got a line, well done!"]
+    robot_turns = [entry for entry in backend.log if entry[:2] == ("turn", "robot")]
+    assert robot_turns == [("turn", "robot", "Bingo! You got a line, well done!")]  # not "N 34"
+    assert visit.last_activity > 123.0
+
+
+def test_the_game_shows_in_the_prompt_and_closes_when_the_visit_ends(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.games = games = RecordingGames()
+    assert (
+        "## Right now: a game is on your screen\nBingo: 2 numbers called." in visit.system_prompt()
+    )
+    visit.mic = RecordingMic()
+    visit.begin = lambda: None
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("flux setup")
+
+    monkeypatch.setattr(voice_main, "FluxStream", boom)
+    with pytest.raises(RuntimeError):
+        visit.run()
+    assert games.calls == [("stop",), ("attach", None)]

@@ -272,7 +272,72 @@ def test_request_staff_without_call_reports_failure():
         "go_to_room",
         "follow_patient",
         "face_patient",
+        "start_game",
+        "end_game",
     ]
+
+
+class MemoryBackend:
+    def __init__(self):
+        self.saved = []
+
+    def remember(self, resident_id, text, tags):
+        self.saved.append((resident_id, text, tags))
+        return {"id": "f1"}
+
+
+class FakeGames:
+    def __init__(self):
+        self.started = []
+
+    def start(self, name):
+        self.started.append(name)
+        return f"{name} opened"
+
+    def stop(self):
+        return "closed"
+
+
+def test_start_game_remembers_only_a_game_the_resident_knows():
+    backend, games = MemoryBackend(), FakeGames()
+    ctx = ToolContext(backend, "c1", "res_margaret", games)
+    assert run_tool("start_game", {"game": "bingo", "knows_rules": True}, ctx) == "bingo opened"
+    assert run_tool("start_game", {"game": "memory", "knows_rules": False}, ctx) == "memory opened"
+    assert backend.saved == [("res_margaret", "Knows how to play bingo.", ["game", "bingo"])]
+    assert games.started == ["bingo", "memory"]
+    assert run_tool("end_game", {}, ctx) == "closed"
+
+
+def test_game_tools_without_a_screen_say_so():
+    ctx = ToolContext(MemoryBackend(), "c1", None, None)
+    result = run_tool("start_game", {"game": "tic_tac_toe", "knows_rules": True}, ctx)
+    assert result.startswith("the screen is not available")
+    assert ctx.backend.saved == []  # no resident on file: nothing to remember it for
+    assert run_tool("end_game", {}, ctx) == "no game was open"
+
+
+def test_start_game_is_strict_and_lists_the_three_games():
+    tool = next(t for t in tools.TOOLS if t["name"] == "start_game")
+    schema = tool["input_schema"]
+    assert tool["strict"] and schema["required"] == ["game", "knows_rules"]
+    assert schema["properties"]["game"]["enum"] == ["bingo", "tic_tac_toe", "memory"]
+    assert "never on your own initiative" in tool["description"]
+
+
+def test_prompt_lists_known_games_and_the_game_on_screen():
+    facts = [{"tags": ["game", "memory"]}, {"tags": ["family"]}, {"tags": ["game", "bingo"]}]
+    assert context.games_known(facts) == ["bingo", "memory"]
+    prompt = build_system_prompt(
+        MARGARET, PREFS, [], "", None, NOW, ["tic_tac_toe"], "Bingo: 3 numbers called."
+    )
+    assert "Games they already know how to play: tic-tac-toe" in prompt
+    assert "## Right now: a game is on your screen\nBingo: 3 numbers called." in prompt
+    assert "Never suggest a game" in prompt  # games come up only when the resident asks
+    assert "## Right now: a game" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)
+
+
+def test_greeting_mentions_games():
+    assert "play games" in context.GREETING.format(room="12")
 
 
 class FakePost:

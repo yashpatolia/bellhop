@@ -1,4 +1,5 @@
-"""The brain's tools: look, request_staff, stop, go_to_room, follow_patient, face_patient.
+"""The brain's tools: look, request_staff, stop, go_to_room, follow_patient, face_patient,
+start_game, end_game.
 
 The moving tools only ask rover.drive (the robot server on this Pi); it decides how to move.
 """
@@ -13,6 +14,7 @@ import httpx
 
 from rover import config
 from rover.backend import Backend
+from rover.games import GAMES, Games
 
 NO_INPUT = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
 TOOLS: list[dict] = [
@@ -98,6 +100,40 @@ TOOLS: list[dict] = [
         "strict": True,
         "input_schema": NO_INPUT,
     },
+    {
+        "name": "start_game",
+        "description": (
+            "Open a game on your touchscreen. Use it only after the resident asked to play and "
+            "chose a game; never on your own initiative. Before it, ask whether they know how to "
+            "play, unless you were told they already know that game."
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "game": {
+                    "type": "string",
+                    "enum": list(GAMES),
+                    "description": "bingo, tic_tac_toe, or memory (memory match).",
+                },
+                "knows_rules": {
+                    "type": "boolean",
+                    "description": "True if the resident said they know how to play it.",
+                },
+            },
+            "required": ["game", "knows_rules"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "end_game",
+        "description": (
+            "Close the game on your screen and show your face again. Use it when the resident "
+            "wants to stop playing."
+        ),
+        "strict": True,
+        "input_schema": NO_INPUT,
+    },
 ]
 
 
@@ -105,6 +141,8 @@ TOOLS: list[dict] = [
 class ToolContext:
     backend: Backend
     call_id: str | None
+    resident_id: str | None = None
+    games: Games | None = None
 
 
 def _look() -> str | list[dict]:
@@ -169,6 +207,16 @@ def _go_to_room(args: dict) -> str:
     return _move("go_to_room", "/go_to", {"room": room}, f"on the way to room {room}")
 
 
+def _start_game(args: dict, ctx: ToolContext) -> str:
+    game = str(args.get("game") or "")
+    if game in GAMES and args.get("knows_rules") is True and ctx.resident_id:
+        # remembered so the robot does not ask again; the backend drops a repeat as a duplicate
+        ctx.backend.remember(ctx.resident_id, f"Knows how to play {GAMES[game]}.", ["game", game])
+    if ctx.games is None:
+        return "the screen is not available, so you cannot play a game now"
+    return ctx.games.start(game)
+
+
 def run_tool(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
     """Return the content for the tool_result block."""
     if name == "look":
@@ -183,5 +231,9 @@ def run_tool(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
         return _move("follow_patient", "/follow", {}, "following the resident")
     if name == "face_patient":
         return _move("face_patient", "/face", {}, "turning to face the resident")
+    if name == "start_game":
+        return _start_game(args, ctx)
+    if name == "end_game":
+        return ctx.games.stop() if ctx.games is not None else "no game was open"
     print(f"tool: unknown tool {name!r}")
     return f"unknown tool {name}"

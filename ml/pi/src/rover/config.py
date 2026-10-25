@@ -307,4 +307,16 @@ EYES_SLOW_BLINK_S = 0.4  # calm
 EYES_GLANCE_EVERY_S = (3.0, 6.0)  # idle and listening glance aside now and then
 EYES_GLANCE_S = 0.8
 EYES_GLANCE_PX = 8
+
+# Games on the touchscreen (rover/games): drawn on a 1024x600 canvas, redrawn only when something
+# changes, so a game left alone costs no CPU
+GAME_CANVAS = (1024, 600)  # scaled to the screen if it differs
+GAME_HOLD_S = 1.0  # touch and hold this long on the start screen to begin
+GAME_INTRO_FPS = 12  # the start screen's pulsing rings
+GAME_INTRO_TIMEOUT_S = 30.0  # nobody touched the start screen: put the game away
+TICTACTOE_TARGET_LOSS = 0.6  # the robot loses this share of games, whoever it plays
+TICTACTOE_SLIP_START = 0.5  # chance of a random move instead of a good one
+TICTACTOE_SLIP_STEP = 0.10  # less slip after a robot loss; more (scaled to the target) after a win
+TICTACTOE_MOVE_DELAY_S = 0.8  # the robot "thinks" before its move
+MEMORY_PEEK_S = 1.2  # two cards that do not match stay face up this long
 LOUD_GAIN = 1.5  # speech-settings volume "loud"; clipped to full scale

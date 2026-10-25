@@ -62,3 +62,35 @@ def test_a_tone_holds_then_the_face_returns_to_its_base(monkeypatch):
     assert eyes.expression(now) == "excited"
     assert eyes.expression(now + 0.2) == "listening"
     eyes.frame(now)  # draws without a screen
+
+
+def fake_fb(tmp_path, bits):
+    width, height = 1024, 600
+    (tmp_path / "virtual_size").write_text(f"{width},{height}\n")
+    (tmp_path / "bits_per_pixel").write_text(f"{bits}\n")
+    (tmp_path / "stride").write_text(f"{width * bits // 8}\n")
+    fb = tmp_path / "fb0"
+    fb.write_bytes(bytes(width * height * bits // 8))
+    return Screen(str(fb), sysfs=tmp_path), fb
+
+
+@pytest.mark.parametrize("bits, red", [(16, 0xF800), (32, 0xFF0000)])
+def test_show_image_packs_a_bgr_picture_for_the_framebuffer(tmp_path, bits, red):
+    screen, fb = fake_fb(tmp_path, bits)
+    image = np.zeros((600, 1024, 3), np.uint8)
+    image[:, :, 2] = 255  # red in BGR
+    screen.show_image(image)
+    pixels = np.fromfile(fb, {16: np.uint16, 32: np.uint32}[bits]).reshape(600, 1024)
+    colour = pixels & (0xFFFFFF if bits == 32 else 0xFFFF)  # 32 bpp also sets the alpha byte
+    assert set(np.unique(colour)) == {red}
+
+
+def test_paused_eyes_leave_the_screen_to_the_game(tmp_path):
+    screen, fb = fake_fb(tmp_path, 16)
+    eyes = Eyes(screen)
+    eyes.paused = True
+    eyes.tick()
+    assert not np.fromfile(fb, np.uint16).any()
+    eyes.paused = False
+    eyes.tick()
+    assert np.fromfile(fb, np.uint16).any()

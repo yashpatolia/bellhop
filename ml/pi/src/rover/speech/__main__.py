@@ -22,11 +22,19 @@ import numpy as np
 
 from rover import config, obslog, safety
 from rover.agent.brain import WAIT, Brain
-from rover.agent.context import VisitHistory, activity_for, build_system_prompt
+from rover.agent.context import (
+    GAMES_QUERY,
+    GREETING,
+    VisitHistory,
+    activity_for,
+    build_system_prompt,
+    games_known,
+)
 from rover.agent.tone import AskTone, TonePick, ask_jev_tone
 from rover.agent.tools import ToolContext, post_pi
 from rover.backend import Backend
 from rover.eyes import Eyes
+from rover.games import Games
 from rover.speech import ledguard
 from rover.speech.flux import FluxStream
 from rover.speech.gates import FaceGate, Gates, VisionListener
@@ -99,13 +107,15 @@ class Visit:
         gates: Gates | None = None,
         triage_fn: TriageFn | None = None,
         eyes: Eyes | None = None,
+        games: Games | None = None,
     ) -> None:
         self.call = call
         self.call_id: str = call["id"]
         self.room = room
         self.backend, self.brain, self.voice, self.stt = backend, brain, voice, stt
         self.listener, self.face = listener, face
-        self.tool_ctx = ToolContext(backend, self.call_id)
+        self.games = games  # None: no screen, so start_game says it cannot play
+        self.tool_ctx = ToolContext(backend, self.call_id, call.get("resident_id"), games)
         self.gates = gates if gates is not None else Gates()
         self.triage_fn = triage_fn  # None = the real triage_and_post (looked up when used)
         self.eyes = eyes if eyes is not None else Eyes()  # Eyes() alone draws nothing
@@ -122,6 +132,7 @@ class Visit:
         self.resident: dict | None = None
         self.preferences: dict | None = None
         self.memories: list[dict] = []
+        self.games_known: list[str] = []
         self.risk_flags: list[str] = []
         # one job at a time (greeting, each turn, the ending) keeps the history in order
         self.pool = ThreadPoolExecutor(max_workers=1)
@@ -160,6 +171,7 @@ class Visit:
         self.resident = self.backend.resident(resident_id)
         self.preferences = self.backend.preferences(resident_id)
         self.memories = self.backend.memory(resident_id, q="")
+        self.games_known = games_known(self.backend.memory(resident_id, q=GAMES_QUERY, k=10))
         self.voice.settings = self.backend.speech_settings(resident_id)
         self.risk_flags = list((self.resident or {}).get("risk_flags") or [])
 
@@ -171,6 +183,8 @@ class Visit:
             print("visit: in-visit was not accepted; talking anyway")
         self.load_context()
         self.eyes.base = "listening"
+        if self.games is not None:
+            self.games.attach(self.events.put)  # its lines come back through handle_events
 
     def run(self) -> None:
         self.begin()
@@ -197,6 +211,9 @@ class Visit:
         finally:  # also on SIGTERM (SystemExit) or a crash: the mic must not stay open
             self.phase = "over"
             self.eyes.base = "idle"
+            if self.games is not None:
+                self.games.stop()
+                self.games.attach(None)
             self.cancel_draft()
             if self.flux is not None:
                 self.flux.close()
@@ -237,6 +254,10 @@ class Visit:
                 self.cancel_draft()
             elif event == "EndOfTurn":
                 self.end_of_turn(text, at)
+            elif event == "GameTouch":
+                self.last_activity = at  # playing quietly is not a quiet visit
+            elif event in ("GameSay", "GameNote") and self.phase == "talk":
+                self.submit(self.game_line, text, event == "GameNote")
             elif event == "Error":
                 self.flux_ok = False
                 self.cancel_draft()
@@ -339,10 +360,12 @@ class Visit:
             scene_note(self.listener.latest() if fresh else None),
             activity_for(category),
             datetime.now(),
+            self.games_known,
+            self.games.status() if self.games is not None else None,
         )
 
     def greet(self) -> None:
-        hello = f"(The robot has just arrived in room {self.room}. Greet the resident.)"
+        hello = GREETING.format(room=self.room)
         messages = [{"role": "user", "content": hello}]  # never posted as a turn
         full, _ = self.brain.reply(self.system_prompt(), messages, self.speak, self.tool_ctx)
         self.record_robot(full)
@@ -455,6 +478,13 @@ class Visit:
         if self.first_sound_at is None:
             # Voice.say blocks through synthesis and playback: this is the first sentence heard
             self.first_sound_at = time.monotonic()
+
+    def game_line(self, line: str, keep: bool) -> None:
+        """A game's line: kept in the transcript (keep) when it is news, like who won."""
+        self.speak("cheerful", line)
+        if keep:
+            self.record_robot(line)
+        self.last_activity = time.monotonic()
 
     def say_line(self, line: str) -> None:
         self.speak("calm", line)
@@ -699,9 +729,12 @@ def main() -> None:
         listener.start()
         face = FaceGate(listener, disabled=args.no_face)
         eyes = Eyes().start()  # one face for the whole process: idle between calls
+        games = Games(eyes).start_threads()  # on the same screen, while a visit asks for one
 
         def make_visit(call: dict, room: str) -> Visit:
-            return Visit(call, room, backend, brain, voice, stt, listener, face, eyes=eyes)
+            return Visit(
+                call, room, backend, brain, voice, stt, listener, face, eyes=eyes, games=games
+            )
 
     threading.Thread(target=read_enter, daemon=True).start()
     # SIGTERM/SIGINT/SIGHUP: LED idle and wheels stopped, then exit 0 (finally blocks still run)

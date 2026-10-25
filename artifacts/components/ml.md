@@ -106,6 +106,13 @@ Then check the hardware one piece at a time (stop `rover.vision` and Freenove's 
 (Pi) sudo systemctl set-default graphical.target # desktop at every boot again
 ```
 
+**Games** (bingo, tic-tac-toe, memory match). The greeting says the robot can play games; after that it only offers them when the resident asks. Claude asks whether they know the game (a "yes" is saved to memory as "Knows how to play bingo.", so it is not asked again), then `start_game` opens it on a "Touch and hold to start" screen. The resident holds for a second to begin; untouched for 30 s, it closes and the eyes come back. Bingo calls a number each time "Next number" is tapped, crosses it off the card if it is there, and strikes through a full line. The tic-tac-toe robot loses about 60% of games: it plays perfectly except for random slips, and tunes how often it slips after every game. A game redraws only when something changes, so one left alone costs no CPU.
+
+```
+(Mac) uv run python ../dev/play_games.py [--talk] [--voice]  # mouse = finger; keys 1-3 open a game
+(Pi)  uv run python scripts/check_touch.py                   # corners read about (0, 0) and (1023, 599)
+```
+
 The Pi 5 gives USB only 600 mA without a 5 A supply. If `throttled` is not `0x0` or the screen flickers, power the screen from its power-only USB port instead.
 
 ## Running on the Pi
@@ -277,6 +284,8 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
 | `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
 | `EYES_FLIP`, `EYES_RGB`, `EYES_FPS` | off, cyan, 20 | Eyes on the HDMI screen (`rover/eyes.py`): upside-down mount, colour, frame rate. Check: `scripts/check_face.py [--screen]` |
+| `GAME_HOLD_S`, `GAME_INTRO_TIMEOUT_S` | 1.0, 30 | Hold this long on a game's start screen to begin; untouched this long, it closes |
+| `TICTACTOE_TARGET_LOSS`, `TICTACTOE_SLIP_STEP` | 0.6, 0.10 | Share of games the robot loses; how fast it adjusts its slips to get there |
 | `EYES_MOOD_HOLD_S` | 3.0 | The reply's tone tag stays on the eyes this long after its last sentence |
 
 ## Local triage scorer (optional, offline, raise only)
@@ -336,6 +345,7 @@ Work from the bottom layer up.
 | Pi/Python | Low fps, `throttled` is `0x0` | First vision line prints `OMP_NUM_THREADS=` | Try 1-3 via `config.VISION_OMP_THREADS` (or `OMP_NUM_THREADS=` before `uv run`) |
 | Pi/Python | `ImportError: libGL.so.1` on `import cv2` | `dpkg -l libgl1` | `sudo apt install libgl1 libglib2.0-0` (setup does this) |
 | Pi/Python | `rsync: command not found` | `which rsync` on both machines | `sudo apt install rsync` on the Pi |
+| Face | `start_game` says the screen is not available | Log line `fallback: no touch panel`; `check_touch.py` | Plug in the screen's touch USB cable; the `pi` user needs the `input` group (`groups`) |
 | Face | Screen shows the desktop or stays blank | `systemctl is-active display-manager`; `check_face.py --screen` | Stop the desktop (`sudo systemctl stop display-manager`); boot default `multi-user.target` (`setup_pi.sh`) |
 | Camera | `IndexError` from `Picamera2()` | `rpicam-hello -n --list-cameras` shows `imx708` | Reseat the ribbon cable |
 | Camera | Camera busy / no frames | `ps aux \| grep -i -E "freenove\|rpicam\|python"` | Stop the other camera user (Freenove server, `rpicam-*`, a check script) |

@@ -85,11 +85,22 @@ class Screen:
         self._image = np.zeros(self._fb.shape, dtype)
         top, left = (height - H * self.scale) // 2, (width - W * self.scale) // 2
         self._face = self._image[top : top + H * self.scale, left : left + W * self.scale]
+        self.lock = threading.Lock()  # the eyes and a game take turns: held around each write
 
     def show(self, frame: np.ndarray) -> None:
         self._face[:] = frame
         self._face *= self._on
         self._fb[:] = self._image  # the whole screen: console text under the face is wiped too
+
+    def show_image(self, bgr: np.ndarray) -> None:
+        """A full-screen BGR picture (a game), resized when the screen is not its size."""
+        import cv2  # only games draw pictures, so the face alone never loads OpenCV
+
+        width, height = self.size
+        if bgr.shape[:2] != (height, width):
+            bgr = cv2.resize(bgr, (width, height), interpolation=cv2.INTER_AREA)
+        code = cv2.COLOR_BGR2BGR565 if self.bits == 16 else cv2.COLOR_BGR2BGRA
+        self._fb[:, :width] = cv2.cvtColor(bgr, code).view(self._fb.dtype)[..., 0]
 
     def off(self) -> None:
         self._fb[:] = 0
@@ -99,6 +110,7 @@ class Eyes:
     def __init__(self, screen: Screen | None = None) -> None:
         self.screen = screen
         self.base = "idle"
+        self.paused = False  # a game has the screen
         self._mood, self._mood_until = "", 0.0
         self._blink_at = self._glance_at = 0.0  # the first frame blinks: it wakes up
         self._blink_from, self._blink_s = -math.inf, config.EYES_BLINK_S
@@ -138,7 +150,10 @@ class Eyes:
 
     def tick(self) -> None:
         try:
-            self.screen.show(self.frame(time.monotonic()))
+            frame = self.frame(time.monotonic())
+            with self.screen.lock:
+                if not self.paused:  # checked under the lock: a game may have just taken over
+                    self.screen.show(frame)
             self._failing = False
         except Exception as exc:  # noqa: BLE001 - a screen problem must not stop the visit
             if not self._failing:
