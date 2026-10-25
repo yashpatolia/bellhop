@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closestFreeRobot, robotAvailability } from './lib'
+import { closestFreeRobot, nextRobotId, robotAvailability } from './lib'
 import type { Robot } from './data/types'
 
 const robot = (over: Partial<Robot> = {}): Robot => ({ id: 'b1', name: 'Bellhop 1', state: 'idle', battery: 80, room: 'dock', targetRoom: null, callId: null, ...over })
@@ -28,5 +28,13 @@ describe('which robots can be driven by hand', () => {
     expect(closestFreeRobot(robots, '104')?.id).toBe('b')
     expect(closestFreeRobot(robots, '210')?.id).toBe('d')
     expect(closestFreeRobot([robot({ state: 'charging' })], '104')).toBeUndefined()
+  })
+})
+
+describe('nextRobotId', () => {
+  it('follows the fleet pattern', () => {
+    expect(nextRobotId(['bellhop_1', 'bellhop_3'])).toBe('bellhop_4')
+    expect(nextRobotId([])).toBe('robot_1')
+    expect(nextRobotId(['scout'])).toBe('robot_1')
   })
 })

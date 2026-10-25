@@ -138,7 +138,8 @@ frontend/src/
     source.ts           the React hooks and the backend address
   lib.ts                labels, status text, KPI maths
   components/           Charts
-  views/                InsightsView
+  components/Logo.tsx   the Bellhop mark (also public/favicon.svg)
+  views/                Landing (the front page), InsightsView
   layouts/sumi/         the one layout ("Slate & Coral"): Layout.tsx, ResidentsPage.tsx, layout.css
   layouts/shared.tsx    blocks used by the layout (activity log, detail, numbers, robots)
   theme/themes.css      tokens
@@ -148,7 +149,9 @@ Regenerate the wire types after the contract changes: `npm run gen:api`.
 
 ### Views
 
-Four views share the same data: **Live** (the most urgent call, the activity log, robots, numbers), **Dispatch** (pick a room, see which robots are free, choose which free robot to drive there, the closest is preselected, and stop a driving robot; `POST /robots/{id}/navigate` and `/stop`), **Insights** (KPIs, hourly chart, category mix, backend metrics, alerts) and **Residents** (add a resident and give them a room, change a room, search, profile, habits and tendencies from the call history, what Bellhop has learned with the nurse review queue, staff notes, medical history, call history with full conversations). Routing is a hash (`#/`, `#/dispatch/<room>`, `#/insights`, `#/residents`, `#/residents/new`, `#/residents/<id>`, `#/residents/<id>/edit`, `#/residents/<id>/<callId>`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
+A **landing page** at `#/` explains the project and has two ways in: **Open the dashboard** (the real home) and **Try the demo** (the demo backend, see below). The top bar's logo leads back to it. The page is copy and illustration only, with no data.
+
+Four dashboard views share the same data: **Live** (the most urgent call, the activity log, robots, numbers), **Dispatch** (pick a room, see which robots are free, choose which free robot to drive there, the closest is preselected, and stop a driving robot; `POST /robots/{id}/navigate` and `/stop`; and add a robot to the fleet with `PUT /robots/{id}`, using the robot's own `ROBOT_ID` so its later reports land on it), **Insights** (KPIs, hourly chart, category mix, backend metrics, alerts) and **Residents** (add a resident and give them a room, change a room, search, profile, habits and tendencies from the call history, what Bellhop has learned with the nurse review queue, staff notes, medical history, call history with full conversations). When a call ends, anything Bellhop learned from it appears at the end of that conversation ("Learned about Margaret: ..."), marked saved or waiting for a nurse to confirm; this comes from the fact's `call_id`. Routing is a hash (`#/` landing, `#/live`, `#/dispatch/<room>`, `#/insights`, `#/residents`, `#/residents/new`, `#/residents/<id>`, `#/residents/<id>/edit`, `#/residents/<id>/<callId>`). A hash router needs no server config, which matters because the dashboard may be served from a laptop or a static host.
 
 When the backend cannot be reached the screens say so and keep trying; when the home is empty they say that instead of showing blank panels.
 
@@ -188,6 +191,7 @@ The example home is a **separate service**, `simulator/`, that talks to the back
 | Environment | What runs | Use it for |
 | --- | --- | --- |
 | `scripts/dev.sh mock` | backend, simulator (twelve residents with facts, medical history and fourteen days of calls, then live bell presses), dashboard | building and rehearsing the UI, demos without hardware |
+| `scripts/dev.sh demo` | the empty real backend plus a second in-memory demo backend filled by the simulator | showing the product: the dashboard's Demo button switches between the two backends, with a "made-up data" banner |
 | `scripts/dev.sh empty` | backend and dashboard only | integrating the real robot and staff entry; the home stays empty until something posts to it |
 
 ## Metrics and the savings claim
@@ -277,7 +281,7 @@ Then ask "what happened in room 12?" from ASI:One with the Agents toggle on. Det
 | `frontend/` | The nurse dashboard (Vite, React, TypeScript, Motion) |
 | `frontend/src/data/` | View model, wire adapter, live store |
 | `simulator/` | Stand-in care home that feeds the backend over its API (Python, `uv`) |
-| `scripts/` | `dev.sh mock` and `dev.sh empty` start the whole stack |
+| `scripts/` | `dev.sh mock`, `empty` and `demo` start the whole stack |
 | `artifacts/` | Static HTML and CSS plan, research and overview, no build step |
 | `artifacts/plan/` | Markdown and PDF exports of the project, research and extra ideas |
 | `artifacts/architecture/` | Backend architecture, module map, decisions, testing, status |

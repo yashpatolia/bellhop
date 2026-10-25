@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import type { BellhopData, Call, Resident, Urgency } from '../data/types'
+import { useMode } from '../data/mode'
 import { Bars, HBars, Sparkline } from '../components/Charts'
 import {
   CATEGORY_LABEL,
@@ -20,6 +21,11 @@ import './shared.css'
 function known(r: Resident): string {
   const facts = r.learned.filter((f) => f.status === 'active' && f.kind !== 'health').slice(0, 3)
   return facts.length ? facts.map((f) => f.text).join('. ') + '.' : 'Nothing learned about them yet.'
+}
+
+/** What Bellhop learned from this conversation, saved or waiting for a nurse, newest last. */
+function learnedIn(call: Call, r: Resident | undefined) {
+  return r ? r.learned.filter((f) => f.callId === call.id) : []
 }
 
 export function Chip({ u }: { u: Urgency }) {
@@ -66,6 +72,18 @@ export function Nav({ view }: { view: string }) {
   )
 }
 
+function Battery({ pct, charging }: { pct: number; charging: boolean }) {
+  const level = Math.max(0, Math.min(100, pct))
+  return (
+    <svg className="sb-battery" viewBox="0 0 28 14" width="28" height="14" aria-hidden="true">
+      <rect x="0.75" y="0.75" width="23.5" height="12.5" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="25" y="4.5" width="2.25" height="5" rx="1" fill="currentColor" />
+      <rect x="2.75" y="2.75" width={(level / 100) * 19.5} height="8.5" rx="1" fill="currentColor" />
+      {charging && <path d="M13.5 2 L9 7.5 H12.5 L11 12 L16.5 6 H13 Z" fill="var(--bg)" stroke="currentColor" strokeWidth="0.6" />}
+    </svg>
+  )
+}
+
 export function Robots({ data }: { data: BellhopData }) {
   return (
     <ul className="sb-robots" aria-label="Robots">
@@ -79,7 +97,8 @@ export function Robots({ data }: { data: BellhopData }) {
               {r.targetRoom ? `, room ${r.targetRoom}` : ''}
             </span>
             <em>
-              {Math.round(r.battery)}%{low ? ' low battery' : ''}
+              <Battery pct={r.battery} charging={r.state === 'charging'} />
+              {Math.round(r.battery)}%{low ? ' low' : ''}
             </em>
           </li>
         )
@@ -176,6 +195,13 @@ export function Detail({ call, data, empty }: { call: Call | undefined; data: Be
               <p key={i} className={t.who}>
                 <span>{t.who === 'resident' ? r?.name.split(' ')[0] : t.who === 'robot' ? 'Bellhop' : 'Nurse'}</span>
                 {t.text}
+              </p>
+            ))}
+            {learnedIn(call, r).map((f) => (
+              <p key={f.id} className="learned">
+                <span>Bellhop</span>
+                <b>Learned about {r?.name.split(' ')[0]}:</b> {f.text}
+                <em>{f.status === 'pending' ? 'Waiting for a nurse to confirm' : 'Saved to their profile'}</em>
               </p>
             ))}
             <p className="sb-end">
@@ -361,7 +387,21 @@ export function Activity({ data, onPick, selectedId, actions, startOn = 'all' }:
 
 /** Says plainly when the screens are not showing live data, when an action failed, or when the home is empty. */
 export function ConnectionBanner({ data }: { data: BellhopData }) {
+  const { mode, setMode } = useMode()
   const { state, problem, empty } = data.connection
+  if (mode === 'demo') {
+    const down = state === 'offline' || Boolean(problem)
+    return (
+      <p className={`sb-banner demo ${down ? 'bad' : ''}`} role={down ? 'alert' : 'status'}>
+        {down
+          ? 'The demo is not running. Start it with scripts/dev.sh demo, or go back to the real home.'
+          : 'Demo mode: these are made-up residents and calls, not your real home.'}{' '}
+        <button type="button" className="sb-link" onClick={() => setMode('live')}>
+          Exit demo
+        </button>
+      </p>
+    )
+  }
   if (state === 'connecting') return <p className="sb-banner" role="status">Connecting to Bellhop...</p>
   if (problem) {
     return (
@@ -373,7 +413,7 @@ export function ConnectionBanner({ data }: { data: BellhopData }) {
   if (empty) {
     return (
       <p className="sb-banner" role="status">
-        This home is empty. Add residents on the Residents tab (nurses go in through the Bellhop backend), or run the simulator to fill it with example data (see artifacts/components/simulator.md).
+        This home is empty. Add residents on the Residents tab and robots on the Dispatch tab, or press Demo to look around an example home.
       </p>
     )
   }

@@ -318,5 +318,133 @@
         "Yes, the nurse has been alerted and is on the way. I am here."
       ]
     ]
+  },
+  {
+    "category": "chat",
+    "urgency": 1,
+    "handled_by": "robot",
+    "summary": "Wanted company. Talked about tea and a granddaughter.",
+    "turns": [
+      [
+        "resident",
+        "Could you stay a minute? I like a hot cup of tea with honey in the afternoon."
+      ],
+      [
+        "robot",
+        "Of course. Hot tea with honey sounds lovely. Would you like me to remember that?"
+      ],
+      [
+        "resident",
+        "My granddaughter Sophie visits every Sunday."
+      ],
+      [
+        "robot",
+        "That is something to look forward to. I will remember Sophie visits on Sundays."
+      ],
+      [
+        "resident",
+        "Thank you, I feel better now."
+      ],
+      [
+        "robot",
+        "Ring whenever you want to chat again. Take care."
+      ]
+    ]
+  },
+  {
+    "category": "chat",
+    "urgency": 1,
+    "handled_by": "robot",
+    "summary": "Restless. Talked about music and the television.",
+    "turns": [
+      [
+        "resident",
+        "I cannot sleep. I love listening to old jazz records."
+      ],
+      [
+        "robot",
+        "Jazz can be very calming. Which records are your favourites?"
+      ],
+      [
+        "resident",
+        "I can't stand the loud television in the lounge."
+      ],
+      [
+        "robot",
+        "I will remember that. Would a quieter spot help tonight?"
+      ],
+      [
+        "resident",
+        "Yes, that would be nice."
+      ],
+      [
+        "robot",
+        "I will let the staff know. Goodnight."
+      ]
+    ]
+  },
+  {
+    "category": "chat",
+    "urgency": 1,
+    "handled_by": "robot",
+    "summary": "Chatted about the garden and a morning routine.",
+    "turns": [
+      [
+        "resident",
+        "I always read the newspaper every morning before breakfast."
+      ],
+      [
+        "robot",
+        "That sounds like a good start to the day. I will remember it."
+      ],
+      [
+        "resident",
+        "My son Daniel sends me photographs of the garden."
+      ],
+      [
+        "robot",
+        "How lovely. I enjoy hearing about your family."
+      ],
+      [
+        "resident",
+        "I should rest now."
+      ],
+      [
+        "robot",
+        "Of course. Ring if you need anything."
+      ]
+    ]
+  },
+  {
+    "category": "chat",
+    "urgency": 1,
+    "handled_by": "robot",
+    "summary": "Asked for company and shared a favourite snack.",
+    "turns": [
+      [
+        "resident",
+        "I adore shortbread biscuits with my tea."
+      ],
+      [
+        "robot",
+        "Shortbread is a classic. I will remember that you adore it."
+      ],
+      [
+        "resident",
+        "I hate the cold draught from the window."
+      ],
+      [
+        "robot",
+        "Thank you for telling me. I will pass that on to the staff."
+      ],
+      [
+        "resident",
+        "That is kind of you."
+      ],
+      [
+        "robot",
+        "Ring whenever you like. Take care."
+      ]
+    ]
   }
 ]

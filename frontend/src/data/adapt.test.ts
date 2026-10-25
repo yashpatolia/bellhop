@@ -123,9 +123,13 @@ describe('what Bellhop knows', () => {
 
   it('a learned fact keeps its provenance', () => {
     expect(toFact(fact())).toEqual({
-      id: 'f1', kind: 'like', text: 'Takes tea with two sugars', source: 'resident', confidence: 0.9, quote: 'two sugars',
+      id: 'f1', kind: 'like', text: 'Takes tea with two sugars', source: 'resident', confidence: 0.9, quote: 'two sugars', callId: 'c1',
       learnedAt: Date.parse('2026-10-01T10:00:00Z'), lastConfirmed: Date.parse('2026-10-20T10:00:00Z'), timesSeen: 4, status: 'active',
     })
+  })
+
+  it('a fact remembers the call it was learned in', () => {
+    expect(toFact({ ...fact(), call_id: 'call_9' }).callId).toBe('call_9')
   })
 
   it('the kind is the first tag it knows, and source "conversation" means the resident said it', () => {

@@ -131,10 +131,15 @@ The simulator is a separate Python service that feeds the backend over its API: 
 ```bash
 scripts/dev.sh mock       # the whole stack with the simulator
 scripts/dev.sh empty      # backend and dashboard only
+scripts/dev.sh demo       # the real (empty) backend on :8000, a demo backend on :8001 filled by the simulator
 scripts/dev.sh mock --scene busy --rate 3 --speed 2     # options for the simulator
 ```
 
 Or by hand, with a backend already running: `cd simulator && uv sync && uv run bellhop-sim run --seed-home`. Options (`--rate`, `--speed`, `--scene`, `--nurse-delay`) are in `artifacts/components/simulator.md`. The simulator needs the same `--base-url` and `--api-key` (or `BELLHOP_API` and `BELLHOP_API_KEY`) as the backend if you changed them.
+
+`scripts/dev.sh empty` and `demo` start the real backend on SpacetimeDB by default, and print a warning and fall back to memory if the server is not running. `mock` and the demo backend always use memory, so made-up residents never reach the database. Starting uvicorn by hand still defaults to memory unless you export `BELLHOP_STORE=spacetimedb`.
+
+In `demo` mode the dashboard shows a **Demo** button in the top bar. It switches the dashboard to the demo backend (`VITE_BELLHOP_DEMO_URL`, default `http://127.0.0.1:8001`), with a banner saying the data is made up. The demo backend is in memory and separate from the real one, so demo activity never reaches the real home or SpacetimeDB. If the demo backend is not running, the dashboard says so.
 
 Seeding is safe to repeat. A restarted in-memory backend loses everything, so run the simulator again (`scripts/dev.sh` does).
 

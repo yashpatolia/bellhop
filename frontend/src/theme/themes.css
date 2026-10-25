@@ -9,8 +9,8 @@
   --accent: #43597d; --accent-ink: #ffffff; --accent-tint: #dcebf3;
   --u1: #2f7471; --u2: #43597d; --u3: #a8461f; --u4: #a8321c;
   --radius: 6px; --radius-sm: 4px; --border: 1px; --shadow: 0 1px 2px rgba(43, 50, 64, 0.1);
-  --f-display: 'Zen Maru Gothic', sans-serif; --f-body: 'Zen Maru Gothic', sans-serif; --f-mono: 'DM Mono', monospace;
-  --d-weight: 700; --d-track: 0;
+  --f-display: 'Hanken Grotesk', sans-serif; --f-body: 'Hanken Grotesk', sans-serif; --f-mono: 'DM Mono', monospace;
+  --d-weight: 700; --d-track: -0.01em;
   --bg-image: none;
   --bg-size: auto;
 }
