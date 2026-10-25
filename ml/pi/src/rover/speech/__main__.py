@@ -186,7 +186,8 @@ class Visit:
         # written by the worker, read by the main thread
         self.last_reply = ""
         self.last_activity = time.monotonic()
-        self.read_done_at = -math.inf  # when the last few sentences of the book finished
+        self.read_done_at = -math.inf  # when the last part of the story finished
+        self.read_paused = False  # a turn stopped the story; a WAIT reply to it reads on
         self.phase = "talk"  # talk -> ending -> (wait_nurse -> resolving) -> over
         self.nurse_status: str | None = None
         self.done = False
@@ -495,8 +496,8 @@ class Visit:
             print(f"visit: dropped turn {text!r}: the call is already resolved")
             return
         print(f"resident: {text}  ({source})")
-        # any turn stops the book, even one not facing the robot: it may be a call for help
-        was_reading = self.reader.pause()
+        # any turn stops the story, even one not facing the robot: it may be a call for help
+        self.read_paused = self.reader.pause() or self.read_paused  # merged turns keep it
         obslog.event(
             "visit.turn", call_id=self.call_id, room=self.room, source=source, chars=len(text)
         )
@@ -513,6 +514,7 @@ class Visit:
         if not face_ok:
             # posted and triaged anyway, so a call for help from the floor is never lost
             print("visit: no one was facing the robot during that turn; triaged it, no reply")
+            self.read_paused = False  # the story stays stopped
             if draft is not None:
                 draft.cancel.set()
             self.last_activity = time.monotonic()
@@ -529,8 +531,9 @@ class Visit:
             self.eyes.base = "listening"
             self.tone_pick = None
         self.record_robot(full)
-        if was_reading and full == WAIT:
+        if self.read_paused and full == WAIT:
             self.reader.resume()  # that speech was not for the robot: read on
+        self.read_paused = False
 
         def since(at: float | None) -> float | None:
             return None if at is None else at - speech_end
@@ -610,13 +613,20 @@ class Visit:
         self.last_activity = time.monotonic()
 
     def read_on(self) -> None:
-        """The next few sentences of the open book. Not kept in the history: the prompt's book
-        status says where it stopped."""
+        """The next part of the open story. Not kept in the history: the prompt's story status
+        says where it stopped."""
+        call = self.latest_call
+        if call is not None and resolve_decision(call.get("urgency")) == "wait_nurse":
+            self.reader.pause()  # no story while a nurse is needed; the quiet clock runs on
+            print("visit: triage asks for a nurse; the story stops")
+            return
         sentences = self.reader.next_part()
         for sentence in sentences:
-            if self.interrupt.is_set():
-                break
+            if self.interrupt.is_set() or self.resident_spoke():
+                break  # they spoke as it began, or a job (a bell) waits: read it again later
             self.speak(config.READ_TONE, sentence)
+        else:
+            self.reader.done_part()
         self.voice.wait()
         self.last_reply = " ".join(sentences)  # its echo in the gap is dropped like a reply's
         self.gates.open_attention(time.monotonic())  # a quiet "stop" in the gap is heard

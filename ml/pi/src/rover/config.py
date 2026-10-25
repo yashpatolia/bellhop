@@ -266,7 +266,7 @@ BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before givi
 # Claude's own web search (server side, about 1 cent a search). The basic version: the newer
 # web_search_20260209 filters results with code first, which is slower to the first spoken word.
 WEB_SEARCH_TOOL = "web_search_20250305"
-WEB_SEARCH_MAX_USES = 2  # per reply
+WEB_SEARCH_MAX_USES = 2  # per request: a reply makes up to BRAIN_MAX_TOOL_ROUNDS + 1
 WEB_SEARCH_LOCATION = {"type": "approximate", "country": "US", "timezone": "America/Los_Angeles"}
 
 # News and trends through Apify (APIFY_TOKEN in .env), refreshed in the background into runs/
@@ -302,10 +302,12 @@ FEEDS = {
 GUTENBERG_TEXT_URL = "https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt"
 BOOK_TIMEOUT_S = 15.0
 BOOKS_DIR = RUNS_DIR / "books"  # downloaded texts, and bookmarks.json
-READ_CHUNK_SENTENCES = 4  # read this much, then pause READ_GAP_S with the mic open
+# The mic is off while sound plays, so a story is read in parts of whole sentences up to this
+# many words (about 12 s; a longer sentence is split at a comma), then READ_GAP_S with it open
+READ_PART_WORDS = 30
 READ_GAP_S = 2.0
 READ_TONE = "calm"
-READ_MAX_PARTS = 40  # about 15 minutes with no word to the robot: they may be asleep
+READ_MAX_S = 900.0  # this long with no word to the robot and it stops: they may be asleep
 READ_STOP_LINE = "I'll stop there for now. Just ask if you'd like more."
 # A story's heading counts only with a paragraph this long in the next READ_LOOKAHEAD (so the
 # contents list and title page are skipped)

@@ -106,3 +106,11 @@ def test_the_tools_answer_from_the_cache(runs):
     feeds.refresh("trends", "t", apify(trends))
     line = "- Eclipse (Science; 2M+ searches; related: eclipse time, eclipse glasses, path)"
     assert line in feeds.tool_text("trends")
+
+
+def test_a_token_with_a_pasted_newline_still_works_and_is_never_printed(runs):
+    seen = []
+    feeds.refresh("news", "token-123\n", apify(NEWS, seen=seen))
+    assert seen[0].headers["Authorization"] == "Bearer token-123"
+    leak = httpx.LocalProtocolError("Illegal header value b'Bearer token-123 x'")
+    assert "token-123" not in feeds.why_failed(leak)

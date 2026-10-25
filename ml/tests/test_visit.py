@@ -1034,23 +1034,27 @@ def test_a_waiting_turn_said_to_the_robot_is_answered_even_if_the_next_is_not(
 
 
 class OpenBook:
-    """Reader stand-in: a heading, then one paragraph, then the end."""
+    """Reader stand-in: a title, then one paragraph, then the end."""
 
     def __init__(self):
         self.parts = [["Chapter 1."], ["It was cold.", "They walked."]]
+        self.at = 0
         self.reading = True
 
     def next_part(self):
-        part = self.parts.pop(0) if self.parts else []
-        self.reading = bool(self.parts)
-        return part
+        return self.parts[self.at] if self.reading else []
+
+    def done_part(self):
+        if self.reading:
+            self.at += 1
+            self.reading = self.at < len(self.parts)
 
     def pause(self):
         was, self.reading = self.reading, False
         return was
 
     def resume(self):
-        self.reading = bool(self.parts)
+        self.reading = self.at < len(self.parts)
 
     def status(self):
         return "The Happy Prince by Oscar Wilde, stopped about 10% through."
@@ -1097,3 +1101,40 @@ def test_any_turn_stops_the_book_and_only_wait_reads_on(tmp_path, monkeypatch):
         thread.join()
     status = "The Happy Prince by Oscar Wilde, stopped about 10% through."
     assert f"## A story is open\n{status}" in visit.system_prompt()
+
+
+def test_speech_as_a_part_begins_stops_it_and_it_is_read_again(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.reader = OpenBook()
+    visit.reader.at = 1
+    said = visit.voice.say
+
+    def say_then_hear(sentence, tone):
+        said(sentence, tone)
+        visit.turn_pending = True  # "help, I've fallen" as the first sentence starts
+
+    visit.voice.say = say_then_hear
+    visit.read_on()
+    assert visit.voice.said == ["It was cold."]  # not "They walked."
+    assert visit.reader.at == 1 and visit.reader.reading  # the part is read again
+
+
+def test_no_story_while_triage_asks_for_a_nurse(tmp_path, monkeypatch, capsys):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    visit.reader = OpenBook()
+    visit.latest_call = {"urgency": 3}
+    quiet_since = visit.last_activity
+    visit.read_on()
+    assert visit.voice.said == [] and not visit.reader.reading
+    assert visit.last_activity == quiet_since  # the quiet clock leads on to the nurse path
+    assert "triage asks for a nurse" in capsys.readouterr().out
+
+
+def test_a_wait_reply_to_merged_turns_reads_on(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), WaitBrain())
+    visit.reader = OpenBook()
+    visit.handle_turn("so then", "flux", block(1), 0.5, time.monotonic(), None, True, False)
+    visit.handle_turn("she said", "flux", block(1), 0.5, time.monotonic(), None, True)
+    for thread in visit.triage_threads:
+        thread.join()
+    assert visit.reader.reading and visit.read_paused is False

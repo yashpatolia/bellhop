@@ -50,7 +50,7 @@ def refresh(name: str, token: str, transport: httpx.BaseTransport | None = None)
                 "maxTotalChargeUsd": config.APIFY_MAX_CHARGE_USD,
             },
             json=feed["input"],
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {token.strip()}"},  # a pasted newline
         )
         response.raise_for_status()
         data = response.json()
@@ -80,6 +80,8 @@ def _tidy(item: dict) -> dict:
 def why_failed(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
         return f"Apify answered {exc.response.status_code}"
+    if isinstance(exc, httpx.LocalProtocolError):  # its message can hold the header: the token
+        return "the token has characters a header cannot hold"
     return f"{type(exc).__name__}: {exc}"
 
 

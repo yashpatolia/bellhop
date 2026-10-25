@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 
 import httpx
 
@@ -106,18 +107,35 @@ def story_paragraphs(story: dict, text: str) -> list[str]:
     return []
 
 
+def pieces(sentence: str) -> list[str]:
+    """A sentence longer than READ_PART_WORDS, cut after its last comma (or ; or :) that fits,
+    or at the limit if none does."""
+    words, out = sentence.split(), []
+    while len(words) > config.READ_PART_WORDS:
+        fits = [i for i in range(1, config.READ_PART_WORDS + 1) if words[i - 1][-1] in ",;:"]
+        cut = fits[-1] if fits else config.READ_PART_WORDS
+        out.append(" ".join(words[:cut]))
+        words = words[cut:]
+    return [*out, " ".join(words)] if words else out
+
+
 def chunks(story: dict, text: str) -> list[list[str]]:
-    """The parts to read in turn: the title, then a few sentences at a time. A part never runs
-    into the next paragraph."""
+    """The parts to read in turn: the title, then whole sentences up to READ_PART_WORDS. A part
+    never runs into the next paragraph."""
     paras = story_paragraphs(story, text)
     if not paras:
         return []
     out = [[f"{story['title']}, by {story['author']}."]]
     for para in paras:
-        sentences = SENTENCE_END.split(SHOUTED.sub(lambda m: m.group().capitalize(), para))
-        sentences = [s for s in sentences if s.strip()]
-        for i in range(0, len(sentences), config.READ_CHUNK_SENTENCES):
-            out.append(sentences[i : i + config.READ_CHUNK_SENTENCES])
+        part: list[str] = []
+        for sentence in SENTENCE_END.split(SHOUTED.sub(lambda m: m.group().capitalize(), para)):
+            for piece in pieces(sentence):
+                if part and len(" ".join([*part, piece]).split()) > config.READ_PART_WORDS:
+                    out.append(part)
+                    part = []
+                part.append(piece)
+        if part:
+            out.append(part)
     return out
 
 
@@ -162,7 +180,7 @@ class Reader:
         self.parts: list[list[str]] = []
         self.at = 0  # the next part to read
         self.reading = False
-        self.read_since_asked = 0  # parts read since read_book; READ_MAX_PARTS stops it
+        self.asked_at = 0.0  # when read_book was last used; READ_MAX_S after it, it stops
         self._transport = transport
 
     def name(self) -> str:
@@ -178,7 +196,7 @@ class Reader:
         if key not in STORIES:
             return f"there is no story called {key!r}"
         if key == self.story and self.at < len(self.parts):
-            self.reading, self.read_since_asked = True, 0
+            self.reading, self.asked_at = True, time.monotonic()
             return f"going on with {self.name()}, {self.through()}. {then}"
         story = STORIES[key]
         try:
@@ -192,28 +210,35 @@ class Reader:
         self.story, self.parts = key, parts
         saved = _bookmarks().get(self._key(), 0)
         self.at = saved if isinstance(saved, int) and 0 < saved < len(parts) else 0
-        self.reading, self.read_since_asked = True, 0
+        self.reading, self.asked_at = True, time.monotonic()
         print(f"books: reading {key} from part {self.at} of {len(parts)}")
         where = f"from where you stopped before ({self.through()})" if self.at else "from the start"
         return f"now reading {self.name()} aloud, {where}. {then}"
 
     def next_part(self) -> list[str]:
-        """The next few sentences, with the bookmark moved past them; [] when not reading."""
+        """The next few sentences to read ([] when not reading); done_part() moves past them."""
         if not self.reading or self.at >= len(self.parts):
             self.reading = False
             return []
-        if self.read_since_asked >= config.READ_MAX_PARTS:
-            print(f"books: {config.READ_MAX_PARTS} parts with no word from them; stopping")
+        if time.monotonic() - self.asked_at >= config.READ_MAX_S:
+            print(f"books: {config.READ_MAX_S:g} s with no word from them; stopping")
             self.reading = False
             return [config.READ_STOP_LINE]
-        self.read_since_asked += 1
-        sentences = self.parts[self.at]
+        return self.parts[self.at]
+
+    def done_part(self) -> None:
+        """The part was read to its end: the bookmark moves past it. A part cut short is read
+        again when they want more."""
+        if not self.reading:  # the stop line, or they spoke
+            return
         self.at += 1
         self.reading = self.at < len(self.parts)
         marks = _bookmarks()
         marks[self._key()] = self.at
-        _write(config.BOOKS_DIR / "bookmarks.json", json.dumps(marks))
-        return sentences
+        try:
+            _write(config.BOOKS_DIR / "bookmarks.json", json.dumps(marks))
+        except OSError as exc:  # the story still goes on; only the next visit's place is lost
+            print(f"fallback: bookmark not saved ({type(exc).__name__})")
 
     def pause(self) -> bool:
         """Stop after the part being read; True if it was reading."""
