@@ -70,10 +70,11 @@ sudo raspi-config nonint do_i2c 0
 sudo raspi-config nonint do_spi 0
 [[ -e /dev/i2c-1 ]] || echo "WARNING: /dev/i2c-1 missing: reboot (sudo reboot), then re-run this script"
 [[ -e /dev/spidev0.0 ]] || echo "WARNING: /dev/spidev0.0 missing: reboot for the SPI LEDs"
-# Face screen: the eyes draw into the console framebuffer, so boot to the console (the desktop stays
-# installed: sudo systemctl start display-manager), hide its cursor, and keep Pi Connect's remote
-# shell running with nobody logged in.
-sudo systemctl set-default multi-user.target
+# Face screen: the Bellhop icon (desktop and menu) starts the robot, eyes full screen. On
+# the console (no desktop) they draw into the framebuffer: hide its cursor there, and keep Pi
+# Connect's remote shell running with nobody logged in.
+install -D -m 644 deploy/bellhop.desktop "$HOME/Desktop/bellhop.desktop"
+install -D -m 644 deploy/bellhop.desktop "$HOME/.local/share/applications/bellhop.desktop"
 grep -q vt.global_cursor_default /boot/firmware/cmdline.txt ||
   sudo sed -i '1 s/$/ vt.global_cursor_default=0/' /boot/firmware/cmdline.txt
 sudo loginctl enable-linger "$USER"

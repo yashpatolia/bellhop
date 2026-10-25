@@ -79,6 +79,11 @@ class Games:
             return "the screen is not available, so you cannot play a game now"
         now = time.monotonic() if now is None else now
         with self._cond:
+            if self.name == name and self.phase is not None and not (self.game and self.game.over):
+                # Claude does not see its own earlier tool calls: a reset would wipe the board
+                if self.phase == "intro":  # it asked again, so the start screen waits longer
+                    self._intro_until = now + config.GAME_INTRO_TIMEOUT_S
+                return f"{GAMES[name]} is already open, do not start it again. {self.status()}"
             self.name, self.game, self.phase = name, None, "intro"
             self._intro_from = self._next_frame = now
             self._intro_until = now + config.GAME_INTRO_TIMEOUT_S
@@ -156,11 +161,14 @@ class Games:
 
     def _on_touch(self, kind: str, x: int, y: int, now: float) -> bool:
         if self.phase == "intro":
-            if kind == "down":
+            if kind == "down" or (kind == "move" and self._held_since is None):
+                # a move with no hold: the finger was already down when the start screen came up
                 self._held_since, self._intro_until = now, now + config.GAME_INTRO_TIMEOUT_S
-            elif kind == "up":
+                return True
+            if kind == "up":
                 self._held_since = None
-            return kind != "move"
+                return True
+            return False
         if self.phase != "play" or kind != "down":
             return False
         if FINISH.hit(x, y):

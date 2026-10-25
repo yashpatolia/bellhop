@@ -3,6 +3,7 @@ import math
 import threading
 import time
 import wave
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -26,6 +27,7 @@ from rover.speech.visit import (
     should_start_visit,
     stt_fallback_due,
     urgency_rank,
+    wake_text,
 )
 
 
@@ -190,9 +192,15 @@ class FakeVoice:
     def __init__(self):
         self.said = []
         self.settings = None
+        self.waits = 0
+        self.on_play = lambda until: None
 
     def say(self, sentence, tone):
         self.said.append(sentence)
+        self.on_play(time.monotonic())  # as the real voice does when a sentence starts
+
+    def wait(self):
+        self.waits += 1
 
 
 class FakeListener:
@@ -500,6 +508,9 @@ class RecordingMic:
     def stop(self):
         self.events.append("stop")
 
+    def set_speaking(self, speaking, until=0.0):
+        pass
+
 
 def test_mic_is_closed_when_the_visit_setup_fails_after_it_opened(tmp_path, monkeypatch):
     visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
@@ -658,3 +669,270 @@ def test_the_game_shows_in_the_prompt_and_closes_when_the_visit_ends(tmp_path, m
     with pytest.raises(RuntimeError):
         visit.run()
     assert games.calls == [("stop",), ("attach", None)]
+
+
+def make_chat(tmp_path, monkeypatch, sent):
+    monkeypatch.setattr(voice_main, "post_pi", lambda path, body: sent.append(path))
+    monkeypatch.setattr(voice_main, "triage_and_post", lambda *args: sent.append("triage"))
+    call = {"id": "chat", "room": "", "status": "assigned"}
+    visit = voice_main.ChatVisit(
+        call,
+        "",
+        voice_main.NoBackend(),
+        FakeBrain(("Hello!",)),
+        FakeVoice(),
+        None,
+        FakeListener(),
+        FaceGate(None, disabled=True),
+    )
+    visit.log = TurnLog(tmp_path)
+    return visit
+
+
+def test_a_chat_talks_and_ends_on_goodbye_without_triage_or_driving(tmp_path, monkeypatch):
+    sent = []
+    visit = make_chat(tmp_path, monkeypatch, sent)
+    assert "called you over" in visit.greeting
+    visit.handle_turn("Hi there", "flux", block(1), 0.5, time.monotonic(), None, True)
+    assert visit.voice.said == ["Hello!"] and not visit.done
+    visit.handle_turn("Okay, bye", "flux", block(1), 0.5, time.monotonic(), None, True)
+    assert visit.done and sent == []  # no triage, no /go_to
+
+
+def test_a_quiet_chat_goes_back_to_sleep(tmp_path, monkeypatch):
+    sent = []
+    visit = make_chat(tmp_path, monkeypatch, sent)
+    assert visit.quiet_limit_s() == config.CHAT_QUIET_S
+    visit.finish(quiet=True)
+    assert visit.voice.said == [voice_main.CHAT_SLEEP] and visit.done and sent == []
+
+
+def test_a_chat_never_sleeps_while_a_game_is_open(tmp_path, monkeypatch):
+    visit = make_chat(tmp_path, monkeypatch, [])
+    visit.games = RecordingGames()
+    visit.games.phase = "play"
+    visit.last_activity = time.monotonic() - 10 * config.CHAT_QUIET_S
+    visit.check_timers(time.monotonic())
+    assert visit.phase == "talk" and visit.job is None and visit.games.calls == []
+
+
+def test_the_words_after_the_wake_word_are_the_chats_first_turn(tmp_path, monkeypatch):
+    visit = make_chat(tmp_path, monkeypatch, [])
+    visit.call = {**visit.call, "first": "tell me a joke"}
+    visit.greet()
+    assert visit.history.transcript() == [("resident", "tell me a joke"), ("robot", "Hello!")]
+
+
+def test_a_bell_during_a_chat_ends_it_without_driving(tmp_path, monkeypatch):
+    sent = []
+    visit = make_chat(tmp_path, monkeypatch, sent)
+    visit.bell = {"id": "c9"}
+    visit.check_timers(time.monotonic())
+    visit.job.result(5)
+    assert visit.done and visit.voice.said == [voice_main.BELL_GOODBYE]
+    assert sent == []  # the backend has already sent the robot; the chat itself never drives
+
+
+def test_the_chat_keeps_looking_until_a_bell_rings(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "CALL_POLL_S", 0.0)
+    visit = make_chat(tmp_path, monkeypatch, [])
+    answers = iter([None, None, {"id": "c9"}])
+    visit.bell_check = lambda: next(answers)
+    visit.watch_bells()
+    assert visit.bell == {"id": "c9"}
+
+
+class Bells:
+    def __init__(self, *calls):
+        self.calls = list(calls)
+
+    def find_assigned_call(self, robot_id):
+        return self.calls.pop(0) if self.calls else None
+
+
+def test_a_bell_goes_before_an_asked_for_chat(monkeypatch):
+    monkeypatch.setattr(config, "CALL_POLL_S", 0.01)
+    voice_main.CHATS.put("what games do you have")
+    try:
+        assert voice_main.find_call(Bells({"id": "c1"}), None, set())["id"] == "c1"
+        chat = voice_main.find_call(Bells(), None, set())
+        assert chat["id"] == voice_main.CHAT_ID and chat["first"] == "what games do you have"
+        assert voice_main.CHATS.empty()  # one request, one chat
+        assert voice_main.next_call(Bells({"id": "c1"}), {"c1"}) is None  # already visited
+    finally:
+        voice_main.drop_chats()
+
+
+@pytest.mark.parametrize(
+    "text, words",
+    [
+        ("Hey Bellhop, what games do you have?", "what games do you have"),
+        ("hey bellhop what games do you have", "what games do you have"),
+        ("Hey, Bell hop.", ""),
+        ("Bellhops!", ""),
+        ("Nice weather today", None),
+        ("The bell rang", None),
+    ],
+)
+def test_wake_text(text, words):
+    assert wake_text(text) == words
+
+
+class SlowBrain(FakeBrain):
+    """The first reply says one sentence, then keeps writing until it is cancelled."""
+
+    def reply(self, system, messages, on_sentence, tool_ctx, allow_tools=True, cancel=None):
+        self.calls += 1
+        if self.calls == 1:
+            on_sentence("calm", "Once upon a time.")
+            assert cancel.wait(5)
+            return "Once upon a time.", False
+        return super().reply(system, messages, on_sentence, tool_ctx, allow_tools, cancel)
+
+
+def test_its_name_cuts_the_reply_being_written_short(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), SlowBrain(("Okay.",)))
+    visit.submit(visit.handle_turn, "Tell me a story", "flux", block(1), 0.5, 0.0, None, True)
+    deadline = time.monotonic() + 5
+    while not visit.voice.said and time.monotonic() < deadline:
+        time.sleep(0.01)
+    visit.turn_face_ok = True  # as hear() sets it for a turn said to the robot
+    visit.end_of_turn("Bellhop, stop", time.monotonic())
+    visit.job.result(timeout=5)
+    assert visit.voice.said == ["Once upon a time.", "Okay."]
+    assert [line for _, line in visit.history.transcript()] == [
+        "Tell me a story",
+        "Once upon a time.",
+        "Bellhop, stop",
+        "Okay.",
+    ]
+
+
+def test_the_mic_is_muted_only_while_sound_plays_and_the_face_holds_the_mood(
+    tmp_path, monkeypatch
+):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    assert visit.voice.on_play == visit.on_play
+    visit.mood = "excited"
+    ends = time.monotonic() + 2.0  # a sentence starts that plays for 2 s
+    visit.on_play(ends)
+    assert visit.mic.muted(ends - 0.1)
+    assert not visit.mic.muted(ends + config.ECHO_TAIL_S)  # by itself: no wait() needed
+    assert visit.eyes.expression(ends + config.EYES_MOOD_HOLD_S - 0.1) == "excited"
+    visit.on_play(None)  # cut off early
+    assert not visit.mic.muted(time.monotonic() + config.ECHO_TAIL_S)
+
+
+def test_a_job_and_a_recorded_reply_wait_for_the_last_sentence_to_play(tmp_path, monkeypatch):
+    backend = FakeBackend()
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    visit.voice.wait = lambda: backend.log.append(("played",))
+    visit.submit(visit.say_line, "Hello.")
+    visit.job.result(timeout=5)
+    # before the turn is posted and the attention window opens, and again at the job's end
+    assert backend.log == [("played",), ("turn", "robot", "Hello."), ("played",)]
+
+
+def test_speech_that_was_dropped_still_keeps_a_chat_awake(tmp_path, monkeypatch):
+    visit = make_chat(tmp_path, monkeypatch, [])
+    now = time.monotonic()
+    visit.last_activity = now - 10 * config.CHAT_QUIET_S
+    visit.speech_end, visit.turn_pending = now - 1, True
+    visit.end_of_turn("", now)  # an empty transcript is dropped
+    visit.check_timers(now)
+    assert visit.phase == "talk" and visit.job is None
+
+
+def test_a_chat_does_not_answer_speech_flux_saw_no_turn_in(tmp_path, monkeypatch, capsys):
+    visit = make_chat(tmp_path, monkeypatch, [])
+    visit.flux_ok = True
+    now = time.monotonic()
+    visit.turn_audio, visit.turn_pending, visit.turn_face_ok = [block(5)], True, True
+    visit.speech_end = now - config.FLUX_TURN_LIMIT_S - 0.1
+    visit.check_timers(now)
+    assert not visit.turn_pending and visit.idle() and not visit.skip_flux_turn
+    assert "not answering" in capsys.readouterr().out
+    visit.end_of_turn("Hello there", now)  # Flux was only late: its turn is answered
+    visit.job.result(timeout=5)
+    assert visit.voice.said == ["Hello!"]
+    assert "no one was facing" not in capsys.readouterr().out
+
+
+def test_moonshine_transcribes_on_its_own_thread_while_the_robot_carries_on(
+    tmp_path, monkeypatch
+):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain(("Righto.",)))
+    release = threading.Event()
+
+    def transcribe(audio):
+        release.wait(5)  # Moonshine on the Pi's CPU
+        return "I would like some water please"
+
+    visit.stt = SimpleNamespace(transcribe=transcribe)
+    now = time.monotonic()
+    visit.turn_audio, visit.turn_pending, visit.turn_face_ok = [block(5)], True, True
+    visit.speech_end = now - config.FLUX_TURN_LIMIT_S - 0.1
+    visit.check_timers(now)  # Flux is down (flux_ok False)
+    assert visit.transcribing and not visit.idle()  # nor does a quiet timer end the visit
+    visit.events.put(("GameSay", "Your turn!", now))
+    visit.handle_events()
+    visit.job.result(timeout=5)  # the worker was free for the game's line
+    assert visit.voice.said == ["Your turn!"]
+    release.set()
+    visit.transcribing[0].result(timeout=5)
+    visit.check_timers(time.monotonic())
+    visit.job.result(timeout=5)
+    assert visit.voice.said == ["Your turn!", "Righto."] and visit.idle()
+    assert visit.history.transcript()[-2] == ("resident", "I would like some water please")
+
+
+def test_a_chat_with_no_mic_does_not_say_a_nurse_is_coming(tmp_path, monkeypatch):
+    visit = make_chat(tmp_path, monkeypatch, [])
+    visit.mic = RecordingMic(fail_start=True)
+    visit.begin = lambda: None
+    visit.run()  # no SystemExit: the robot stays up for the next bell
+    assert visit.voice.said == [voice_main.CHAT_NO_MIC] and "nurse to come" not in visit.no_mic
+    assert visit.done and visit.eyes.base == "idle"
+
+
+def test_a_visit_does_not_end_while_moonshine_is_still_hearing_the_resident(
+    tmp_path, monkeypatch
+):
+    backend = FakeBackend(urgency=1)
+    visit = make_visit(tmp_path, monkeypatch, backend, FakeBrain())
+    release = threading.Event()
+    visit.stt = SimpleNamespace(transcribe=lambda audio: release.wait(5) and "wait my chest hurts")
+    now = time.monotonic()
+    visit.turn_audio, visit.turn_pending, visit.turn_face_ok = [block(5)], True, True
+    visit.speech_end = now - config.FLUX_TURN_LIMIT_S - 0.1
+    visit.check_timers(now)
+    assert visit.resident_spoke()  # so finish() keeps talking instead of resolving
+    release.set()
+    visit.transcribing[0].result(timeout=5)
+    visit.check_timers(time.monotonic())
+    visit.job.result(timeout=5)
+    assert ("resident", "wait my chest hurts") in visit.history.transcript()
+
+
+def test_a_flux_turn_waits_behind_an_earlier_moonshine_turn(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain(("Yes.",)))
+    visit.flux_ok = True
+    release = threading.Event()
+    visit.stt = SimpleNamespace(transcribe=lambda audio: release.wait(5) and "first thing I said")
+    now = time.monotonic()
+    visit.turn_audio, visit.turn_pending, visit.turn_face_ok = [block(5)], True, True
+    visit.speech_end = now - config.FLUX_TURN_LIMIT_S - 0.1
+    visit.check_timers(now)  # Flux is late: Moonshine takes the first turn
+    visit.events.put(("StartOfTurn", "", now))
+    visit.handle_events()
+    visit.turn_audio, visit.turn_pending, visit.turn_face_ok = [block(5)], True, True
+    visit.speech_end = time.monotonic()
+    visit.end_of_turn("second thing I said", time.monotonic())
+    assert visit.job is None and len(visit.transcribing) == 2  # queued, not answered first
+    release.set()
+    visit.transcribing[0].result(timeout=5)
+    for _ in range(2):
+        visit.check_timers(time.monotonic())
+        visit.job.result(timeout=5)
+    said = [text for speaker, text in visit.history.transcript() if speaker == "resident"]
+    assert said == ["first thing I said", "second thing I said"]

@@ -1,8 +1,11 @@
+import threading
+import time
+
 import numpy as np
 import pytest
 
 from rover import config
-from rover.eyes import EXPRESSIONS, Eyes, H, Screen, W, draw
+from rover.eyes import EXPRESSIONS, Eyes, H, Screen, W, WindowScreen, draw
 
 
 @pytest.mark.parametrize("scale", [1, 8])
@@ -62,6 +65,9 @@ def test_a_tone_holds_then_the_face_returns_to_its_base(monkeypatch):
     assert eyes.expression(now) == "excited"
     assert eyes.expression(now + 0.2) == "listening"
     eyes.frame(now)  # draws without a screen
+    until = time.monotonic() + 10  # a long sentence: held to its end, not to its start
+    eyes.feel("calm", until)
+    assert eyes.expression(until + config.EYES_MOOD_HOLD_S - 0.1) == "calm"
 
 
 def fake_fb(tmp_path, bits):
@@ -94,3 +100,69 @@ def test_paused_eyes_leave_the_screen_to_the_game(tmp_path):
     eyes.paused = False
     eyes.tick()
     assert np.fromfile(fb, np.uint16).any()
+
+
+def test_the_desktop_window_shows_the_face_and_then_a_game():
+    screen = WindowScreen((1024, 600))  # not started: no window, just the pictures it would show
+    screen.show(draw("idle", scale=screen.scale))
+    lit = screen.picture.any(axis=2)
+    assert screen.scale == 8 and lit[:, :512].any() and lit[:, 512:].any()
+    assert set(map(tuple, screen.picture[lit])) == {config.EYES_RGB[::-1]}
+    screen.show_image(np.full((300, 512, 3), 7, np.uint8))  # resized to the screen
+    assert screen.picture.shape == (600, 1024, 3) and (screen.picture == 7).all()
+    screen.off()
+    assert not screen.picture.any()
+
+
+def test_only_a_long_swipe_down_from_the_top_edge_closes_the_window(monkeypatch):
+    import cv2
+
+    monkeypatch.setattr(config, "EYES_EXIT_EDGE_PX", 60)
+    monkeypatch.setattr(config, "EYES_EXIT_SWIPE_PX", 250)
+    screen, quits = WindowScreen((1024, 600)), []
+    screen.quit = lambda: quits.append(1)
+
+    def swipe(y0, y1):
+        screen.on_mouse(cv2.EVENT_LBUTTONDOWN, 500, y0, 0)
+        screen.on_mouse(cv2.EVENT_MOUSEMOVE, 500, (y0 + y1) // 2, cv2.EVENT_FLAG_LBUTTON)
+        screen.on_mouse(cv2.EVENT_LBUTTONUP, 500, y1, 0)
+
+    swipe(200, 590)  # starts mid-screen: a resident's swipe
+    swipe(10, 150)  # from the edge, but short
+    swipe(300, 300)  # a tap
+    assert quits == []
+    swipe(5, 400)
+    assert quits == [1]
+
+
+class CountingScreen:
+    scale = 1
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.shown = 0
+
+    def show(self, frame):
+        self.shown += 1
+
+
+def test_a_still_face_is_written_once_and_repainted_after_a_game(monkeypatch):
+    screen = CountingScreen()
+    eyes = Eyes(screen)
+    monkeypatch.setattr(eyes, "pose", lambda now: ("idle", 0.0, (0, 0), 0))
+    eyes.tick()
+    eyes.tick()
+    assert screen.shown == 1
+    eyes.paused = True  # a game drew over it
+    eyes.tick()
+    eyes.paused = False
+    eyes.tick()
+    assert screen.shown == 2
+
+
+def test_thinking_eyes_look_up_and_drift_side_to_side():
+    eyes = Eyes()
+    eyes.base = "thinking"
+    looks = {eyes.pose(now)[2] for now in (0.0, 0.75, 1.5, 2.25)}
+    assert len(looks) == 3 and {dy for _, dy in looks} == {0}
+    assert EXPRESSIONS["thinking"][3] < 0  # up

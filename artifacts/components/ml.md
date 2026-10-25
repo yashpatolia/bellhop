@@ -98,12 +98,20 @@ Then check the hardware one piece at a time (stop `rover.vision` and Freenove's 
 (Pi) uv run python scripts/check_face.py --screen    # cyan eyes on the screen, prints ms a frame
 ```
 
-**Face screen** (7" 1024x600 HDMI touchscreen, landscape). Plug it into the Pi 5's micro-HDMI 0 (next to USB-C; its own cable is full-size HDMI, so use a micro-HDMI adapter) and its touch USB into the Pi. The eyes draw straight into the console framebuffer, so `setup_pi.sh` makes the Pi boot to the console; the desktop stays installed:
+**Face screen** (7" 1024x600 HDMI touchscreen, landscape). Plug it into the Pi 5's micro-HDMI 0 (next to USB-C; its own cable is full-size HDMI, so use a micro-HDMI adapter) and its touch USB into the Pi. On the desktop, double-click the **Bellhop** icon (`setup_pi.sh` puts it on the desktop and in the menu) to start the robot: the eyes fill the screen and it sleeps until someone says **"Hey Bellhop"**. Then it talks (mic, Flux or Moonshine, Claude, Piper) and plays games on touch. "Hey Bellhop, what games do you have?" answers the question straight away; "Hey Bellhop" alone gets a hello. No need to say the name again: it listens until 20 s of quiet (`CHAT_QUIET_S`) or goodbye, says "Just say hey Bellhop when you need me" and sleeps. It never sleeps while a game is open, and saying its name never closes a game. Saying "Bellhop" while it is still thinking stops that reply and answers the new words instead; while it speaks the mic is off, so it cannot hear itself. This is `rover.speech --chat`. A chat posts nothing to the backend, never triages, calls a nurse or drives. Asleep it also waits for bells as usual, and a bell rung during a chat ends it ("Sorry, someone has rung their bell") so the robot visits that call.
+
+Asleep, no model is loaded for the wake word: the mic and the speech detector run, and a Deepgram Flux stream opens only while someone talks, closing after 8 s without speech (`WAKE_STREAM_IDLE_S`). So it needs Wi-Fi, and Deepgram time is used whenever people talk near it (a TV left on keeps the stream open). The words heard while asleep go to Deepgram but nowhere else. Check it alone with `(Mac/Pi) uv run python scripts/check_wake.py`. To close the robot, swipe down from the very top edge of the screen to at least halfway (or press q or Esc). The same from SSH or the Pi Connect remote shell:
 
 ```
-(Pi) sudo systemctl start display-manager        # desktop now, e.g. for Pi Connect screen sharing (hides the face)
-(Pi) sudo systemctl stop display-manager         # back to the face
-(Pi) sudo systemctl set-default graphical.target # desktop at every boot again
+(Pi) bash ~/ml/scripts/robot.sh open    # the robot, asleep, on the Pi's screen (wakes it if running)
+(Pi) bash ~/ml/scripts/robot.sh words   # what each side says and wake/sleep, live (all: runs/robot.log)
+(Pi) bash ~/ml/scripts/robot.sh close   # close the robot: no more chats or bells
+```
+ Without a desktop (SSH, the systemd units, console boot) the eyes draw straight into the console framebuffer instead:
+
+```
+(Pi) sudo systemctl set-default multi-user.target  # boot to the console: no desktop, no icon to click
+(Pi) sudo systemctl set-default graphical.target   # boot to the desktop again (the default)
 ```
 
 **Games** (bingo, tic-tac-toe, memory match). The greeting says the robot can play games; after that it only offers them when the resident asks. Claude asks whether they know the game (a "yes" is saved to memory as "Knows how to play bingo.", so it is not asked again), then `start_game` opens it on a "Touch and hold to start" screen. The resident holds for a second to begin; untouched for 30 s, it closes and the eyes come back. Bingo calls a number each time "Next number" is tapped, crosses it off the card if it is there, and strikes through a full line. The tic-tac-toe robot loses about 60% of games: it plays perfectly except for random slips, and tunes how often it slips after every game. A game redraws only when something changes, so one left alone costs no CPU.
@@ -113,7 +121,7 @@ Then check the hardware one piece at a time (stop `rover.vision` and Freenove's 
 (Pi)  uv run python scripts/check_touch.py                   # corners read about (0, 0) and (1023, 599)
 ```
 
-The Pi 5 gives USB only 600 mA without a 5 A supply. If `throttled` is not `0x0` or the screen flickers, power the screen from its power-only USB port instead.
+The Pi 5 gives USB only 600 mA in total without a 5 A USB-C supply, and a battery never counts as one. The screen's backlight and speaker draw from that, so a screen powered from a Pi USB port can go dark for seconds when the robot talks. Power it from its own 5 V supply (a power bank or the battery's 5 V, into the screen's power-only port) and keep only the touch cable on the Pi. `(Pi) uv run python scripts/check_power.py` while the robot talks shows whether it is power or memory. Memory: `robot.sh` runs only the voice process (no camera, YOLO or torch); if the systemd units were enabled, `(Pi) sudo systemctl disable --now bellhop-vision bellhop-speech` keeps them from running beside it.
 
 ## Running on the Pi
 
@@ -282,7 +290,9 @@ All thresholds live in `pi/src/rover/config.py`. These are start values: tune on
 | `FIRST_TEXT_TIMEOUT_S`, `TRIAGE_TIMEOUT_S` | 3.0, 6.0 | Fallback line / triage give-up times (Claude gets one retry inside the 6 s; `TRIAGE_ATTEMPT_S` is one call) |
 | `LOCAL_ONLY_CONFIDENCE` | 0.5 | Confidence sent when the optional offline scorer is the only source: bumps urgency one level |
 | `VISIT_QUIET_END_S`, `VISIT_START_FALLBACK_S` | 60, 60 | End a quiet visit; start a visit without marker or face |
-| `PIPER_SPEAKER_ID`, `TONES` | 3 (Poppy), table | Voice and the speed/pitch per tone tag |
+| `CHAT_QUIET_S`, `WAKE_STREAM_IDLE_S` | 20, 8 | A chat sleeps after this much quiet (never mid-game); asleep, the wake word's Flux stream closes after this much quiet |
+| `PIPER_SPEAKER_ID`, `TONES`, `MAX_PITCH` | 3 (Poppy), table, 0.03 | Voice; speed and expressiveness per tone tag, with only a small pitch nudge |
+| `VOICE_PITCH` (`.env`) | 0 | The whole voice higher or lower, e.g. -0.03 if it still sounds high |
 | `EYES_FLIP`, `EYES_RGB`, `EYES_FPS` | off, cyan, 20 | Eyes on the HDMI screen (`rover/eyes.py`): upside-down mount, colour, frame rate. Check: `scripts/check_face.py [--screen]` |
 | `GAME_HOLD_S`, `GAME_INTRO_TIMEOUT_S` | 1.0, 30 | Hold this long on a game's start screen to begin; untouched this long, it closes |
 | `TICTACTOE_TARGET_LOSS`, `TICTACTOE_SLIP_STEP` | 0.6, 0.10 | Share of games the robot loses; how fast it adjusts its slips to get there |
@@ -346,7 +356,12 @@ Work from the bottom layer up.
 | Pi/Python | `ImportError: libGL.so.1` on `import cv2` | `dpkg -l libgl1` | `sudo apt install libgl1 libglib2.0-0` (setup does this) |
 | Pi/Python | `rsync: command not found` | `which rsync` on both machines | `sudo apt install rsync` on the Pi |
 | Face | `start_game` says the screen is not available | Log line `fallback: no touch panel`; `check_touch.py` | Plug in the screen's touch USB cable; the `pi` user needs the `input` group (`groups`) |
-| Face | Screen shows the desktop or stays blank | `systemctl is-active display-manager`; `check_face.py --screen` | Stop the desktop (`sudo systemctl stop display-manager`); boot default `multi-user.target` (`setup_pi.sh`) |
+| Face | Bellhop icon or `robot.sh open` shows nothing | `tail ~/ml/runs/robot.log` | "already running": stop the other one (`sudo systemctl stop bellhop-speech`); a Python error: fix it, often a missing key in `~/ml/.env` |
+| Face | The screen goes dark for a few seconds when the robot talks | `uv run python scripts/check_power.py` while it talks | "undervoltage YES" or 5 V below 4.8 V: the screen draws from the Pi's USB. Power it from its own supply (see Face screen) |
+| Face | A game opens but touching never starts it, or taps in a game do nothing | `robot.sh words` (shows `fallback:`, `games: ... opened/closed`, `brain: tool` lines); `uv run python scripts/check_touch.py` (robot closed) | `fallback: touch panel lost`: the panel dropped off USB (power); it is found again by itself. `check_touch.py` names no panel: replug the touch cable. Corners far from (0, 0) and (1023, 599): the taps miss the squares, so report the numbers |
+| Voice | It stops answering after a while | `robot.sh words` | `wake: asleep`: it fell asleep after 20 s without speech, so say "Hey Bellhop". `fallback: the speaker stopped playing`: the speaker (often the screen's HDMI audio) dropped out; it carries on. `fallback: Flux stopped (Flux send fell 4 s behind)`: the Wi-Fi stalled, so Moonshine answers for the rest of the chat (slower). None of these: copy `~/ml/runs/robot.log` |
+| Voice | "Hey Bellhop" does nothing | `robot.sh words` shows `wake: asleep`; `scripts/check_wake.py` | No `wake:` line: started without `--chat`. A `fallback: no DEEPGRAM_API_KEY` or Flux line: fix the key or Wi-Fi (`robot.sh open` still wakes it) |
+| Face | Started over SSH or systemd, the screen shows the desktop | `systemctl is-active display-manager` | The desktop hides the framebuffer: use the Bellhop icon, or `sudo systemctl stop display-manager` |
 | Camera | `IndexError` from `Picamera2()` | `rpicam-hello -n --list-cameras` shows `imx708` | Reseat the ribbon cable |
 | Camera | Camera busy / no frames | `ps aux \| grep -i -E "freenove\|rpicam\|python"` | Stop the other camera user (Freenove server, `rpicam-*`, a check script) |
 | Camera | Colours swapped (blue faces) | `check_camera.py` image | Camera must use `RGB888` (BGR order) |

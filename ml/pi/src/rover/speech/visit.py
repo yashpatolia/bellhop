@@ -27,6 +27,14 @@ def is_goodbye(text: str) -> bool:
     return GOODBYE.search(normalize(text)) is not None
 
 
+def wake_text(text: str) -> str | None:
+    """What was said after the robot's name ("" for the name alone), or None if it was not said.
+    Flux may split the name ("Bell hop") or add an s."""
+    name = r"[\s-]?".join(map(re.escape, config.ROBOT_NAME.replace(" ", "")))
+    found = re.search(rf"\b{name}s?\b", text, re.IGNORECASE)
+    return None if found is None else text[found.end() :].strip(" ,.!?;:")
+
+
 def is_echo(text: str, last_reply: str) -> bool:
     """The robot hearing its own last reply (whole, or a run of its words)."""
     heard, said = normalize(text), normalize(last_reply)

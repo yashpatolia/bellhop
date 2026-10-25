@@ -8,7 +8,9 @@ time on a worker, so the mic queue is drained and Flux keeps getting audio while
 from __future__ import annotations
 
 import argparse
+import math
 import queue
+import signal
 import sys
 import threading
 import time
@@ -17,12 +19,14 @@ from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 
 from rover import config, obslog, safety
 from rover.agent.brain import WAIT, Brain
 from rover.agent.context import (
+    CHAT_GREETING,
     GAMES_QUERY,
     GREETING,
     VisitHistory,
@@ -55,7 +59,9 @@ from rover.speech.visit import (
     should_start_visit,
     stt_fallback_due,
     urgency_rank,
+    wake_text,
 )
+from rover.speech.wake import WakeListener
 from rover.status import StatusReporter, fetch_snapshot
 from rover.triage.triage import triage_and_post
 
@@ -65,9 +71,16 @@ RESOLVE_RETRY_S = 0.5  # first wait between tries; doubles each time
 DRIVE_CHECK_S = 1.0  # how often the drive server is asked whether the robot has arrived
 DRAFT_POLL_S = 0.05  # how often a confirmed draft is checked for its next sentence
 ZEROS = np.zeros(config.BLOCK_SAMPLES, dtype=np.int16)
+CHAT_SLEEP = f"I'll be right here. Just say hey {config.ROBOT_NAME} when you need me."
+BELL_GOODBYE = "Sorry, someone has rung their bell, so I need to go. Bye for now!"
+CHAT_ID = "chat"  # the call id of a chat, which the backend never sees
+# chats asked for, each with the words said after "Hey Bellhop" ("" from robot.sh open, SIGUSR1).
+# A SimpleQueue: its put() is safe inside a signal handler
+CHATS: queue.SimpleQueue[str] = queue.SimpleQueue()
 QUIET_GOODBYE = "I'll let you rest now. Press your bell any time you need me."
 NURSE_COMING = "A nurse is on the way, I'll stay with you."
 NO_MIC = "Sorry, I can't hear right now, so I've asked a nurse to come."
+CHAT_NO_MIC = "Sorry, I can't hear right now. Please tell a nurse my microphone isn't working."
 FINISHED = {"resolved", "closed"}
 ENTER = threading.Event()  # Enter on stdin: the nurse has arrived
 TriageFn = Callable[[Backend, str, list[tuple[str, str]], list[str]], "dict | None"]
@@ -94,6 +107,10 @@ class Draft:
 
 
 class Visit:
+    greeting = GREETING  # Claude's cue to say hello
+    no_mic = NO_MIC
+    exit_without_mic = True  # a call: a nurse has been asked to come, so stop
+
     def __init__(
         self,
         call: dict,
@@ -124,6 +141,8 @@ class Visit:
         self.ask_tone: AskTone | None = ask_jev_tone
         self.tone_pick: TonePick | None = None
         self.mic = Mic()
+        self.mood = config.DEFAULT_TONE  # the tone of the sentence being spoken, for the face
+        self.voice.on_play = self.on_play
         self.flux: FluxStream | None = None
         self.flux_ok = False
         self.events: queue.Queue[tuple[str, str, float]] = queue.Queue()
@@ -137,6 +156,9 @@ class Visit:
         # one job at a time (greeting, each turn, the ending) keeps the history in order
         self.pool = ThreadPoolExecutor(max_workers=1)
         self.job: Future | None = None
+        # Moonshine takes seconds on the Pi: its own thread, so replies and game lines go on
+        self.stt_pool = ThreadPoolExecutor(max_workers=1)
+        self.transcribing: list[Future] = []  # in turn order; each turn then goes to the worker
         self.submitted = 0  # jobs handed to the worker; more than started = a turn is waiting
         self.started = 0
         self.lock = threading.Lock()
@@ -151,6 +173,7 @@ class Visit:
         self.speech_end = time.monotonic()
         self.skip_flux_turn = False
         self.draft: Draft | None = None
+        self.interrupt = threading.Event()  # the running job's: set, its reply stops short
         # written by the worker, read by the main thread
         self.last_reply = ""
         self.last_activity = time.monotonic()
@@ -191,10 +214,16 @@ class Visit:
         try:
             self.mic.start()
         except Exception:
-            print("fallback: no microphone; posting triage-failed so a nurse comes")
-            self.say_line(NO_MIC)
+            print("fallback: no microphone; saying so (a call is posted triage-failed)")
+            self.say_line(self.no_mic)
             self.backend.triage_failed(self.call_id)
-            raise SystemExit(1) from None
+            if self.exit_without_mic:
+                raise SystemExit(1) from None
+            self.eyes.base = "idle"
+            if self.games is not None:
+                self.games.attach(None)
+            self.end()  # stops the bell watch; the robot still goes to the next bell
+            return
         try:
             name = (self.resident or {}).get("name", "")
             self.flux = FluxStream([config.ROBOT_NAME, name], self.on_flux)
@@ -219,6 +248,7 @@ class Visit:
                 self.flux.close()
             self.mic.stop()
             self.pool.shutdown(wait=False, cancel_futures=True)
+            self.stt_pool.shutdown(wait=False, cancel_futures=True)
         print(f"visit: call {self.call_id} done")
 
     def on_flux(self, event: str, transcript: str) -> None:
@@ -276,6 +306,17 @@ class Visit:
             if draft is not None:
                 draft.cancel.set()
             return
+        if wake_text(text) is not None and not self.idle():
+            # its name comes first: stop the reply being written and answer this turn instead
+            print("visit: heard the robot's name; cutting the reply in progress short")
+            self.interrupt.set()
+        if self.transcribing:  # Moonshine is still on an earlier turn: this one goes after it
+            if draft is not None:
+                draft.cancel.set()
+            heard: Future = Future()
+            heard.set_result((text, "flux", audio, face_ok, speech_end, at))
+            self.transcribing.append(heard)
+            return
         stt_s = at - speech_end
         self.submit(self.handle_turn, text, "flux", audio, stt_s, speech_end, draft, face_ok)
 
@@ -290,21 +331,29 @@ class Visit:
                 print("fallback: Flux is down; transcribing the turn with Moonshine")
             self.skip_flux_turn = self.flux_ok
             self.cancel_draft()
-            self.submit(self.offline_turn, *self.take_turn())
+            self.transcribing.append(self.stt_pool.submit(self.transcribe, *self.take_turn()))
+        while self.transcribing and self.transcribing[0].done():
+            self.heard_turn(*self.transcribing[0].result())
+            self.transcribing.pop(0)  # after the submit: resident_spoke() sees one or the other
         quiet_s = now - self.last_activity
         if self.phase == "talk" and self.idle() and not self.turn_pending:
-            if quiet_s >= config.VISIT_QUIET_END_S:
-                print(f"visit: {config.VISIT_QUIET_END_S:g} s without a turn; ending the visit")
+            if quiet_s >= self.quiet_limit_s():
+                print(f"visit: {self.quiet_limit_s():g} s without a turn; ending the visit")
                 self.phase = "ending"
                 self.submit(self.finish, True)
-        if self.phase == "wait_nurse" and (self.nurse_status or ENTER.is_set()):
+        waiting = self.nurse_status or ENTER.is_set()
+        if self.phase == "wait_nurse" and waiting and not self.transcribing:
             self.phase = "resolving"
             self.submit(self.resolve_after_nurse)
+
+    def quiet_limit_s(self) -> float:
+        return config.VISIT_QUIET_END_S
 
     def take_turn(self) -> tuple[np.ndarray, bool, float]:
         audio = np.concatenate(self.turn_audio) if self.turn_audio else ZEROS[:0]
         face_ok = self.turn_face_ok
         self.turn_audio, self.turn_face_ok, self.turn_pending = [], False, False
+        self.last_activity = max(self.last_activity, self.speech_end)  # dropped or not: they spoke
         return audio, face_ok, self.speech_end
 
     def start_draft(self, text: str) -> None:
@@ -334,7 +383,7 @@ class Visit:
             self.draft = None
 
     def idle(self) -> bool:
-        return self.job is None or self.job.done()
+        return (self.job is None or self.job.done()) and not self.transcribing
 
     def submit(self, job, *args) -> None:
         self.submitted += 1
@@ -342,11 +391,14 @@ class Visit:
 
     def guarded(self, job, *args) -> None:
         self.started += 1
+        self.interrupt = threading.Event()
         try:
             job(*args)
         except Exception as exc:
             print(f"visit: {job.__name__} failed: {exc!r}")
             traceback.print_exc()
+        finally:
+            self.voice.wait()  # its last sentence still plays: the job is done when it ends
 
     # ---- jobs (worker thread, one at a time)
 
@@ -365,20 +417,39 @@ class Visit:
         )
 
     def greet(self) -> None:
-        hello = GREETING.format(room=self.room)
+        hello = self.greeting.format(room=self.room)
         messages = [{"role": "user", "content": hello}]  # never posted as a turn
-        full, _ = self.brain.reply(self.system_prompt(), messages, self.speak, self.tool_ctx)
+        self.eyes.base = "thinking"
+        try:
+            full, _ = self.brain.reply(
+                self.system_prompt(), messages, self.speak, self.tool_ctx, cancel=self.interrupt
+            )
+        finally:
+            self.eyes.base = "listening"
         self.record_robot(full)
         self.last_activity = time.monotonic()
 
-    def offline_turn(self, audio: np.ndarray, face_ok: bool, speech_end: float) -> None:
-        text = self.stt.transcribe(audio)
+    def transcribe(
+        self, audio: np.ndarray, face_ok: bool, speech_end: float
+    ) -> tuple[str, str, np.ndarray, bool, float, float]:
+        """Moonshine's thread. heard_turn (main thread) takes what it heard."""
+        try:
+            text = self.stt.transcribe(audio)
+        except Exception as exc:  # guarded() caught this when Moonshine ran on the worker
+            print(f"visit: Moonshine failed: {exc!r}")
+            text = ""
+        return text, "moonshine", audio, face_ok, speech_end, time.monotonic()
+
+    def heard_turn(
+        self, text: str, source: str, audio: np.ndarray, face_ok: bool, speech_end: float, at: float
+    ) -> None:
+        """A turn that waited for Moonshine (its own, or a Flux turn behind it), in order."""
         reason = drop_reason(text, self.last_reply)
         if reason:
-            print(f"visit: dropped Moonshine turn {text!r}: {reason}")
+            print(f"visit: dropped {source} turn {text!r}: {reason}")
             return
-        stt_s = time.monotonic() - speech_end
-        self.handle_turn(text, "moonshine", audio, stt_s, speech_end, None, face_ok)
+        stt_s = at - speech_end
+        self.submit(self.handle_turn, text, source, audio, stt_s, speech_end, None, face_ok)
 
     def handle_turn(
         self,
@@ -442,6 +513,9 @@ class Visit:
             # speak each sentence as it arrives, so first words and the 3 s fallback stay on time
             spoken = 0
             while draft.thread.is_alive() or spoken < len(draft.sentences):
+                if self.interrupt.is_set():
+                    draft.cancel.set()
+                    return " ".join(sentence for _, sentence in draft.sentences[:spoken])
                 if spoken < len(draft.sentences):
                     self.speak(*draft.sentences[spoken])
                     spoken += 1
@@ -458,7 +532,11 @@ class Visit:
                 self.speak(tone, sentence)
 
         full, _ = self.brain.reply(
-            self.system_prompt(), self.history.messages(), speak_new, self.tool_ctx
+            self.system_prompt(),
+            self.history.messages(),
+            speak_new,
+            self.tool_ctx,
+            cancel=self.interrupt,
         )
         return full
 
@@ -467,17 +545,18 @@ class Visit:
             self.first_text_at = time.monotonic()
         if self.tone_pick is not None:
             tone = self.tone_pick.choose(tone)
-        mood = effective_tone(tone, getattr(self.voice, "settings", None))
-        self.eyes.feel(mood)
-        self.mic.set_speaking(True)
-        try:
-            self.voice.say(sentence, mood)
-        finally:
-            self.mic.set_speaking(False)
-            self.eyes.feel(mood)  # held for EYES_MOOD_HOLD_S after the sentence ends
+        self.mood = effective_tone(tone, getattr(self.voice, "settings", None))
+        self.voice.say(sentence, self.mood)  # returns as the sentence starts playing
         if self.first_sound_at is None:
-            # Voice.say blocks through synthesis and playback: this is the first sentence heard
             self.first_sound_at = time.monotonic()
+
+    def on_play(self, until: float | None) -> None:
+        """The voice's hook: a sentence's sound plays until `until`. None: it has stopped."""
+        if until is None:
+            self.mic.set_speaking(False)
+            return
+        self.mic.set_speaking(True, until)  # muted while sound comes out, not while it is made
+        self.eyes.feel(self.mood, until)  # held for EYES_MOOD_HOLD_S after the sound ends
 
     def game_line(self, line: str, keep: bool) -> None:
         """A game's line: kept in the transcript (keep) when it is news, like who won."""
@@ -491,6 +570,7 @@ class Visit:
         self.record_robot(line)
 
     def record_robot(self, full: str) -> None:
+        self.voice.wait()  # the reply has been heard: attention and the quiet clock start now
         if full == WAIT:
             print("visit: that speech was not for the robot (WAIT); saying nothing")
             return
@@ -525,8 +605,9 @@ class Visit:
                 self.latest_call = call
 
     def resident_spoke(self) -> bool:
-        """A turn is being heard or waits behind the running job (benign read across threads)."""
-        return self.turn_pending or self.submitted > self.started
+        """A turn is being heard, transcribed or waits behind the running job (benign read across
+        threads)."""
+        return self.turn_pending or bool(self.transcribing) or self.submitted > self.started
 
     def wait_for_triage(self) -> None:
         deadline = time.monotonic() + config.TRIAGE_WAIT_BEFORE_RESOLVE_S
@@ -624,7 +705,92 @@ class Visit:
             print(f"fallback: could not send the robot home: {reason}")
 
 
+class NoBackend:
+    """--chat has no call, so nothing is sent: every request gets no answer (None)."""
+
+    def __getattr__(self, name: str) -> Callable[..., None]:
+        return lambda *args, **kwargs: None
+
+
+class ChatVisit(Visit):
+    """A chat: a visit with no call behind it, started by "Hey Bellhop" or robot.sh open. It talks
+    and plays games, but there is no triage, nurse, resolve or drive home, so it is for trying the
+    robot out, never for someone who may need help (asked for a nurse, Claude hears that staff
+    could not be reached). It goes back to sleep on goodbye or a quiet spell, but never while a
+    game is on screen. A bell rung meanwhile ends it: the robot says sorry and the main loop
+    visits that call next (the backend has already sent the robot on its way)."""
+
+    greeting = CHAT_GREETING
+    no_mic = CHAT_NO_MIC  # there is no call, so no nurse was asked
+    exit_without_mic = False
+
+    def __init__(
+        self, *args: Any, bell_check: Callable[[], dict | None] = lambda: None, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.bell_check = bell_check  # one look at the backend for a call assigned to this robot
+        self.bell: dict | None = None
+
+    def begin(self) -> None:
+        super().begin()
+        threading.Thread(target=self.watch_bells, daemon=True, name="bells").start()
+
+    def watch_bells(self) -> None:
+        while not self.done:
+            self.bell = self.bell_check()
+            if self.bell is not None:
+                return
+            time.sleep(config.CALL_POLL_S)
+
+    def check_timers(self, now: float) -> None:
+        if self.flux_ok and stt_fallback_due(self.turn_pending, True, now - self.speech_end):
+            # Flux heard no turn in it, so it was side-talk or noise: Moonshine would answer it.
+            # A late Flux turn is still answered: skip_flux_turn stays off, the face flag is kept
+            print(f"visit: no Flux turn {config.FLUX_TURN_LIMIT_S:g} s after speech; not answering")
+            self.turn_face_ok = self.take_turn()[1]
+        super().check_timers(now)
+        if self.bell is not None and self.phase == "talk":
+            print(f"visit: call {self.bell.get('id')} rang during the chat; ending it")
+            self.phase = "ending"
+            self.submit(self.leave_for_bell)
+
+    def greet(self) -> None:
+        first = self.call.get("first")
+        if not first:  # just "Hey Bellhop", or robot.sh open
+            super().greet()
+            return
+        print(f"visit: answering what came after the name: {first!r}")
+        self.handle_turn(first, "wake", ZEROS[:0], 0.0, time.monotonic(), None, True)
+
+    def quiet_limit_s(self) -> float:
+        if self.games is not None and self.games.phase is not None:
+            return math.inf  # sleeping would close the game under the resident
+        return config.CHAT_QUIET_S
+
+    def leave_for_bell(self) -> None:
+        self.say_line(BELL_GOODBYE)
+        self.end()
+
+    def start_triage(self) -> None:
+        pass  # no call to score
+
+    def finish(self, quiet: bool) -> None:
+        if quiet:
+            self.say_line(CHAT_SLEEP)
+        self.end()
+
+    def end(self) -> None:
+        self.done = True  # never drives
+
+
+def next_call(backend: Backend, finished: set[str]) -> dict | None:
+    """A call assigned to this robot that it has not visited yet, or None."""
+    call = backend.find_assigned_call(config.ROBOT_ID)
+    return call if call is not None and call.get("id") not in finished else None
+
+
 def find_call(backend: Backend, call_id: str | None, finished: set[str]) -> dict | None:
+    """The next thing to do: a bell, or else a chat if one was asked for (CHATS)."""
     if call_id:
         call = backend.get_call(call_id)
         if call is None:
@@ -632,10 +798,20 @@ def find_call(backend: Backend, call_id: str | None, finished: set[str]) -> dict
         return call
     print(f"visit: waiting for a call assigned to {config.ROBOT_ID}")
     while True:
-        call = backend.find_assigned_call(config.ROBOT_ID)
-        if call is not None and call.get("id") not in finished:
+        call = next_call(backend, finished)
+        if call is not None:
             return call
-        time.sleep(config.CALL_POLL_S)
+        try:
+            first = CHATS.get(timeout=config.CALL_POLL_S)
+        except queue.Empty:
+            continue
+        return {"id": CHAT_ID, "room": "", "status": "assigned", "first": first}
+
+
+def drop_chats() -> None:
+    """A chat asked for while busy is dropped, not saved for later."""
+    while not CHATS.empty():
+        CHATS.get_nowait()
 
 
 def wait_for_arrival(face: FaceGate, room: str, forced: bool, check_drive: bool = True) -> None:
@@ -697,6 +873,11 @@ def main() -> None:
     parser.add_argument("--room", help="testing: room for the marker check and the greeting")
     parser.add_argument("--no-status", action="store_true", help="do not report robot status")
     parser.add_argument(
+        "--chat",
+        action="store_true",
+        help='listen for "Hey Bellhop" to chat (no call, triage or driving); bells come first',
+    )
+    parser.add_argument(
         "--script",
         help="text mode: resident lines from a JSONL file, no mic or audio (see speech.textmode)",
     )
@@ -727,11 +908,18 @@ def main() -> None:
         stt = OfflineSTT()
         listener = VisionListener()
         listener.start()
-        face = FaceGate(listener, disabled=args.no_face)
+        face = FaceGate(listener, disabled=args.no_face or args.chat)
         eyes = Eyes().start()  # one face for the whole process: idle between calls
         games = Games(eyes).start_threads()  # on the same screen, while a visit asks for one
 
         def make_visit(call: dict, room: str) -> Visit:
+            if call["id"] == CHAT_ID:
+                return ChatVisit(
+                    *(call, room, NoBackend(), brain, voice, stt, listener, face),
+                    eyes=eyes,
+                    games=games,
+                    bell_check=lambda: next_call(backend, finished),
+                )
             return Visit(
                 call, room, backend, brain, voice, stt, listener, face, eyes=eyes, games=games
             )
@@ -742,8 +930,15 @@ def main() -> None:
         ledguard.release_robot, hard_exit_after_s=config.SHUTDOWN_GRACE_S
     )
     finished: set[str] = set()
+    signal.signal(signal.SIGUSR1, lambda signum, frame: CHATS.put(""))  # robot.sh open, running
     while True:
-        call = find_call(backend, args.call, finished)
+        # asleep: only --chat listens for its name (one mic: closed before a chat or visit opens it)
+        wake = WakeListener(CHATS.put).start() if args.chat and not args.call else None
+        try:
+            call = find_call(backend, args.call, finished)
+        finally:
+            if wake is not None:
+                wake.stop()
         if call is None:
             raise SystemExit(1)
         if call.get("status") in FINISHED:
@@ -754,8 +949,9 @@ def main() -> None:
         obslog.event(
             "visit.assigned", call_id=call["id"], room=room, call_status=call.get("status")
         )
-        attend(call, room, face, make_visit, bool(args.call), release)
+        attend(call, room, face, make_visit, bool(args.call) or call["id"] == CHAT_ID, release)
         finished.add(call["id"])  # never revisit a call the backend failed to move on
+        drop_chats()
         if args.call:
             return
 

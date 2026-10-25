@@ -241,6 +241,8 @@ EOT_THRESHOLD = 0.8
 EAGER_EOT_THRESHOLD = 0.5
 EOT_TIMEOUT_MS = 3000
 FLUX_TURN_LIMIT_S = 5.0  # no final text this long after speech stops -> Moonshine
+FLUX_BACKLOG_S = 4.0  # audio queued this long behind -> Flux is down (under the turn limit)
+FLUX_CLOSE_S = 1.0  # at a visit's end, how long the queued audio gets to go out
 ROBOT_NAME = os.environ.get("ROBOT_NAME", "Bellhop")  # pick a 3+ syllable name at kickoff
 MOONSHINE_ARCH = "small-streaming"  # offline fallback STT; scripts/download_models.py fetches it
 
@@ -275,6 +277,8 @@ TRIAGE_MAX_TOKENS = 1024  # room for any thinking plus the small JSON answer
 # Visit
 SHUTDOWN_GRACE_S = 3.0  # after SIGTERM and the LED/stop cleanup, force-exit if a worker is stuck
 VISIT_QUIET_END_S = 60.0
+CHAT_QUIET_S = 20.0  # a chat goes back to sleep after this long without a word (never mid-game)
+WAKE_STREAM_IDLE_S = 8.0  # asleep: the Flux stream for the wake word closes after this much quiet
 VISIT_START_FALLBACK_S = 60.0
 FACE_START_S = 1.0
 TRIAGE_WAIT_BEFORE_RESOLVE_S = 3.0
@@ -284,16 +288,19 @@ ECHO_MIN_WORDS = 4  # shorter turns ("tea", "yes please") often repeat the robot
 PIPER_VOICE = MODELS_DIR / "en_GB-semaine-medium.onnx"
 PIPER_SPEAKER_ID = 3
 MIN_LENGTH_SCALE = 0.9
-MAX_PITCH = 0.08
-# tag: (length_scale, pitch shift, noise_scale)
+MAX_PITCH = 0.03  # how far a tone may move the pitch (a resample: more sounds squeaky or gruff)
+# tag: (length_scale, pitch shift, noise_scale). Speed and expressiveness carry the mood; pitch
+# only nudges, so the voice stays near its natural pitch whatever the tag
 TONES = {
-    "cheerful": (0.95, 0.04, 0.70),
-    "excited": (0.90, 0.07, 0.75),
+    "cheerful": (0.95, 0.00, 0.70),
+    "excited": (0.90, 0.02, 0.75),
     "calm": (1.05, 0.00, 0.60),
-    "gentle": (1.10, -0.04, 0.60),
+    "gentle": (1.10, -0.02, 0.60),
 }
+VOICE_PITCH = float(os.environ.get("VOICE_PITCH", "0"))  # the whole voice, e.g. -0.03 for lower
 DEFAULT_TONE = "cheerful"
 SLOW_LENGTH_BONUS = 0.1  # added to length_scale when speech-settings say rate "slow"
+PLAYBACK_GRACE_S = 3.0  # a sentence still playing this long after its end is cut off
 
 # Eyes on the HDMI screen (7 inch 1024x600, landscape), drawn straight into its framebuffer
 EYES_FB = "/dev/fb0"
@@ -307,6 +314,9 @@ EYES_SLOW_BLINK_S = 0.4  # calm
 EYES_GLANCE_EVERY_S = (3.0, 6.0)  # idle and listening glance aside now and then
 EYES_GLANCE_S = 0.8
 EYES_GLANCE_PX = 8
+# desktop window only (no keyboard on the touchscreen): a touch that starts within EDGE px of the
+# top and is dragged SWIPE px down closes the robot
+EYES_EXIT_EDGE_PX, EYES_EXIT_SWIPE_PX = 60, 250
 
 # Games on the touchscreen (rover/games): drawn on a 1024x600 canvas, redrawn only when something
 # changes, so a game left alone costs no CPU
@@ -314,6 +324,7 @@ GAME_CANVAS = (1024, 600)  # scaled to the screen if it differs
 GAME_HOLD_S = 1.0  # touch and hold this long on the start screen to begin
 GAME_INTRO_FPS = 12  # the start screen's pulsing rings
 GAME_INTRO_TIMEOUT_S = 30.0  # nobody touched the start screen: put the game away
+TOUCH_RETRY_S = 1.0  # a touch panel that dropped off USB is looked for this often
 TICTACTOE_TARGET_LOSS = 0.6  # the robot loses this share of games, whoever it plays
 TICTACTOE_SLIP_START = 0.5  # chance of a random move instead of a good one
 TICTACTOE_SLIP_STEP = 0.10  # less slip after a robot loss; more (scaled to the target) after a win

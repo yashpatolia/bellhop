@@ -34,8 +34,7 @@ class Mic:
         preroll_blocks = max(1, round(config.PREROLL_S * config.SAMPLE_RATE / config.BLOCK_SAMPLES))
         self._preroll: deque[np.ndarray] = deque(maxlen=preroll_blocks)
         self._stream = None  # sounddevice.InputStream once started
-        self._speaking = False
-        self._stopped_speaking_at = -math.inf
+        self._muted_until = -math.inf  # when the robot's sound ends (inf: until told it stopped)
 
     def start(self) -> None:
         try:
@@ -87,11 +86,13 @@ class Mic:
         """The last config.PREROLL_S of blocks returned by read(), the latest one included."""
         return list(self._preroll)
 
-    def set_speaking(self, speaking: bool) -> None:
-        if self._speaking and not speaking:
-            self._stopped_speaking_at = time.monotonic()
-        self._speaking = speaking
+    def set_speaking(self, speaking: bool, until: float = math.inf) -> None:
+        """Speaking: muted until `until`, when its sound ends. Not speaking: unmuted from now."""
+        if speaking:
+            self._muted_until = until
+        else:
+            self._muted_until = min(self._muted_until, time.monotonic())
 
     def muted(self, now: float) -> bool:
         """True while the robot talks and for config.ECHO_TAIL_S after (now = time.monotonic())."""
-        return self._speaking or now - self._stopped_speaking_at < config.ECHO_TAIL_S
+        return now < self._muted_until + config.ECHO_TAIL_S

@@ -23,6 +23,10 @@ GREETING = (
     "(The robot has just arrived in room {room}. Greet the resident and ask how you can help, "
     "then add in a few words that you can also play games on your screen.)"
 )
+CHAT_GREETING = (
+    "(Someone has just called you over for a chat. Greet them and ask how you can help, then add "
+    "in a few words that you can also play games on your screen.)"
+)
 GAMES_QUERY = "knows how to play a game"  # recalls the facts start_game saved
 
 
@@ -92,7 +96,9 @@ def build_system_prompt(
     if game_status:
         parts.append(
             "## Right now: a game is on your screen\n"
-            f"{game_status}\nKeep each reply to one short sentence while they play."
+            f"{game_status}\n"
+            "You opened it with start_game. Call start_game again only to switch to a different "
+            "game.\nKeep each reply to one short sentence while they play."
         )
     return "\n\n".join(part.strip() for part in parts)
 

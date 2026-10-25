@@ -333,6 +333,7 @@ def test_prompt_lists_known_games_and_the_game_on_screen():
     assert "Games they already know how to play: tic-tac-toe" in prompt
     assert "## Right now: a game is on your screen\nBingo: 3 numbers called." in prompt
     assert "Never suggest a game" in prompt  # games come up only when the resident asks
+    assert "Call start_game again only to switch" in prompt  # its tool calls are not in the history
     assert "## Right now: a game" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)
 
 

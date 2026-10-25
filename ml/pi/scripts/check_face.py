@@ -2,8 +2,8 @@
 
 Usage (Mac or Pi): uv run python scripts/check_face.py  # animated on a Mac: ../dev/face_window.py
 Usage (Pi):        uv run python scripts/check_face.py --screen  # rover.speech stopped (it owns it)
-On the screen: two cyan eyes, happy ones like an upside-down U. A blank screen: the desktop owns
-it (sudo systemctl stop display-manager). Not 1024x600: add video=HDMI-A-1:1024x600@60 to
+On the screen: two cyan eyes, happy ones like an upside-down U, full screen in a window when the
+desktop is running (q closes it). Not 1024x600: add video=HDMI-A-1:1024x600@60 to
 /boot/firmware/cmdline.txt and reboot. Happy eyes look sad: EYES_FLIP=1.
 """
 
@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 
 from rover import config
-from rover.eyes import EXPRESSIONS, Eyes, Screen, draw
+from rover.eyes import EXPRESSIONS, Eyes, draw, open_screen
 
 SCALE = 3  # preview pixels per face pixel
 HOLD_S = 3.0  # each expression on the real screen, animated
@@ -40,9 +40,9 @@ def main() -> None:
     print(f"success: {len(EXPRESSIONS)} expressions drawn into {out}")
 
     if args.screen:
-        screen = Screen()
+        screen = open_screen()
         width, height = screen.size
-        print(f"screen: {width}x{height}, {screen.bits} bits a pixel, face drawn x{screen.scale}")
+        print(f"screen: {type(screen).__name__} {width}x{height}, face drawn x{screen.scale}")
         start = time.perf_counter()
         for _ in range(TIMED_FRAMES):
             screen.show(draw("cheerful", scale=screen.scale))

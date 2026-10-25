@@ -205,6 +205,7 @@ class Brain:
             turn.fail(f"Claude stream failed: {exc!r}")
         finally:
             timer.cancel()
+            timer.join()  # a stall line already being said has started before the reply returns
         self._record(turn, allow_tools)
         if turn.saw_wait and not turn.spoken:
             return WAIT, False

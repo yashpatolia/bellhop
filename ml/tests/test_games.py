@@ -1,3 +1,4 @@
+import os
 import random
 import subprocess
 import sys
@@ -21,7 +22,18 @@ from rover.games.tictactoe import (
     robot_move,
     winner,
 )
-from rover.touch import ABS_X, ABS_Y, BTN_TOUCH, EV_ABS, EV_KEY, EV_SYN, EVENT, SYN_REPORT, Touch
+from rover.touch import (
+    ABS_X,
+    ABS_Y,
+    BTN_TOUCH,
+    EV_ABS,
+    EV_KEY,
+    EV_SYN,
+    EVENT,
+    SYN_REPORT,
+    Touch,
+    _has_key,
+)
 
 
 def centre(button):
@@ -245,6 +257,39 @@ def start_playing(games, name):
     assert games.phase == "play"
 
 
+def test_starting_the_same_game_again_keeps_the_board_until_it_is_over():
+    games, _, posted = make_games()
+    start_playing(games, "tic_tac_toe")
+    games.touch("down", *cell_centre(0))
+    games.step(3.0)
+    assert "already open" in games.start("tic_tac_toe", now=3.1)
+    assert games.phase == "play" and games.game.board[0] == "X"
+    assert said(posted).count(("GameSay", TicTacToe.start_line)) == 1
+    games.game.over = True  # a finished game may be opened again ("play again")
+    assert games.start("tic_tac_toe", now=4.0).startswith("tic-tac-toe is on the screen")
+    assert games.phase == "intro"
+    assert games.start("bingo", now=4.1).startswith("bingo is on the screen")  # switching works
+
+
+def test_asking_again_on_the_start_screen_keeps_it_up_longer():
+    games, _, _ = make_games()
+    games.start("bingo", now=0.0)
+    assert "already open" in games.start("bingo", now=25.0)
+    games.step(31.0)  # past the first call's timeout
+    assert games.phase == "intro"
+    games.step(25.0 + config.GAME_INTRO_TIMEOUT_S)
+    assert games.phase is None
+
+
+def test_a_finger_already_down_when_the_start_screen_opens_starts_the_hold():
+    games, _, _ = make_games()
+    games.start("memory", now=0.0)
+    games.touch("move", 500, 300)  # its down came before the game opened
+    games.step(0.5)
+    games.step(0.5 + config.GAME_HOLD_S)
+    assert games.phase == "play"
+
+
 def test_a_game_left_alone_is_not_redrawn():
     games, eyes, _ = make_games()
     start_playing(games, "memory")
@@ -311,6 +356,49 @@ def test_touch_turns_input_events_into_down_move_up_in_screen_pixels(monkeypatch
     monkeypatch.setattr(config, "EYES_FLIP", True)
     touch.feed(ev(EV_KEY, BTN_TOUCH, 1) + syn)
     assert seen[-1] == ("down", 511, 599)
+
+
+def test_only_a_device_with_a_touch_button_counts_as_the_panel():
+    bits = bytearray(96)
+    assert not _has_key(bytes(bits), BTN_TOUCH)  # a gamepad or a panel's mouse node
+    bits[BTN_TOUCH // 8] |= 1 << BTN_TOUCH % 8
+    assert _has_key(bytes(bits), BTN_TOUCH) and not _has_key(bytes(bits), BTN_TOUCH + 1)
+
+
+class Found(Exception):
+    pass
+
+
+def test_a_panel_that_drops_off_usb_is_found_again(monkeypatch):
+    monkeypatch.setattr(config, "TOUCH_RETRY_S", 0.0)
+    seen = []
+
+    def on_touch(*args):
+        seen.append(args)
+        if args[0] == "down":
+            raise Found  # ends run(): the new panel works
+
+    lost, lost_writer = os.pipe()
+    back, writer = os.pipe()  # made before `lost` is closed, so it cannot reuse its number
+    os.close(lost)  # reading it fails as a vanished device does
+    syn = ev(EV_SYN, SYN_REPORT, 0)
+    os.write(writer, ev(EV_ABS, ABS_X, 0) + ev(EV_ABS, ABS_Y, 0) + ev(EV_KEY, BTN_TOUCH, 1) + syn)
+    tries = []
+
+    def reopen(size, callback):
+        tries.append(size)
+        if len(tries) == 1:
+            raise FileNotFoundError("not back yet")
+        return Touch([(0, 4095), (0, 4095)], size, callback, fd=back)
+
+    monkeypatch.setattr(Touch, "open", staticmethod(reopen))
+    touch = Touch([(0, 4095), (0, 4095)], (1024, 600), on_touch, fd=lost)
+    touch._down = True  # a finger was on the glass when it went
+    with pytest.raises(Found):
+        touch.run()
+    assert seen == [("up", 512, 300), ("down", 0, 0)] and len(tries) == 2
+    for fd in (lost_writer, writer, back):
+        os.close(fd)
 
 
 def test_the_voice_process_loads_opencv_only_when_a_game_is_drawn():

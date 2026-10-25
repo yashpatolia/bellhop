@@ -1,15 +1,19 @@
 """The touch panel as raw Linux input events: no library, and no CPU between touches.
 
-Touch.open() finds the panel (the input device with absolute X and Y; keyboards and mice have
-none), then run() blocks on it and calls on_touch(kind, x, y) with kind "down", "move" or "up"
-and x, y in screen pixels, turned with the face when EYES_FLIP is set.
+Touch.open() finds the panel (the input device with absolute X and Y and a touch button;
+keyboards and mice have no absolute axes, gamepads and a panel's mouse node no touch button), then
+run() blocks on it and calls on_touch(kind, x, y) with kind "down", "move" or "up" and x, y in
+screen pixels, turned with the face when EYES_FLIP is set. A panel that drops off USB (a brownout,
+a replug) is looked for again every TOUCH_RETRY_S.
 """
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import os
 import struct
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -20,6 +24,7 @@ EVENT = struct.Struct("llHHi")
 EV_SYN, EV_KEY, EV_ABS = 0, 1, 3
 SYN_REPORT, BTN_TOUCH, ABS_X, ABS_Y = 0, 0x14A, 0, 1
 EVIOCGABS = 0x80184540  # + axis: _IOR('E', 0x40 + axis, struct input_absinfo), 6 ints
+EVIOCGBIT_KEY = 0x80604521  # _IOR('E', 0x20 + EV_KEY, 96): the key codes a device can send
 
 OnTouch = Callable[[str, int, int], None]
 
@@ -27,6 +32,10 @@ OnTouch = Callable[[str, int, int], None]
 def _abs_range(fd: int, axis: int) -> tuple[int, int]:
     _, low, high, *_ = struct.unpack("6i", fcntl.ioctl(fd, EVIOCGABS + axis, bytes(24)))
     return low, high
+
+
+def _has_key(bits: bytes, code: int) -> bool:
+    return bool(bits[code // 8] >> code % 8 & 1)
 
 
 class Touch:
@@ -52,13 +61,14 @@ class Touch:
                 continue
             try:
                 ranges = [_abs_range(fd, axis) for axis in (ABS_X, ABS_Y)]
+                touches = _has_key(fcntl.ioctl(fd, EVIOCGBIT_KEY, bytes(96)), BTN_TOUCH)
             except OSError:  # no absolute axes: a keyboard, a mouse, the power button
-                ranges = []
-            if ranges and all(high > low for low, high in ranges):
+                ranges, touches = [], False
+            if touches and ranges and all(high > low for low, high in ranges):
                 print(f"touch: {path}, x {ranges[0]}, y {ranges[1]}")
                 return cls(ranges, size, on_touch, fd)
             os.close(fd)
-        raise FileNotFoundError("no touch panel (absolute X and Y) in /dev/input")
+        raise FileNotFoundError("no touch panel (absolute X and Y, BTN_TOUCH) in /dev/input")
 
     def position(self) -> tuple[int, int]:
         x, y = (
@@ -90,4 +100,25 @@ class Touch:
 
     def run(self) -> None:
         while True:
-            self.feed(os.read(self._fd, EVENT.size * 64))  # blocks until the panel is touched
+            try:
+                data = os.read(self._fd, EVENT.size * 64)  # blocks until the panel is touched
+            except OSError as exc:  # ENODEV: the panel left USB
+                print(f"fallback: touch panel lost ({exc}); looking for it again")
+                self._reopen()
+                continue
+            self.feed(data)
+
+    def _reopen(self) -> None:
+        with contextlib.suppress(OSError):
+            os.close(self._fd)
+        if self._down:  # its "up" is lost with the panel: a start screen would think it is held
+            self._down = False
+            self._on_touch("up", *self.position())
+        while True:
+            time.sleep(config.TOUCH_RETRY_S)
+            try:
+                panel = Touch.open(self._size, self._on_touch)  # prints the node it found
+            except OSError:
+                continue
+            self._fd, self._ranges, self._raw = panel._fd, panel._ranges, panel._raw
+            return
