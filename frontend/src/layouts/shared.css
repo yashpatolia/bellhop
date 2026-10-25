@@ -29,15 +29,20 @@
 .lx .sb-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .lx .sb-btn.big { width: 100%; padding: 12px 16px; font-size: 1.1rem; margin: 6px 0 4px; }
 .lx .sb-btn:hover { filter: brightness(1.08); }
-.lx .sb-btn:focus-visible, .lx a:focus-visible, .lx button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lx .sb-btn:focus-visible, .lx a:focus-visible, .lx button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: inset 0 0 0 4px var(--surface); }
 
 .lx .sb-nav { display: flex; gap: 4px; }
 .lx .sb-nav a { padding: 6px 12px; border-radius: var(--radius-sm); color: var(--ink-2); text-decoration: none; font-weight: 600; }
 .lx .sb-nav a:hover { color: var(--ink); }
 .lx .sb-nav a[aria-current='page'] { background: var(--accent-tint); color: var(--ink); }
 
-.lx .sb-robots em { margin-left: auto; font-style: normal; font-family: var(--f-mono); font-size: 0.9em; color: var(--ink-2); }
+.lx .sb-robots { list-style: none; margin: 0; padding: 0; }
+.lx .sb-robots li { display: grid; grid-template-columns: minmax(84px, auto) 1fr auto; align-items: center; gap: 4px 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.lx .sb-robots li:last-child { border-bottom: 0; }
+.lx .sb-robots li > span { color: var(--ink-2); }
+.lx .sb-robots em { display: inline-flex; align-items: center; gap: 8px; font-style: normal; font-family: var(--f-mono); font-size: 0.9em; color: var(--ink-2); }
 .lx .sb-robots li.low em { color: var(--u3); font-weight: 700; }
+.lx .sb-battery { flex: none; }
 
 .lx .sb-numbers { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0; }
 .lx .sb-numbers div { display: flex; flex-direction: column-reverse; }
@@ -125,3 +130,10 @@
 .lx .sb-banner { margin: 0 0 14px; padding: 12px 16px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-weight: 600; }
 .lx .sb-banner.bad { border-color: var(--u4); color: var(--u4); }
 .lx .spark-none { color: var(--ink-2); font-size: 0.9rem; }
+
+.lx .sb-banner.demo { border-style: dashed; }
+.lx .sb-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+.lx .sb-talk p.learned { margin: 6px 0 2px; padding: 8px 12px; border-left: 4px solid var(--u1); background: var(--accent-tint); }
+.lx .sb-talk p.learned span { display: block; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+.lx .sb-talk p.learned em { display: block; font-style: normal; font-size: 0.9rem; color: var(--ink-2); }

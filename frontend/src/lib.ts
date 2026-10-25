@@ -146,3 +146,17 @@ export function closestFreeRobot(robots: Robot[], room: string): Robot | undefin
   const free = robots.filter((r) => robotAvailability(r).free)
   return free.find((r) => r.room === room) ?? free.sort((a, b) => b.battery - a.battery)[0]
 }
+
+/** The next id in the fleet's own pattern: robot_3 after robot_1 and robot_2. */
+export function nextRobotId(ids: string[]): string {
+  let prefix = 'robot_'
+  let max = 0
+  for (const id of ids) {
+    const m = /^(.*?)(\d+)$/.exec(id)
+    if (m && Number(m[2]) >= max) {
+      prefix = m[1]
+      max = Number(m[2])
+    }
+  }
+  return `${prefix}${max + 1}`
+}

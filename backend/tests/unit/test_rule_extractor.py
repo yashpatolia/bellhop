@@ -35,3 +35,29 @@ def test_robot_lines_are_ignored():
 
 def test_questions_and_small_talk_produce_nothing():
     assert run(("resident", "Is it still raining out there?")) == []
+
+
+def test_a_routine_is_rewritten_about_the_resident():
+    [f] = run(("resident", "I always say my prayers before bed."))
+    assert f.kind is FactKind.ROUTINE
+    assert f.text == "Always says their prayers before bed"
+    assert f.quote == "I always say my prayers before bed"
+
+
+def test_a_family_member_reads_as_a_fact_not_a_quote():
+    [f] = run(("resident", "My granddaughter Sophie visits every Sunday."))
+    assert f.text == "Granddaughter Sophie visits every Sunday"
+
+
+def test_a_routine_about_someone_else_or_a_fragment_is_not_stored():
+    assert run(("resident", "He always comes home at six.")) == []
+    assert run(("resident", "Stew, always stew.")) == []
+
+
+def test_liking_a_pronoun_says_nothing():
+    assert run(("resident", "It keeps my mind sharp, and I love it.")) == []
+    assert run(("resident", "That television, I hate it.")) == []
+
+
+def test_sarcasm_is_not_a_like():
+    assert run(("resident", "Oh yes, I just love being woken at five by the nurses.")) == []

@@ -57,6 +57,7 @@ export interface LearnedFact {
   source: FactSource
   confidence: number // 0 to 1
   quote: string | null // the resident's own words, when heard from them
+  callId: string | null // the call it was learned in, when there is one
   learnedAt: number // epoch ms
   lastConfirmed: number // epoch ms
   timesSeen: number
@@ -174,6 +175,8 @@ export interface Actions {
   driveRobot: (robotId: string, target: string) => Promise<boolean>
   /** Ask this robot to stop where it is (POST /robots/{id}/stop). */
   stopRobot: (robotId: string) => Promise<boolean>
+  /** Add a robot to the fleet (PUT /robots/{id}), standing by at `room` if given. Rejects with the backend's reason. */
+  addRobot: (robotId: string, room: string | null) => Promise<void>
   /** Acknowledge the call's alert, so the nurse shows as on the way. */
   nurseOnMyWay: (callId: string) => Promise<void>
   /** Mark a call done by staff. */

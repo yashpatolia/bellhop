@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { BellhopData, Resident } from '../../data/types'
-import { clock, closestFreeRobot, initials, isOpen, robotAvailability } from '../../lib'
+import { clock, closestFreeRobot, initials, isOpen, nextRobotId, robotAvailability } from '../../lib'
 import { Chip } from '../shared'
 import { recordDispatch, useDispatched } from '../board'
 
@@ -23,7 +23,11 @@ function RoomList({ data, selected }: { data: BellhopData; selected?: string }) 
       <p className="sm-count" aria-live="polite">
         {query ? `${shown.length} of ${data.residents.length} rooms` : `${data.residents.length} rooms`}
       </p>
-      {shown.length === 0 && <p className="sm-empty">No room matches "{query}".</p>}
+      {data.residents.length === 0 ? (
+        <p className="sm-empty">No rooms yet. A room appears here once a resident is in it, from the Residents tab. You can still send a robot to another place below.</p>
+      ) : (
+        shown.length === 0 && <p className="sm-empty">No room matches "{query}".</p>
+      )}
       <ul>
         {shown.map((r) => {
           const open = data.calls.find((c) => c.room === r.room && isOpen(c))
@@ -117,6 +121,71 @@ function Sent({ data }: { data: BellhopData }) {
   )
 }
 
+const ROBOT_ID = /^[a-z0-9][a-z0-9_-]{0,31}$/
+
+function AddRobot({ data }: { data: BellhopData }) {
+  const suggested = nextRobotId(data.robots.map((r) => r.id))
+  const [id, setId] = useState('')
+  const [room, setRoom] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [added, setAdded] = useState('')
+  const wanted = (id.trim() || suggested).toLowerCase()
+  let problem = ''
+  if (!ROBOT_ID.test(wanted)) problem = 'Use lowercase letters, numbers, - or _, up to 32 characters.'
+  else if (data.robots.some((r) => r.id === wanted)) problem = `${wanted} is already in the fleet.`
+  const add = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await data.actions.addRobot(wanted, room.trim() || null)
+      setAdded(wanted)
+      setId('')
+      setRoom('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bellhop did not add the robot.')
+    }
+    setBusy(false)
+  }
+  return (
+    <section className="sm-addrobot">
+      <h2>Add a robot to the fleet</h2>
+      <p className="sm-empty">
+        Use the id the robot is set up with (ROBOT_ID on the robot), so its reports land on this robot. Battery and position update as soon as it reports in.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!problem) void add()
+        }}
+      >
+        <label>
+          Robot id
+          <input value={id} onChange={(e) => setId(e.target.value)} placeholder={suggested} maxLength={32} spellCheck={false} />
+        </label>
+        <label>
+          <span>
+            Where it stands by <small>(optional)</small>
+          </span>
+          <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Charging dock, lobby or a room" maxLength={32} />
+        </label>
+        <button className="sb-btn primary" type="submit" disabled={busy || Boolean(problem) || data.connection.state !== 'live'}>
+          {busy ? 'Adding...' : `Add ${wanted}`}
+        </button>
+      </form>
+      {(problem && id.trim()) || error ? (
+        <p className="sm-why" role="alert">
+          {error || problem}
+        </p>
+      ) : added ? (
+        <p className="sm-empty" role="status">
+          {added} is in the fleet and standing by.
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
 function Body({ data, room, resident }: { data: BellhopData; room?: string; resident?: Resident }) {
   const [picked, setPicked] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
@@ -178,6 +247,7 @@ export function DispatchPage({ data, room }: { data: BellhopData; room?: string 
         </header>
         <Body key={room ?? ''} data={data} room={room} resident={resident} />
         <Sent data={data} />
+        <AddRobot data={data} />
       </article>
     </div>
   )

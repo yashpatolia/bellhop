@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { BellhopData, Snapshot } from './types'
 import { createLiveSource } from './store'
+import { DEMO_URL, type Mode } from './mode'
 
 // The one place that decides where data comes from: the Bellhop backend (contracts/openapi.json).
 // With nothing in the backend you get an empty home; with the simulator running (see
@@ -16,7 +17,10 @@ export interface DataSource {
 
 export const API_URL = (import.meta.env.VITE_BELLHOP_API_URL as string | undefined) ?? 'http://127.0.0.1:8000'
 
-export const createSource = (): DataSource => createLiveSource({ baseUrl: API_URL, apiKey: import.meta.env.VITE_BELLHOP_API_KEY as string | undefined })
+export const createSource = (mode: Mode = 'live'): DataSource =>
+  mode === 'demo'
+    ? createLiveSource({ baseUrl: DEMO_URL })
+    : createLiveSource({ baseUrl: API_URL, apiKey: import.meta.env.VITE_BELLHOP_API_KEY as string | undefined })
 
 export const DataContext = createContext<BellhopData | null>(null)
 
