@@ -42,7 +42,7 @@ Nothing else. No DI framework, no CQRS. Storage is a facade with one repository 
 4. Triage result -> `POST /calls/{id}/score` -> `TriageGuard.decide` (keyword floor, low confidence; model failure uses `POST /calls/{id}/triage-failed`) -> `Call.score` -> `CallScored`.
 5. `Liaison` reacts to urgency >= 3: creates `Alert`, `Notifier.send` -> `AlertRaised`.
 6. Resolution -> `CallResolved` -> `Visit` recorded; `Analytics` reads calls and visits for the dashboard counters.
-7. Live view: `api/events.py` `EventStream` (built in `container.py` before any service, so it sees `CallRaised` before `CallAssigned`) subscribes to the five domain events and fans them out to `GET /events` Server-Sent Events clients through bounded per-client queues; `PUT /robots/{id}` adds `robot.updated`. The full `Call`/`Alert` is read from the store when a frame is sent. Setup (residents, nurses) can also be changed at runtime through the admin routes, see [08-scenarios-and-admin.md](08-scenarios-and-admin.md).
+7. Live view: `api/events.py` `EventStream` (built in `container.py` before any service, so it sees `CallRaised` before `CallAssigned`) subscribes to the six call and alert events and fans them out to `GET /events` Server-Sent Events clients through bounded per-client queues. `CallUpdated` carries the visit start and each transcript turn; `PUT /robots/{id}` adds `robot.updated`. The full `Call`/`Alert` is read from the store when a frame is sent. Setup (residents, nurses) can also be changed at runtime through the admin routes, see [08-scenarios-and-admin.md](08-scenarios-and-admin.md).
 
 ## Invariants
 - Urgency only ratchets up. Urgency 4 alerts immediately and to everyone on shift.

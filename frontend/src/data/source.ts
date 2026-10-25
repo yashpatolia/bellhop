@@ -15,7 +15,22 @@ export interface DataSource {
   stop: () => void
 }
 
-export const API_URL = (import.meta.env.VITE_BELLHOP_API_URL as string | undefined) ?? 'http://127.0.0.1:8000'
+/**
+ * `auto` lets one Vite dashboard serve both the laptop and a touchscreen over Tailscale.
+ * Loopback is correct for the laptop browser; a remote screen reaches the backend at the same
+ * tailnet host from which it loaded the dashboard. An explicit URL always wins for deployments.
+ */
+export function apiUrlForHost(hostname: string, configured?: string): string {
+  if (configured && configured !== 'auto') return configured
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return 'http://127.0.0.1:8000'
+  }
+  return configured === 'auto' && hostname ? `http://${hostname}:8000` : 'http://127.0.0.1:8000'
+}
+
+const configuredApi = import.meta.env.VITE_BELLHOP_API_URL as string | undefined
+const browserHost = typeof window === 'undefined' ? '' : window.location.hostname
+export const API_URL = apiUrlForHost(browserHost, configuredApi)
 
 export const createSource = (mode: Mode = 'live'): DataSource =>
   mode === 'demo'

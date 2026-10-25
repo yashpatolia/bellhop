@@ -30,7 +30,8 @@ def find_device(name: str, kind: str) -> int | None:
 class Mic:
     def __init__(self, device_name: str = config.MIC_NAME) -> None:
         self.device_name = device_name
-        self._blocks: queue.Queue[np.ndarray] = queue.Queue()
+        self._blocks: queue.Queue[np.ndarray] = queue.Queue(maxsize=config.MIC_QUEUE_BLOCKS)
+        self._dropped_blocks = 0
         preroll_blocks = max(1, round(config.PREROLL_S * config.SAMPLE_RATE / config.BLOCK_SAMPLES))
         self._preroll: deque[np.ndarray] = deque(maxlen=preroll_blocks)
         self._stream = None  # sounddevice.InputStream once started
@@ -71,7 +72,20 @@ class Mic:
         # zeroed at capture time so blocks read late can never carry the robot's own voice
         if self.muted(time.monotonic()):
             block[:] = 0
-        self._blocks.put_nowait(block)
+        try:
+            self._blocks.put_nowait(block)
+        except queue.Full:
+            # The audio callback must stay non-blocking. Drop the oldest block so the loop hears
+            # the current resident, not a sentence delayed by a slow cloud response or TTS burst.
+            try:
+                self._blocks.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._blocks.put_nowait(block)
+            except queue.Full:  # a consumer raced us; retaining its newer block is also safe
+                pass
+            self._dropped_blocks += 1
 
     def read(self, timeout: float = 1.0) -> np.ndarray | None:
         """Next int16 block of config.BLOCK_SAMPLES, or None if the mic sent nothing in time."""
@@ -80,6 +94,9 @@ class Mic:
         except queue.Empty:
             print(f"mic: no audio for {timeout} s")
             return None
+        if self._dropped_blocks:
+            dropped, self._dropped_blocks = self._dropped_blocks, 0
+            print(f"mic: dropped {dropped} stale capture blocks")
         self._preroll.append(block)
         return block
 

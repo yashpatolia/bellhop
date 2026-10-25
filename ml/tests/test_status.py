@@ -10,10 +10,10 @@ class FakeBackend:
         self.calls = []
         self.fail = fail
 
-    def report_robot(self, robot_id, status, battery, room):
+    def report_robot(self, robot_id, status, battery, room, target):
         if self.fail:
             raise RuntimeError("backend bug")
-        self.calls.append((robot_id, status, battery, room))
+        self.calls.append((robot_id, status, battery, room, target))
         return {"id": robot_id}
 
 
@@ -25,15 +25,17 @@ def make(snapshots, backend=None):
 
 
 def test_idle_snapshot_is_reported():
-    reporter, backend = make([{"room": "12", "moving": False, "battery": 0.8, "led": "idle"}])
+    reporter, backend = make(
+        [{"room": "12", "target": None, "moving": False, "battery": 0.8, "led": "idle"}]
+    )
     reporter.report_once()
-    assert backend.calls == [("robot_1", "idle", 0.8, "12")]
+    assert backend.calls == [("robot_1", "idle", 0.8, "12", None)]
 
 
 def test_moving_is_busy():
-    reporter, backend = make([{"room": "lobby", "moving": True, "battery": 0.5}])
+    reporter, backend = make([{"room": "lobby", "target": "210", "moving": True, "battery": 0.5}])
     reporter.report_once()
-    assert backend.calls == [("robot_1", "busy", 0.5, "lobby")]
+    assert backend.calls == [("robot_1", "busy", 0.5, "lobby", "210")]
 
 
 def test_charging_flag_is_charging():
@@ -46,7 +48,10 @@ def test_missing_keys_are_tolerated():
     reporter, backend = make([{}, {"battery": "junk", "room": 5}])
     reporter.report_once()
     reporter.report_once()
-    assert backend.calls == [("robot_1", "idle", None, None), ("robot_1", "idle", None, None)]
+    assert backend.calls == [
+        ("robot_1", "idle", None, None, None),
+        ("robot_1", "idle", None, None, None),
+    ]
 
 
 def test_server_down_reports_last_known_then_fault():
@@ -57,14 +62,14 @@ def test_server_down_reports_last_known_then_fault():
         reporter.report_once()
     statuses = [call[1] for call in backend.calls]
     assert statuses == ["idle"] + ["idle"] * (FAULT_AFTER_FAILURES - 1) + ["fault"]
-    assert all(call[2:] == (0.6, "14") for call in backend.calls)
+    assert all(call[2:] == (0.6, "14", None) for call in backend.calls)
 
 
 def test_server_down_from_the_start_is_fault_without_battery():
     reporter, backend = make([None] * FAULT_AFTER_FAILURES)
     for _ in range(FAULT_AFTER_FAILURES):
         reporter.report_once()
-    assert backend.calls[-1] == ("robot_1", "fault", None, None)
+    assert backend.calls[-1] == ("robot_1", "fault", None, None, None)
 
 
 def test_fetcher_or_backend_crash_never_escapes():
@@ -139,7 +144,7 @@ def test_undervoltage_now_reports_fault_even_when_busy_or_charging():
     for _ in range(3):
         reporter.report_once()
     assert [call[1] for call in backend.calls] == ["fault"] * 3
-    assert backend.calls[0][2:] == (0.7, "12")
+    assert backend.calls[0][2:] == (0.7, "12", None)
 
 
 def test_warn_still_reports_normally():
@@ -164,10 +169,10 @@ def test_missing_or_junk_power_is_ok():
 
 
 def test_backend_only_gets_the_fields_the_api_accepts():
-    # RobotReport in the backend contract is status, battery, room and nothing else
+    # RobotReport in the backend contract is status, battery, room and target only.
     reporter, backend = make([snap(UNDERVOLT, wifi_rssi_dbm=-60)])
     reporter.report_once()
-    assert len(backend.calls[0]) == 4  # (robot_id, status, battery, room)
+    assert len(backend.calls[0]) == 5  # (robot_id, status, battery, room, target)
 
 
 def test_warn_and_fault_are_logged_with_the_power_info(tmp_path):

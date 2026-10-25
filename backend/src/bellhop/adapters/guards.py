@@ -133,6 +133,17 @@ class GuardedRobotGateway:
             timer.start()
             raise
 
+    def follow_marker(self, robot_id: str, marker: str) -> None:
+        with self._lock:
+            self._sent[robot_id] = generation = self._sent.get(robot_id, 0) + 1
+        try:
+            call_with_timeout(self._inner.follow_marker, self._timeout, robot_id, marker)
+        except GuardTimeout:
+            timer = threading.Timer(self._restop_after, self._restop, (robot_id, generation))
+            timer.daemon = True
+            timer.start()
+            raise
+
     def set_led(self, robot_id: str, state: str) -> None:
         call_with_timeout(self._inner.set_led, self._timeout, robot_id, state)
 

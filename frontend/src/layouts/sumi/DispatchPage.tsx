@@ -65,6 +65,7 @@ function RoomList({ data, selected }: { data: BellhopData; selected?: string }) 
 
 function RobotRows({ data, room, chosen, onChoose }: { data: BellhopData; room: string | undefined; chosen: string | undefined; onChoose: (id: string) => void }) {
   const closest = room ? closestFreeRobot(data.robots, room) : undefined
+  const [stopping, setStopping] = useState<Set<string>>(() => new Set())
   if (data.robots.length === 0) return <p className="sm-empty">No robots have reported in yet.</p>
   return (
     <ul className="sm-dispatch-robots" aria-label="Robots">
@@ -83,8 +84,23 @@ function RobotRows({ data, room, chosen, onChoose }: { data: BellhopData; room: 
               </em>
             </label>
             {r.state === 'en_route' && (
-              <button className="sb-btn sm-stop" onClick={() => void data.actions.stopRobot(r.id)} aria-label={`Stop ${r.name}`}>
-                Stop {r.name}
+              <button
+                className="sb-btn sm-stop"
+                onClick={() => {
+                  if (stopping.has(r.id)) return
+                  setStopping((current) => new Set(current).add(r.id))
+                  void data.actions.stopRobot(r.id).finally(() =>
+                    setStopping((current) => {
+                      const next = new Set(current)
+                      next.delete(r.id)
+                      return next
+                    }),
+                  )
+                }}
+                disabled={stopping.has(r.id)}
+                aria-label={`Stop ${r.name}`}
+              >
+                {stopping.has(r.id) ? 'Stopping…' : `Stop ${r.name}`}
               </button>
             )}
           </li>
@@ -190,6 +206,7 @@ function AddRobot({ data }: { data: BellhopData }) {
 function Body({ data, room, resident }: { data: BellhopData; room?: string; resident?: Resident }) {
   const [picked, setPicked] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
+  const [following, setFollowing] = useState(false)
   const closest = room ? closestFreeRobot(data.robots, room) : undefined
   // The nurse's pick, as long as that robot is still free; otherwise the closest free robot.
   const pickedRobot = data.robots.find((r) => r.id === picked && robotAvailability(r).free)
@@ -203,6 +220,12 @@ function Body({ data, room, resident }: { data: BellhopData; room?: string; resi
     const ok = await data.actions.driveRobot(robot.id, room)
     setBusy(false)
     if (ok) recordDispatch({ robotId: robot.id, room, at: Date.now() })
+  }
+  const follow = async () => {
+    if (!room || !robot) return
+    setFollowing(true)
+    await data.actions.followMarker(robot.id, room)
+    setFollowing(false)
   }
   return (
     <>
@@ -222,8 +245,11 @@ function Body({ data, room, resident }: { data: BellhopData; room?: string; resi
               {robot?.name} drives to {resident ? `room ${room}, where ${resident.name.split(' ')[0]} is` : room}. It only drives: no call is made and it does not start a visit. Use Stop beside a driving robot to halt it. Choose a different free robot above if you prefer.
             </p>
           )}
-          <button className="sb-btn primary big sm-send" onClick={() => void send()} disabled={busy || Boolean(reason)}>
+          <button className="sb-btn primary big sm-send" onClick={() => void send()} disabled={busy || following || Boolean(reason)}>
             {busy ? 'Sending...' : robot ? `Drive ${robot.name} to ${room}` : `Drive a robot to ${room}`}
+          </button>
+          <button className="sb-btn big sm-send" onClick={() => void follow()} disabled={busy || following || Boolean(reason)}>
+            {following ? 'Starting follow…' : robot ? `Follow ${robot.name} using marker ${room}` : 'Follow a marker'}
           </button>
         </section>
       )}

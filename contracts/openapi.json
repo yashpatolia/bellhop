@@ -2558,6 +2558,70 @@
         }
       }
     },
+    "/robots/{robot_id}/follow-marker": {
+      "post": {
+        "summary": "Follow Marker",
+        "description": "Maintain safe standoff from a moving physical ArUco marker.\n\nThis is intentionally separate from navigation: room navigation completes at arrival,\nwhile marker following remains active until stopped or its Pi-side safety timeout expires.",
+        "operationId": "follow_marker_robots__robot_id__follow_marker_post",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "robot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Robot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NavigateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Robot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown robot"
+          },
+          "409": {
+            "description": "robot is not idle"
+          },
+          "503": {
+            "description": "robot command failed"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/robots/{robot_id}/stop": {
       "post": {
         "summary": "Stop Robot",
@@ -4220,6 +4284,17 @@
               }
             ],
             "title": "Room"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "type": "object",
@@ -4250,6 +4325,18 @@
               }
             ],
             "title": "Room"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
           }
         },
         "type": "object",

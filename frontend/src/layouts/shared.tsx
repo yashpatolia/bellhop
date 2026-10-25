@@ -34,13 +34,14 @@ export function Chip({ u }: { u: Urgency }) {
 
 /** A nurse call can be answered the moment it exists. Staff tasks wait until they are handed over. */
 export function Action({ call, data, big }: { call: Call; data: BellhopData; big?: boolean }) {
+  const [busy, setBusy] = useState(false)
   if (call.status === 'resolved') return null
   const nurse = call.handledBy === 'nurse'
   let label = ''
-  let run: () => void = () => {}
+  let run: () => Promise<void> = async () => {}
   let primary = false
   if (nurse && call.status !== 'nurse_en_route') {
-    label = "I'm on my way"
+    label = 'I’m on my way'
     primary = true
     run = () => data.actions.nurseOnMyWay(call.id)
   } else if (nurse || call.status === 'nurse_notified') {
@@ -52,10 +53,13 @@ export function Action({ call, data, big }: { call: Call; data: BellhopData; big
       className={`sb-btn ${primary ? 'primary' : ''} ${big ? 'big' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
-        run()
+        if (busy) return
+        setBusy(true)
+        void run().finally(() => setBusy(false))
       }}
+      disabled={busy}
     >
-      {label}
+      {busy ? 'Saving…' : label}
     </button>
   )
 }

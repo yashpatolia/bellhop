@@ -40,7 +40,7 @@ spacetime publish bellhop --module-path . --server local
 #    first publish of a changed schema may need: --delete-data (wipes rows)
 
 # 5. Smoke test
-spacetime call bellhop save_robot '["b1","idle",1.0,""]' --server local
+spacetime call bellhop save_robot '["b1","idle",1.0,"",""]' --server local
 spacetime sql bellhop "SELECT * FROM robot" --server local
 spacetime logs bellhop --server local
 ```

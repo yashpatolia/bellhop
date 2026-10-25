@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from bellhop.adapters.deletable_memory import DeletableLocalMemoryIndex
 from bellhop.adapters.local_memory import LocalMemoryIndex
 from bellhop.adapters.moss_memory import MossMemoryIndex
 from bellhop.domain import MemoryFact
@@ -53,3 +54,29 @@ def test_empty_moss_result_falls_back_to_lexical():
     idx = Fake([])
     idx.add(fact("f1", "Takes tea with two sugars"))
     assert [f.id for f in idx.recall("r1", "some tea")] == ["f1"]
+
+
+def test_moss_resolves_a_fact_hydrated_before_the_wrapper_starts():
+    """A persisted fact is in the local source of truth, not Moss's process-local cache."""
+
+    local = DeletableLocalMemoryIndex()
+    # ``PersistentMemoryIndex.load`` deliberately calls the base add to avoid writing a
+    # loaded row back to SpacetimeDB.  Reproduce that startup path here.
+    LocalMemoryIndex.add(local, fact("f1", "Takes tea with two sugars"))
+
+    class Hydrated(Fake):
+        def __init__(self) -> None:
+            MossMemoryIndex.__init__(self, local, project_id="p", project_key="k")
+            self.ids = ["f1"]
+
+    assert [f.id for f in Hydrated().recall("r1", "unrelated wording")] == ["f1"]
+
+
+def test_empty_briefing_never_calls_the_optional_remote_index():
+    class NoNetwork(Fake):
+        def _search(self, resident_id: str, utterance: str, k: int) -> list[str]:
+            raise AssertionError("briefings must be served locally")
+
+    idx = NoNetwork(["f1"])
+    idx.add(fact("f1", "Takes tea with two sugars"))
+    assert [f.id for f in idx.recall("r1", "")] == ["f1"]

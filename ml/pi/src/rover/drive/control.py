@@ -58,6 +58,10 @@ class Controller:
         self._car.stop()
         self._target, self._mode = None, "idle"
 
+    def _navigation_failed(self) -> bool:
+        failed = getattr(self._nav, "failed", None)
+        return bool(failed()) if callable(failed) else False
+
     def go_to(self, room: str) -> None:
         if config.marker_for_room(room) is None:
             raise UnknownRoom(room)
@@ -72,6 +76,19 @@ class Controller:
             self._target, self._mode = room, "going"
             self._nav.start(room)
         obslog.event("drive.go_to", room=room)
+
+    def follow_marker(self, room: str) -> None:
+        """Track a moving ArUco marker while maintaining personal-space standoff."""
+        if config.marker_for_room(room) is None:
+            raise UnknownRoom(room)
+        with self._lock:
+            if self._mode == "manual":
+                obslog.event("drive.follow_marker_ignored", room=room, reason="manual_active")
+                return
+            self._fresh()
+            self._target, self._mode = room, "following_marker"
+            self._nav.start_follow(room)
+        obslog.event("drive.follow_marker", room=room)
 
     def stop(self) -> None:
         with self._lock:
@@ -138,6 +155,8 @@ class Controller:
                 return
             if self._mode == "going":
                 limit = self._drive_timeout_s
+            elif self._mode == "following_marker":
+                limit = config.FOLLOW_MARKER_TIMEOUT_S
             elif self._mode == "manual":
                 limit = self._manual_timeout_s
             else:
@@ -149,10 +168,16 @@ class Controller:
                 self._led = "idle"
                 self._car.led("idle")
                 return
-            if self._mode == "going" and self._target is not None:
+            if self._mode in ("going", "following_marker") and self._target is not None:
                 if self._nav.step(self._car):
                     self._room = self._target
                     obslog.event("drive.arrived", room=self._room)
+                    self._halt()
+                elif self._navigation_failed():
+                    # Search exhausted its own bounded budget. Stop at the last confirmed room;
+                    # never turn a failed exploration into a fake arrival at the target.
+                    print("drive: navigation failed, stopped without arrival")
+                    obslog.event("drive.navigation_failed", target=self._target)
                     self._halt()
 
     def snapshot(self) -> dict[str, Any]:
@@ -170,6 +195,7 @@ class Controller:
                 "target": self._target,
                 "mode": self._mode,
                 "moving": self._mode in ("going", "manual"),
+                "following": self._mode == "following_marker",
                 "battery": battery,
                 "led": self._led,
                 "last_command_age_s": age,

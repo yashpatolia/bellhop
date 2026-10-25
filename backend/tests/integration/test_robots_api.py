@@ -28,7 +28,13 @@ def test_list_robots_shows_seeded_robot(client):
 def test_put_updates_existing_robot(client):
     r = put(client, status="charging", battery=0.5, room="dock")
     assert r.status_code == 200
-    assert r.json() == {"id": "robot_1", "status": "charging", "battery": 0.5, "room": "dock"}
+    assert r.json() == {
+        "id": "robot_1",
+        "status": "charging",
+        "battery": 0.5,
+        "room": "dock",
+        "target": None,
+    }
     assert client.get("/robots").json()[0]["status"] == "charging"
 
 
@@ -119,7 +125,10 @@ def test_failing_go_to_pages_a_nurse_and_stops_the_robot_for_a_resident_without_
 
 def test_settings_from_env_reads_robot_url(monkeypatch):
     monkeypatch.setenv("BELLHOP_ROBOT_URL", "http://pi.local:8080")
-    assert Settings.from_env().robot_url == "http://pi.local:8080"
+    monkeypatch.setenv("BELLHOP_GATEWAY_TIMEOUT", "5")
+    settings = Settings.from_env()
+    assert settings.robot_url == "http://pi.local:8080"
+    assert settings.gateway_timeout == 5.0
 
 
 def test_a_robot_back_from_charging_takes_the_call_that_was_waiting(client):

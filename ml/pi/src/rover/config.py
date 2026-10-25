@@ -18,7 +18,12 @@ BELLHOP_API = os.environ.get("BELLHOP_API", "http://127.0.0.1:8000")
 BELLHOP_API_KEY = os.environ.get("BELLHOP_API_KEY", "")
 ROBOT_ID = os.environ.get("ROBOT_ID", "robot_1")
 PI_SERVER_URL = os.environ.get("PI_SERVER_URL", "http://127.0.0.1:8080")
-HTTP_TIMEOUT_S = 2.0
+# The Pi's loopback drive server should fail quickly. The laptop backend crosses Tailscale/WSL
+# and can occasionally take longer without being unavailable, so it gets an independent budget.
+LOCAL_HTTP_TIMEOUT_S = float(os.environ.get("BELLHOP_LOCAL_HTTP_TIMEOUT_S", "2.0"))
+BACKEND_HTTP_TIMEOUT_S = float(os.environ.get("BELLHOP_BACKEND_HTTP_TIMEOUT_S", "5.0"))
+if LOCAL_HTTP_TIMEOUT_S <= 0 or BACKEND_HTTP_TIMEOUT_S <= 0:
+    raise ValueError("HTTP timeouts must be positive")
 CALL_POLL_S = 1.0
 
 # Camera (Pi Camera Module 3). Lock these for the room once tuned.
@@ -49,6 +54,14 @@ ARUCO_DICT = "DICT_4X4_250"
 MARKER_SIZE_M = 0.15
 MARKER_FOCAL_PX = 470.0  # from scripts/check_marker.py with the marker at 1.0 m
 ARRIVE_DISTANCE_M = 1.0
+# A moving marker is a person-following cue, not a room arrival.  Keep this much space while
+# tracking, and resume only after the person has moved far enough to avoid stop/start jitter.
+FOLLOW_MARKER_STOP_DISTANCE_M = float(os.environ.get("BELLHOP_FOLLOW_MARKER_STOP_DISTANCE_M", "0.8"))
+FOLLOW_MARKER_RESUME_DISTANCE_M = float(os.environ.get("BELLHOP_FOLLOW_MARKER_RESUME_DISTANCE_M", "1.05"))
+if not 0 < FOLLOW_MARKER_STOP_DISTANCE_M < FOLLOW_MARKER_RESUME_DISTANCE_M:
+    raise ValueError("follow-marker stop distance must be positive and below its resume distance")
+
+
 def _marker_rooms() -> dict[int, str]:
     """Load physical-marker-to-backend-room names from deployment configuration."""
     raw = os.environ.get("BELLHOP_MARKER_ROOMS", "{}").strip()
@@ -89,6 +102,7 @@ def marker_for_room(room: str) -> int | None:
     except (TypeError, ValueError):
         return None
     return marker_id if 0 <= marker_id < 250 else None
+
 
 # Driving (rover.drive owns the motors, servos, ultrasonic and the robot HTTP server)
 FREENOVE_DIR = Path(
@@ -135,9 +149,7 @@ def _head_scan_angles(name: str, raw: str, minimum: int, maximum: int) -> tuple[
     except ValueError as exc:
         raise ValueError(f"{name} must be comma-separated servo angles") from exc
     if not pans or any(not minimum <= pan <= maximum for pan in pans):
-        raise ValueError(
-            f"{name} must contain safe angles from {minimum} through {maximum}"
-        )
+        raise ValueError(f"{name} must contain safe angles from {minimum} through {maximum}")
     return pans
 
 
@@ -156,6 +168,11 @@ HEAD_SCAN_TILTS = _head_scan_angles(
 HEAD_SCAN_DWELL_S = float(os.environ.get("BELLHOP_HEAD_SCAN_DWELL_S", "0.6"))
 if HEAD_SCAN_DWELL_S <= 0:
     raise ValueError("head scan dwell must be positive")
+# A marker observed while the pan/tilt head is offset is not body-relative. Re-centre the camera
+# and wait for a fresh frame before steering the wheels from its x coordinate.
+HEAD_RECENTER_SETTLE_S = float(os.environ.get("BELLHOP_HEAD_RECENTER_SETTLE_S", "0.3"))
+if HEAD_RECENTER_SETTLE_S < 0:
+    raise ValueError("head recenter settle time cannot be negative")
 # Active search extends marker navigation beyond the first camera view. It first scans the head
 # while stopped, then turns in place and takes a short ultrasonic-guarded frontier step. This is
 # intentionally bounded: it is not a substitute for a surveyed map, encoders or obstacle lidar.
@@ -173,6 +190,12 @@ if (
     or SEARCH_MAX_S <= 0
 ):
     raise ValueError("marker search settings must be positive and within motor range")
+# Following remains authorised only for a bounded period after its single dashboard command.  It
+# can hold position at the preferred standoff for that whole period but never follows blindly
+# when marker vision is absent.
+FOLLOW_MARKER_TIMEOUT_S = float(os.environ.get("BELLHOP_FOLLOW_MARKER_TIMEOUT_S", "60"))
+if FOLLOW_MARKER_TIMEOUT_S <= 0:
+    raise ValueError("follow-marker timeout must be positive")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)
@@ -220,6 +243,13 @@ SAMPLE_RATE = 16000
 BLOCK_SAMPLES = 512  # Silero needs 512-sample frames at 16 kHz
 PREROLL_S = 0.5
 ECHO_TAIL_S = 0.3  # mic stays muted this long after the robot stops talking
+# Neither the microphone callback nor an STT network send may wait on a slow cloud request.
+# Keep only a short recent window when the Pi is under load; stale speech is worse than a small
+# dropped gap because it makes the robot answer something said several seconds ago.
+MIC_QUEUE_BLOCKS = int(os.environ.get("MIC_QUEUE_BLOCKS", "64"))
+FLUX_SEND_QUEUE_BLOCKS = int(os.environ.get("FLUX_SEND_QUEUE_BLOCKS", "64"))
+if MIC_QUEUE_BLOCKS < 1 or FLUX_SEND_QUEUE_BLOCKS < 1:
+    raise ValueError("audio queue sizes must be positive")
 MIC_NAME = os.environ.get("MIC_NAME", "")  # part of the device name; empty = default
 SPEAKER_NAME = os.environ.get("SPEAKER_NAME", "")
 # PortAudio opens ALSA "plughw" (converts rate and channels) instead of raw "hw", so a USB mic
@@ -252,6 +282,7 @@ TRIAGE_MODEL = "claude-haiku-5-5"
 FIRST_TEXT_TIMEOUT_S = 6.0
 CLAUDE_KEEPALIVE_S = 60.0  # keep the TLS connection to Claude between turns (SDK default is 5 s)
 HISTORY_EXCHANGES = 20
+HISTORY_CONTEXT_CHARS = 1200  # compact deterministic reminder when a long visit outgrows its window
 MAX_REPLY_TOKENS = 300
 BRAIN_EFFORT = "low"  # chat: low keeps the time to first spoken word short
 BRAIN_MAX_TOOL_ROUNDS = 3

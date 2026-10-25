@@ -13,13 +13,18 @@ class HttpRobotGateway:
     """
 
     def __init__(
-        self, base_url: str, timeout: float = 2.0, client: httpx.Client | None = None
+        self, base_url: str, timeout: float = 5.0, client: httpx.Client | None = None
     ) -> None:
         self._base = base_url.rstrip("/")
-        self._client = client or httpx.Client(timeout=timeout)
+        # The Pi is addressed on the tailnet. Never route its private address through a
+        # developer-machine HTTP proxy, which can turn a reachable rover into a false 503.
+        self._client = client or httpx.Client(timeout=timeout, trust_env=False)
 
     def go_to(self, robot_id: str, room: str) -> None:
         self._post("/go_to", {"room": room})
+
+    def follow_marker(self, robot_id: str, marker: str) -> None:
+        self._post("/follow_marker", {"room": marker})
 
     def set_led(self, robot_id: str, state: str) -> None:
         self._post("/led", {"state": state})

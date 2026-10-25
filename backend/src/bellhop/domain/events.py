@@ -21,6 +21,13 @@ class CallAssigned:
 
 
 @dataclass(frozen=True)
+class CallUpdated:
+    """Call state changed without scoring or resolving, such as a live transcript turn."""
+
+    call_id: str
+
+
+@dataclass(frozen=True)
 class RobotUnreachable:
     """The robot chosen for a call could not be commanded; a nurse must be told."""
 

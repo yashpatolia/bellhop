@@ -146,7 +146,7 @@ def post_pi(path: str, body: dict) -> str | None:
     """POST to rover.drive's server; returns a short failure reason, or None when it took it."""
     url = f"{config.PI_SERVER_URL}{path}"
     try:
-        response = httpx.post(url, json=body, timeout=config.HTTP_TIMEOUT_S)
+        response = httpx.post(url, json=body, timeout=config.LOCAL_HTTP_TIMEOUT_S)
     except httpx.HTTPError as exc:
         print(f"pi server: POST {url} failed: {type(exc).__name__}: {exc}")
         return type(exc).__name__

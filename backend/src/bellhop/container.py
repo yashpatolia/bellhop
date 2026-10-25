@@ -100,6 +100,7 @@ class Settings:
             moss_project_id=env.get("MOSS_PROJECT_ID"),
             moss_project_key=env.get("MOSS_PROJECT_KEY"),
             guard_timeouts=env.get("BELLHOP_GUARDS", "1") != "0",
+            gateway_timeout=float(env.get("BELLHOP_GATEWAY_TIMEOUT", "2.0")),
             robot_url=env.get("BELLHOP_ROBOT_URL") or None,
             content=env.get("BELLHOP_CONTENT", "local"),
             learning=env.get("BELLHOP_LEARNING", "rule"),

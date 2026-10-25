@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from bellhop.domain import Call, CallStatus, Urgency
-from bellhop.domain.events import CallRaised, CallResolved, CallScored
+from bellhop.domain.events import CallRaised, CallResolved, CallScored, CallUpdated
 from bellhop.ports import (
     CallRepository,
     Clock,
@@ -76,6 +76,7 @@ class CallService:
         call = self._get(call_id)
         call.add_turn(speaker, text, self._clock.now())
         self._calls.save(call)
+        self._bus.publish(CallUpdated(call_id=call.id))
 
     @_locked
     def score(
@@ -100,6 +101,7 @@ class CallService:
         call = self._get(call_id)
         call.start_visit(self._clock.now())
         self._calls.save(call)
+        self._bus.publish(CallUpdated(call_id=call.id))
 
     @_locked
     def resolve(self, call_id: str, by_robot: bool = True) -> None:
