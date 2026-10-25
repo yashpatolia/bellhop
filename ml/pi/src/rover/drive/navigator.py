@@ -271,7 +271,7 @@ class MarkerNavigator:
             self._marker_turn_min_s
             + (self._marker_turn_max_s - self._marker_turn_min_s) * fraction
         ) * self._marker_turn_scale
-        self._marker_turn_direction = 1 if x > 0 else -1
+        self._marker_turn_direction = config.MARKER_TURN_SIGN * (1 if x > 0 else -1)
         self._marker_turn_until = now + duration
         self._marker_turn_last_x = x
         car.drive(

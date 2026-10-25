@@ -242,6 +242,7 @@ CENTER_TOLERANCE = 0.1  # share of half the frame width counted as centred
 # driven by the only truthful measurement we have: the camera.
 MARKER_TURN_CENTER_X = float(os.environ.get("BELLHOP_MARKER_TURN_CENTER_X", "0.16"))
 MARKER_TURN_DUTY = int(os.environ.get("BELLHOP_MARKER_TURN_DUTY", "900"))
+MARKER_TURN_SIGN = int(os.environ.get("BELLHOP_MARKER_TURN_SIGN", "1"))
 MARKER_TURN_MIN_S = float(os.environ.get("BELLHOP_MARKER_TURN_MIN_S", "0.07"))
 MARKER_TURN_MAX_S = float(os.environ.get("BELLHOP_MARKER_TURN_MAX_S", "0.24"))
 MARKER_TURN_SETTLE_S = float(os.environ.get("BELLHOP_MARKER_TURN_SETTLE_S", "0.12"))
@@ -252,6 +253,7 @@ MARKER_TURN_MIN_SCALE = float(os.environ.get("BELLHOP_MARKER_TURN_MIN_SCALE", "0
 if (
     not 0 < MARKER_TURN_CENTER_X < 1
     or not 0 < MARKER_TURN_DUTY <= 4095
+    or MARKER_TURN_SIGN not in (-1, 1)
     or not 0 < MARKER_TURN_MIN_S <= MARKER_TURN_MAX_S
     or MARKER_TURN_SETTLE_S < 0
     or not 0 < MARKER_TURN_MIN_SCALE <= MARKER_TURN_OVERSHOOT_SCALE < 1
