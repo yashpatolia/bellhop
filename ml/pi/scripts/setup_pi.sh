@@ -136,7 +136,7 @@ echo "success: no errors above; nothing is downloaded on a re-run"
 step "6b/7 Optional GPIO PS2 receiver library"
 # The receiver is a direct GPIO peripheral, not a USB joystick. Keep this hardware-only package
 # outside the lock so laptop development and non-PS2 deployments do not install Blinka.
-"$python" -m pip install --quiet --upgrade adafruit-blinka circuitpython-ps2controller
+uv pip install --python "$python" --quiet --upgrade adafruit-blinka circuitpython-ps2controller
 echo "success: Blinka and circuitpython-ps2controller installed"
 
 step "7/7 Models, then the smoke test"
