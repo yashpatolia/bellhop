@@ -1,11 +1,11 @@
 # Bellhop project notes
 
-Bellhop is a small AI robot that answers the call bell in care homes. Plan and research live in `artifacts/`. The nurse dashboard lives in `dashboard/` (Vite, React, TypeScript, Motion).
+Bellhop is an autonomous robot fleet that answers the non-urgent call bells in care homes, saving nurse time. Plan and research live in `artifacts/`. The nurse dashboard lives in `frontend/` (Vite, React, TypeScript, Motion).
 
 ## Working rules
 
 - Build top down: get a working MVP first, then refine.
-- The dashboard has no mock data of its own. It reads the backend only (`dashboard/src/data/store.ts`, wire format mapped in `adapt.ts`). Example data lives in `simulator/`, which feeds the backend over its API; run `scripts/dev.sh mock` or `scripts/dev.sh empty`.
+- The dashboard has no mock data of its own. It reads the backend only (`frontend/src/data/store.ts`, wire format mapped in `adapt.ts`). Example data lives in `simulator/`, which feeds the backend over its API; run `scripts/dev.sh mock` or `scripts/dev.sh empty`.
 - NEVER use em dashes (or en dashes) in code, copy, comments or docs.
 - Fill the whole page width. No narrow centred max-width layouts.
 
@@ -14,7 +14,7 @@ Bellhop is a small AI robot that answers the call bell in care homes. Plan and r
 - The audience is nurses and caretakers, so it must stay readable and calm: large type, strong contrast, not overwhelming. Urgency is always shown with words as well as colour.
 - Prefer neutral soft or pastel palettes. Amber is off limits (it reads as AI slop). Modern sans is fine, a serif accent is fine for some themes, but body text and numbers stay highly legible.
 - Do not default to blueprint or newspaper themes. Think outside the box.
-- Every component reads theme tokens from `dashboard/src/theme/themes.css`. A theme is just a block of CSS variables.
+- Every component reads theme tokens from `frontend/src/theme/themes.css`. A theme is just a block of CSS variables.
 
 <frontend_aesthetics>
 

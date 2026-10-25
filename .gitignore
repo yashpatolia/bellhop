@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 .codegraph/
 .env
@@ -9,7 +10,12 @@ __pycache__/
 node_modules/
 .coverage
 htmlcov/
+.vite/
+*.log
 tools/
+
+# Build output (spacetime publish rebuilds this)
+spacetimedb/dist/
 
 # macOS
 .DS_Store
