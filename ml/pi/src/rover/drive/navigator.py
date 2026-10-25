@@ -274,6 +274,11 @@ class MarkerNavigator:
         self._marker_turn_direction = config.MARKER_TURN_SIGN * (1 if x > 0 else -1)
         self._marker_turn_until = now + duration
         self._marker_turn_last_x = x
+        print(
+            f"drive: visual turn x={x:+.2f} pulse={duration:.2f}s "
+            f"scale={self._marker_turn_scale:.2f}",
+            flush=True,
+        )
         car.drive(
             self._marker_turn_direction * self._marker_turn_duty,
             -self._marker_turn_direction * self._marker_turn_duty,
