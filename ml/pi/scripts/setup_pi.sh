@@ -31,7 +31,7 @@ if ((mem_kb < 3000000)); then
   echo "WARNING: only $((mem_kb / 1024)) MB RAM (under 3 GB). Run the processes one at a time:"
   echo "  vision (YOLO + camera) and speech (Moonshine + Piper + fastembed) together can run out"
   echo "  of memory. Start rover.vision and rover.speech in separate terminals, check 'free -m'"
-  echo "  between them, and keep rover.drive (small) always on. See deploy/README.md."
+  echo "  between them, and keep rover.drive (small) always on. See artifacts/components/robot-deploy.md."
   [[ -n "$(swapon --noheadings 2>/dev/null)" ]] || echo "  No swap is active; a few GB of swap avoids OOM kills during uv sync."
 fi
 

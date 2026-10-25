@@ -32,7 +32,7 @@ Date 2026-10-23. Goal: less manual verification. Judged against "MVP, not over-e
 | msw | LATER (only for frontend unit tests) | 3.0.3 (2026-10-10) | `npm i -D msw` | 20 min | n/a |
 | locust | LATER (one bell-press scenario before demo) | 2.47.0 (2026-10-21) | `uv add --dev locust` | 20 min | `uv run locust -f scripts/loadtest.py --headless -u 20 -r 5 -t 30s -H http://localhost:8000` |
 | k6 | SKIP (Go binary, JS scripts, extra install) | not checked | n/a | n/a | n/a |
-| Docs generator (mkdocs, pdoc) | SKIP (docs are already markdown in `docs/architecture/`; FastAPI serves `/docs`; mkdocs last release 2024-08) | n/a | n/a | n/a | n/a |
+| Docs generator (mkdocs, pdoc) | SKIP (docs are already markdown in `artifacts/architecture/`; FastAPI serves `/docs`; mkdocs last release 2024-08) | n/a | n/a | n/a | n/a |
 
 ## Schemathesis (details, MEASURED in-process)
 

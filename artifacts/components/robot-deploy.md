@@ -5,7 +5,7 @@ Layout on the Pi: `ml/pi` is synced to `/home/pi/ml` (user `pi`), with its venv 
 `WorkingDirectory=`, `ExecStart=` and `ExecStopPost=` in the unit files.
 
 The venv uses the Pi's system Python (3.13 on Trixie, 3.11 on Bookworm) with `--system-site-packages`, so
-rsync must not overwrite `.python-version` (see `ml/README.md`). On a 2 GB Pi do not run vision and speech
+rsync must not overwrite `.python-version` (see `artifacts/components/ml.md`). On a 2 GB Pi do not run vision and speech
 at the same time unless `free -m` shows headroom; `setup_pi.sh` warns about this.
 
 ## Units

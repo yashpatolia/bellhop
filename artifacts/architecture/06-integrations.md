@@ -52,7 +52,7 @@ spacetime dev --template react-ts                   # module in spacetimedb/src/
 
 # manual loop (flags per CLI reference; verify with `spacetime publish --help`):
 spacetime publish bellhop --module-path spacetimedb # publish/update module as database "bellhop"
-spacetime generate --lang typescript --out-dir dashboard/src/module_bindings --module-path spacetimedb
+spacetime generate --lang typescript --out-dir frontend/src/module_bindings --module-path spacetimedb
 
 # smoke tests from the CLI
 spacetime call bellhop save_resident '["r1","Edna Park","12",["falls"]]'

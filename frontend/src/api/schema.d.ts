@@ -30,7 +30,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Server-Sent Events: call.*, alert.raised, robot.updated. See contracts/README.md.
+         * @description Server-Sent Events: call.*, alert.raised, robot.updated. See components/contracts.md.
          */
         get: operations["stream_events_events_get"];
         put?: never;
@@ -729,6 +729,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/robots/{robot_id}/navigate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Navigate Robot */
+        post: operations["navigate_robot_robots__robot_id__navigate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/robots/{robot_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop Robot */
+        post: operations["stop_robot_robots__robot_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/robots/{robot_id}": {
         parameters: {
             query?: never;
@@ -1120,6 +1154,14 @@ export interface components {
          * @enum {string}
          */
         MessageDirection: "to_resident" | "from_resident";
+        /**
+         * NavigateIn
+         * @description An opaque navigation label. The Pi resolves it to its local map/marker configuration.
+         */
+        NavigateIn: {
+            /** Target */
+            target: string;
+        };
         /**
          * NoteCategory
          * @description What staff can add to a resident's profile. The first five become memory facts.
@@ -3037,6 +3079,107 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Robot"][];
                 };
+            };
+        };
+    };
+    navigate_robot_robots__robot_id__navigate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                robot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NavigateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Robot"];
+                };
+            };
+            /** @description unknown robot */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description robot is not idle */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description robot command failed */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    stop_robot_robots__robot_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                robot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Robot"];
+                };
+            };
+            /** @description unknown robot */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description robot command failed */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
