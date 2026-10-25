@@ -46,6 +46,7 @@ from bellhop.domain.care import (
     Preferences,
     RefinedNote,
 )
+from bellhop.domain.events import RobotAvailable
 from bellhop.ports.content import ContentItem
 from bellhop.services.admin import Conflict
 from bellhop.services.memory_guard import Accepted, PendingFact
@@ -730,10 +731,13 @@ def create_app(container: Container) -> FastAPI:
         except Exception as exc:
             raise RobotCommandFailed("robot stop command failed") from exc
         # An active care call owns the busy status until its normal resolution path finishes.
-        if not any(call.robot_id == robot_id for call in container.store.calls.list_open()):
+        freed = not any(c.robot_id == robot_id for c in container.store.calls.list_open())
+        if freed:
             robot.status = RobotStatus.IDLE
             container.store.robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
+        if freed:
+            container.bus.publish(RobotAvailable(robot_id=robot_id))
         return robot
 
     @api.put("/robots/{robot_id}")
@@ -743,7 +747,8 @@ def create_app(container: Container) -> FastAPI:
         if robot is None:
             if not settings.allow_new_robots:
                 raise LookupError(robot_id)
-            robot = Robot(id=robot_id)
+            robot = Robot(id=robot_id, status=RobotStatus.OFFLINE)
+        was_free = robot.status is RobotStatus.IDLE
         holds_call = any(c.robot_id == robot_id for c in container.store.calls.list_open())
         # A robot with an open call stays busy: only a resolved call frees it (safer than
         # trusting a stale "idle" report). Battery and room are still applied.
@@ -752,6 +757,8 @@ def create_app(container: Container) -> FastAPI:
         robot.battery, robot.room = body.battery, body.room
         robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
+        if robot.status is RobotStatus.IDLE and not was_free:
+            container.bus.publish(RobotAvailable(robot_id=robot_id))
         return robot
 
     @api.get("/metrics")

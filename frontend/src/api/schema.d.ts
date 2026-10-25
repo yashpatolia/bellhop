@@ -1373,7 +1373,7 @@ export interface components {
          * RobotStatus
          * @enum {string}
          */
-        RobotStatus: "idle" | "busy" | "charging" | "fault";
+        RobotStatus: "idle" | "busy" | "charging" | "fault" | "offline";
         /** ScoreIn */
         ScoreIn: {
             /** Urgency */

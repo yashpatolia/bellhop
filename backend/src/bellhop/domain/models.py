@@ -155,6 +155,7 @@ class RobotStatus(StrEnum):
     BUSY = "busy"
     CHARGING = "charging"
     FAULT = "fault"
+    OFFLINE = "offline"  # added by staff, has not reported in yet: never given a call
 
 
 class LedState(StrEnum):

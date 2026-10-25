@@ -231,8 +231,8 @@ export class LiveStore {
     driveRobot: (robotId, target) => this.command(robotId, 'navigate', { target }),
     stopRobot: (robotId) => this.command(robotId, 'stop'),
     addRobot: async (robotId, room) => {
-      // The robot replaces battery and position with its own the first time it reports in.
-      const robot = await this.send<ApiRobot>('PUT', `/robots/${encodeURIComponent(robotId)}`, { status: 'idle', battery: 1, room })
+      // Offline until the robot itself reports in: it takes no calls before then.
+      const robot = await this.send<ApiRobot>('PUT', `/robots/${encodeURIComponent(robotId)}`, { status: 'offline', battery: 0, room })
       this.raw.robots.set(robot.id, robot)
       this.touch()
     },

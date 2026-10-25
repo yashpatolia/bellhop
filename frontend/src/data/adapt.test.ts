@@ -101,6 +101,7 @@ describe('alerts and robots', () => {
   it('charging and fault come straight from the robot', () => {
     expect(toRobot({ id: 'b', status: 'charging', battery: 0.3, room: 'dock' }, []).state).toBe('charging')
     expect(toRobot({ id: 'b', status: 'fault', battery: 0.3, room: null }, []).state).toBe('fault')
+    expect(toRobot({ id: 'b', status: 'offline', battery: 0, room: null }, []).state).toBe('offline')
   })
 
   it('a nurse keeps the shift and task count', () => {

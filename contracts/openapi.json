@@ -4265,7 +4265,8 @@
           "idle",
           "busy",
           "charging",
-          "fault"
+          "fault",
+          "offline"
         ],
         "title": "RobotStatus"
       },

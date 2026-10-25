@@ -78,7 +78,8 @@ function RobotRows({ data, room, chosen, onChoose }: { data: BellhopData; room: 
               <span className="sm-avail">{a.words}</span>
               {closest?.id === r.id && <span className="sm-likely">Closest free robot</span>}
               <em>
-                {Math.round(r.battery)}%{r.room ? `, ${r.room}` : ''}
+                {r.state === 'offline' ? 'no report yet' : `${Math.round(r.battery)}%`}
+                {r.room ? `, ${r.room}` : ''}
               </em>
             </label>
             {r.state === 'en_route' && (
@@ -151,7 +152,7 @@ function AddRobot({ data }: { data: BellhopData }) {
     <section className="sm-addrobot">
       <h2>Add a robot to the fleet</h2>
       <p className="sm-empty">
-        Use the id the robot is set up with (ROBOT_ID on the robot), so its reports land on this robot. Battery and position update as soon as it reports in.
+        Use the id the robot is set up with (ROBOT_ID on the robot), so its reports land on this robot. It takes calls once it reports in; until then it shows as not reporting yet.
       </p>
       <form
         onSubmit={(e) => {
@@ -179,7 +180,7 @@ function AddRobot({ data }: { data: BellhopData }) {
         </p>
       ) : added ? (
         <p className="sm-empty" role="status">
-          {added} is in the fleet and standing by.
+          {added} is in the fleet. It takes calls once it reports in.
         </p>
       ) : null}
     </section>

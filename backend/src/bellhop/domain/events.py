@@ -29,6 +29,13 @@ class RobotUnreachable:
 
 
 @dataclass(frozen=True)
+class RobotAvailable:
+    """A robot just became free (its call ended, it was stopped, or it reported idle)."""
+
+    robot_id: str
+
+
+@dataclass(frozen=True)
 class CallScored:
     call_id: str
     urgency: Urgency

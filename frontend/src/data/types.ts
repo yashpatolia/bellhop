@@ -106,7 +106,7 @@ export interface Resident {
   medical: MedicalHistory
 }
 
-export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging' | 'fault'
+export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging' | 'fault' | 'offline'
 
 export interface Robot {
   id: string
