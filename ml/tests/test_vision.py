@@ -114,6 +114,27 @@ def test_missing_optional_models_do_not_download_or_block_marker_mode(monkeypatc
     assert faces.update(frame, None) is None
 
 
+def test_broken_optional_person_backend_does_not_stop_marker_mode(monkeypatch, tmp_path):
+    """NCNN validation happens on the first ``track`` call, not necessarily at construction."""
+    import sys
+    import types
+
+    model_path = tmp_path / "partial-ncnn"
+    model_path.mkdir()
+    monkeypatch.setattr(config, "YOLO_MODEL", model_path)
+
+    class BrokenModel:
+        def track(self, *args, **kwargs):
+            raise RuntimeError("missing NCNN .param file")
+
+    monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=lambda *_: BrokenModel()))
+    people = PersonTracker()
+    frame = np.zeros((480, 640, 3), np.uint8)
+
+    assert people.update(frame, now=0.0) is None
+    assert people.model is None
+
+
 def test_vision_main_closes_the_camera_on_sigterm_and_installs_handlers(monkeypatch):
     import sys
 

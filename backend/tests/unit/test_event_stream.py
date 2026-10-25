@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 
 import pytest
@@ -6,8 +7,15 @@ import pytest
 from bellhop.adapters.event_bus import InMemoryEventBus
 from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.api.events import EventStream, TooManyClients
-from bellhop.domain.events import AlertRaised, CallAssigned, CallRaised, CallResolved, CallScored
-from bellhop.domain.models import Urgency
+from bellhop.domain.events import (
+    AlertRaised,
+    CallAssigned,
+    CallRaised,
+    CallResolved,
+    CallScored,
+    CallUpdated,
+)
+from bellhop.domain.models import Robot, RobotStatus, Urgency
 
 
 def make(**kw) -> tuple[InMemoryEventBus, EventStream]:
@@ -27,10 +35,18 @@ def test_bus_events_fan_out_to_every_client_with_names_and_monotonic_ids():
     a, b = stream.connect(), stream.connect()
     bus.publish(CallRaised("c1", "12"))
     bus.publish(CallAssigned("c1", "robot_1", None))
+    bus.publish(CallUpdated("c1"))
     bus.publish(CallScored("c1", Urgency.NURSE_SOON, "pain"))
     bus.publish(CallResolved("c1", True))
     bus.publish(AlertRaised("a1", "c1", Urgency.NURSE_SOON))
-    names = ["call.raised", "call.assigned", "call.scored", "call.resolved", "alert.raised"]
+    names = [
+        "call.raised",
+        "call.assigned",
+        "call.updated",
+        "call.scored",
+        "call.resolved",
+        "alert.raised",
+    ]
     for client in (a, b):
         got = drain(client)
         assert [m.name for m in got] == names
@@ -44,6 +60,21 @@ def test_event_ids_carry_only_ids_not_objects():
     bus.publish(CallScored("c1", Urgency.EMERGENCY, "fall"))
     (m,) = drain(client)
     assert m.ids == {"call_id": "c1", "urgency": 4, "category": "fall"}
+
+
+def test_full_object_is_snapshotted_when_the_event_is_emitted():
+    """A delayed SSE client must not receive a later robot state under an old event."""
+    bus, store = InMemoryEventBus(), InMemoryStore()
+    stream = EventStream(bus, store)
+    store.robots.save(Robot(id="r1", status=RobotStatus.IDLE))
+    client = stream.connect()
+
+    stream.emit("robot.updated", {"robot_id": "r1"})
+    store.robots.save(Robot(id="r1", status=RobotStatus.CHARGING))
+
+    (message,) = drain(client)
+    payload = json.loads(stream.frame(message).split("data: ", 1)[1])
+    assert payload["robot"]["status"] == "idle"
 
 
 def test_full_queue_drops_oldest_and_never_blocks():

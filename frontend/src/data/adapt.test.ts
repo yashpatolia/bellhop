@@ -98,9 +98,16 @@ describe('alerts and robots', () => {
     expect(toRobot(robot, calls)).toMatchObject({ id: 'robot_1', name: 'Robot 1', state: 'with_resident', battery: 100, targetRoom: '12', callId: calls[0].id })
   })
 
+  it('keeps a manually commanded target after a dashboard refresh', () => {
+    expect(toRobot({ id: 'b', status: 'busy', battery: 0.3, room: 'lobby', target: '210' }, [])).toMatchObject({
+      state: 'en_route', targetRoom: '210',
+    })
+  })
+
   it('charging and fault come straight from the robot', () => {
     expect(toRobot({ id: 'b', status: 'charging', battery: 0.3, room: 'dock' }, []).state).toBe('charging')
     expect(toRobot({ id: 'b', status: 'fault', battery: 0.3, room: null }, []).state).toBe('fault')
+    expect(toRobot({ id: 'b', status: 'offline', battery: 0, room: null }, []).state).toBe('offline')
   })
 
   it('a nurse keeps the shift and task count', () => {

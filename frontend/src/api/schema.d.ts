@@ -746,6 +746,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/robots/{robot_id}/follow-marker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Follow Marker */
+        post: operations["follow_marker_robots__robot_id__follow_marker_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/robots/{robot_id}/stop": {
         parameters: {
             query?: never;
@@ -1360,6 +1377,8 @@ export interface components {
             battery: number;
             /** Room */
             room?: string | null;
+            /** Target */
+            target?: string | null;
         };
         /** RobotReport */
         RobotReport: {
@@ -1368,12 +1387,14 @@ export interface components {
             battery: number;
             /** Room */
             room?: string | null;
+            /** Target */
+            target?: string | null;
         };
         /**
          * RobotStatus
          * @enum {string}
          */
-        RobotStatus: "idle" | "busy" | "charging" | "fault";
+        RobotStatus: "idle" | "busy" | "charging" | "fault" | "offline";
         /** ScoreIn */
         ScoreIn: {
             /** Urgency */
@@ -3083,6 +3104,62 @@ export interface operations {
         };
     };
     navigate_robot_robots__robot_id__navigate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                robot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NavigateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Robot"];
+                };
+            };
+            /** @description unknown robot */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description robot is not idle */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description robot command failed */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    follow_marker_robots__robot_id__follow_marker_post: {
         parameters: {
             query?: never;
             header?: never;

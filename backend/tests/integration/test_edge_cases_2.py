@@ -1076,6 +1076,9 @@ def test_idle_report_on_busy_robot_stays_busy_but_updates_battery(client):
     assert second["robot_id"] is None
     client.post(f"/calls/{cid}/in-visit")
     client.post(f"/calls/{cid}/resolve")
+    # Freed by the resolve, the robot is sent to the second call that was waiting for one.
+    assert client.get(f"/calls/{second['id']}").json()["robot_id"] == "robot_1"
+    client.post(f"/calls/{second['id']}/resolve")
     freed = client.put("/robots/robot_1", json={"status": "idle", "battery": 0.5}).json()
     assert freed["status"] == RobotStatus.IDLE
 

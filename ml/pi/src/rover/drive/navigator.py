@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from typing import Protocol
@@ -15,17 +16,17 @@ class Navigator(Protocol):
     def start(self, room: str) -> None:
         """Begin heading for room (a repeat call for the same room must not restart)."""
 
+    def start_follow(self, room: str) -> None:
+        """Begin maintaining standoff from a moving marker without declaring arrival."""
+
     def step(self, car: FakeCar | RealCar) -> bool:
         """Command the car for one loop tick; True once the room is reached."""
 
     def cancel(self) -> None:
         """Forget the goal."""
 
-
-def _blocked(car: FakeCar | RealCar) -> bool:
-    """The ultrasonic reads closer than STOP_DISTANCE_CM. No reading (None) counts as clear."""
-    distance = car.distance_cm()
-    return distance is not None and distance < config.STOP_DISTANCE_CM
+    def failed(self) -> bool:
+        """True only when navigation stopped without reaching the requested room."""
 
 
 class SimNavigator:
@@ -49,13 +50,19 @@ class SimNavigator:
         if room != self._room:
             self._room, self._started = room, self._clock()
 
+    def start_follow(self, room: str) -> None:
+        # Simulation has no marker stream; retaining normal travel behavior keeps its test
+        # contract useful without claiming it models person-following.
+        self.start(room)
+
     def step(self, car: FakeCar | RealCar) -> bool:
         if self._room is None:
             return True
         if self._clock() - self._started >= self._travel_s:
             car.stop()
             return True
-        if _blocked(car):
+        distance = car.distance_cm()
+        if distance is not None and distance < config.STOP_DISTANCE_CM:
             car.stop()
         else:
             car.drive(config.FORWARD_DUTY, config.FORWARD_DUTY)
@@ -64,12 +71,17 @@ class SimNavigator:
     def cancel(self) -> None:
         self._room = None
 
+    def failed(self) -> bool:
+        return False
+
 
 class HeadScanner:
     """Sweep the camera head while stationary, using only deployment-configured angles.
 
     Every head move goes through look(), so a marker sighting can be credited to the pose the
-    head was really in, and frames taken before a move can be told apart (settling()).
+    head was really in, and frames taken before a move can be told apart (settling()). The
+    pose starts unknown: a prior manual process may have left the head anywhere, so the first
+    look() always moves it and waits out the settle time before its x can steer the wheels.
     """
 
     def __init__(
@@ -78,7 +90,7 @@ class HeadScanner:
         pans: tuple[int, ...] = config.HEAD_SCAN_PANS,
         tilts: tuple[int, ...] = config.HEAD_SCAN_TILTS,
         dwell_s: float = config.HEAD_SCAN_DWELL_S,
-        settle_s: float = config.HEAD_SETTLE_S,
+        settle_s: float = config.HEAD_RECENTER_SETTLE_S,
     ) -> None:
         self._clock = clock
         self._positions = tuple((pan, tilt) for tilt in tilts for pan in pans)
@@ -148,7 +160,7 @@ class MarkerNavigator:
     ) -> None:
         self._vision, self._marker_for_room = vision, marker_for_room
         self._marker_id: int | None = None
-        self._scanner = scanner or HeadScanner()
+        self._scanner = scanner or HeadScanner(clock)
         self._clock, self._active_search = clock, active_search
         self._turn_duty, self._turn_s = search_turn_duty, search_turn_s
         self._turns_per_lap, self._advance_s, self._max_search_s = (
@@ -163,23 +175,54 @@ class MarkerNavigator:
         self._turns = 0
         self._turn_sign, self._turn_limit_s = -1, search_turn_s  # -1 left, +1 right
         self._search_expired = False
+        self._following = False
+        self._holding_distance = False
 
     def start(self, room: str) -> None:
+        self._begin(room, following=False)
+
+    def start_follow(self, room: str) -> None:
+        self._begin(room, following=True)
+
+    def _begin(self, room: str, *, following: bool) -> None:
+        # Never use a target frame captured before this command.  The physical marker might
+        # have been moved since the user selected it, and a stale close distance would otherwise
+        # turn a new drive into a false instant arrival.
+        self._vision.clear()
         self._marker_id = self._marker_for_room(room)
+        self._search_expired = False
+        self._following = following
+        self._holding_distance = False
         self._reset_search()
 
     def cancel(self) -> None:
         self._marker_id = None
+        self._following = False
+        self._holding_distance = False
         self._reset_search()
+
+    def failed(self) -> bool:
+        return self._search_expired
 
     def _reset_search(self) -> None:
         self._scan_again()
-        self._search_started, self._turns, self._search_expired = None, 0, False
+        self._search_started, self._turns = None, 0
 
     def _scan_again(self) -> None:
         self._scanner.reset()
         self._search_phase, self._phase_started = "scan", 0.0
         self._turn_sign, self._turn_limit_s = -1, self._turn_s
+
+    @staticmethod
+    def _forward_clear(car: FakeCar | RealCar) -> bool:
+        """Moving forward without a valid clear ultrasonic reading is never safe."""
+        distance = car.distance_cm()
+        return (
+            isinstance(distance, int | float)
+            and not isinstance(distance, bool)
+            and math.isfinite(distance)
+            and distance >= config.STOP_DISTANCE_CM
+        )
 
     def _search(self, car: FakeCar | RealCar) -> bool:
         now = self._clock()
@@ -224,7 +267,7 @@ class MarkerNavigator:
             car.stop()
             self._phase_started = now  # the step's time starts once the head is level
             return False
-        if _blocked(car) or now - self._phase_started >= self._advance_s:
+        if not self._forward_clear(car) or now - self._phase_started >= self._advance_s:
             car.stop()
             self._turns = 0
             self._scan_again()
@@ -272,26 +315,53 @@ class MarkerNavigator:
 
     def step(self, car: FakeCar | RealCar) -> bool:
         marker_id = self._marker_id
-        if marker_id is None:
-            return self._search(car)
-        target = self._target(marker_id)
+        target = None if marker_id is None else self._target(marker_id)
         if target is None:
-            return self._search(car)
+            return self._follow_search(car) if self._following else self._search(car)
         if self._scanner.settling():
             car.stop()  # this frame may predate the last head move, so its pose is unknown
             return False
         pan = self._scanner.pan
-        if pan is not None and pan != config.PAN_CENTER:
+        if pan is not None and pan != config.PAN_CENTER and not self._following:
             return self._face(car, pan)
         # A current target always wins over a previous search phase. Its current camera x value
-        # is used immediately; no landmark ID ordering or hardcoded room relation is assumed.
+        # is used once the head faces forward; no landmark ID ordering or room relation is assumed.
+        # A followed person is re-centred on, never turned toward blindly.
         self._reset_search()
-        self._scanner.look(car, config.PAN_CENTER, config.TILT_APPROACH)
+        tilt = config.TILT_DRIVE if self._following else config.TILT_APPROACH
+        self._scanner.look(car, config.PAN_CENTER, tilt)
         distance, x = target
-        if distance <= config.ARRIVE_DISTANCE_M:
+        if not self._following and distance <= config.ARRIVE_DISTANCE_M:
             car.stop()
             return True
-        if _blocked(car) or self._scanner.settling():
+        if self._scanner.settling():
+            car.stop()
+            return False
+        if self._following:
+            return self._follow_target(car, distance, x)
+        if not self._forward_clear(car):
+            car.stop()
+            return False
+        correction = config.STEER_GAIN * x
+        car.drive(config.FORWARD_DUTY + correction, config.FORWARD_DUTY - correction)
+        return False
+
+    def _follow_search(self, car: FakeCar | RealCar) -> bool:
+        """A lost moving person causes a stationary head scan, never blind exploration."""
+        car.stop()
+        self._scanner.step(car)
+        return False
+
+    def _follow_target(self, car: FakeCar | RealCar, distance: float, x: float) -> bool:
+        """Maintain configured personal space; following deliberately never signals arrival."""
+        if distance <= config.FOLLOW_MARKER_STOP_DISTANCE_M or (
+            self._holding_distance and distance <= config.FOLLOW_MARKER_RESUME_DISTANCE_M
+        ):
+            self._holding_distance = True
+            car.stop()
+            return False
+        self._holding_distance = False
+        if not self._forward_clear(car):
             car.stop()
             return False
         correction = config.STEER_GAIN * x

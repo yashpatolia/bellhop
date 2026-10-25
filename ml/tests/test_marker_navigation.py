@@ -5,6 +5,8 @@ from rover.drive.car import FakeCar
 from rover.drive.navigator import HeadScanner, MarkerNavigator
 from rover.drive.vision import VisionReceiver
 
+SETTLE = config.HEAD_RECENTER_SETTLE_S
+
 
 class Clock:
     def __init__(self):
@@ -36,20 +38,23 @@ def receiver(clock, markers):
 
 def test_target_marker_wins_over_a_closer_distractor():
     clock = Clock()
-    stream = receiver(
-        clock,
-        [
+    frame = {
+        "markers": [
             {"id": 208, "distance_m": 0.2, "x": 0.0},
             {"id": 210, "distance_m": 2.0, "x": 0.3},
-        ],
-    )
-    nav = MarkerNavigator(stream, scanner=HeadScanner(clock), clock=clock)
+        ]
+    }
+    stream = receiver(clock, frame["markers"])
+    nav = MarkerNavigator(stream, clock=clock)
     car = FakeCar()
     nav.start("210")
+    stream.ingest(frame)
 
     assert not nav.step(car)  # head turns to the approach pose first
+    assert car._last["head"] == (config.PAN_CENTER, config.TILT_APPROACH)
     assert car._last["drive"] == (0, 0)
-    clock.now = config.HEAD_SETTLE_S
+    clock.now += SETTLE
+    stream.ingest(frame)
     assert not nav.step(car)
     assert car._last["drive"][0] > 0
     assert car._last["drive"] != (0, 0)
@@ -57,12 +62,14 @@ def test_target_marker_wins_over_a_closer_distractor():
 
 def test_approach_stops_for_an_obstacle_and_resumes_when_clear():
     clock = Clock()
-    stream = receiver(clock, [{"id": 210, "distance_m": 2.0, "x": 0.0}])
-    nav = MarkerNavigator(stream, scanner=HeadScanner(clock), clock=clock)
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(stream, clock=clock)
     car = Car(distance=config.STOP_DISTANCE_CM - 1)
     nav.start("210")
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.0}]})
     nav.step(car)
-    clock.now = config.HEAD_SETTLE_S
+    clock.now = SETTLE
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.0}]})
 
     assert not nav.step(car)
     assert car._last["drive"] == (0, 0)
@@ -95,13 +102,57 @@ def test_missing_or_stale_target_stops_wheels_and_sweeps_head():
 
 def test_target_arrival_stops_at_the_configured_distance_even_when_blocked():
     clock = Clock()
-    stream = receiver(clock, [{"id": 210, "distance_m": 0.5, "x": 0.0}])
-    nav = MarkerNavigator(stream)
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(stream, clock=clock)
     car = Car(distance=1.0)
     nav.start("210")
+    stream.ingest({"markers": [{"id": 210, "distance_m": 0.5, "x": 0.0}]})
 
     assert nav.step(car)
     assert car._last["drive"] == (0, 0)
+
+
+def test_target_approach_never_drives_without_a_clear_ultrasonic_reading():
+    clock = Clock()
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(stream, clock=clock)
+    car = Car(distance=None)
+    nav.start("210")
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.0}]})
+    nav.step(car)
+    clock.now += SETTLE  # past the head settle, so only the missing reading holds it
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.0}]})
+
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+
+
+def test_target_found_during_a_head_scan_recenters_before_body_steering():
+    clock = Clock()
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(
+        stream,
+        scanner=HeadScanner(clock, pans=(70, 110), tilts=(80,), dwell_s=0.1),
+        clock=clock,
+    )
+    car = FakeCar()
+    nav.start("210")
+    nav.step(car)
+    assert car._last["head"] == (70, 80)
+
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.6}]})
+    assert not nav.step(car)  # this frame may predate the head move
+    assert car._last["drive"] == (0, 0)
+    clock.now += SETTLE
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.6}]})
+    assert not nav.step(car)
+    assert car._last["head"] == (config.PAN_CENTER, config.TILT_APPROACH)
+    assert car._last["drive"] == (0, 0)
+
+    clock.now += SETTLE
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
 
 
 def test_malformed_vision_never_causes_motion():
@@ -110,6 +161,7 @@ def test_malformed_vision_never_causes_motion():
     nav = MarkerNavigator(stream)
     car = FakeCar()
     nav.start("210")
+    stream.ingest({"markers": [{"id": 210, "distance_m": "not-a-number", "x": 0.0}]})
 
     assert not nav.step(car)
     assert car._last["drive"] == (0, 0)
@@ -129,6 +181,69 @@ def test_scanner_dwells_on_the_last_pose_before_the_sweep_is_done():
     assert not scanner.step(car)  # the right-hand view still gets its full dwell
     clock.now = 1.0
     assert scanner.step(car)
+
+
+def test_new_command_ignores_a_pre_command_near_target_frame():
+    """Moving a marker before pressing Drive cannot reuse the old arrival distance."""
+    clock = Clock()
+    stream = receiver(clock, [{"id": 208, "distance_m": 0.2, "x": 0.0}])
+    nav = MarkerNavigator(stream, clock=clock)
+    car = FakeCar()
+
+    nav.start("208")
+    assert not nav.step(car)  # old 20 cm observation was cleared; search starts, no arrival
+
+    stream.ingest({"markers": [{"id": 208, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)  # frame may predate the search head pose
+    clock.now += SETTLE
+    stream.ingest({"markers": [{"id": 208, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)  # seen with the head panned: re-centre first
+    clock.now += SETTLE
+    stream.ingest({"markers": [{"id": 208, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
+
+
+def test_following_marker_holds_standoff_then_resumes_without_arrival():
+    clock = Clock()
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(stream, clock=clock)
+    car = FakeCar()
+
+    nav.start_follow("208")
+    stream.ingest({"markers": [{"id": 208, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)  # head re-centres first
+    assert car._last["head"] == (config.PAN_CENTER, config.TILT_DRIVE)
+    clock.now += SETTLE
+    stream.ingest({"markers": [{"id": 208, "distance_m": 2.0, "x": 0.0}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
+
+    stream.ingest(
+        {"markers": [{"id": 208, "distance_m": config.FOLLOW_MARKER_STOP_DISTANCE_M, "x": 0.0}]}
+    )
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+
+    stream.ingest(
+        {
+            "markers": [
+                {"id": 208, "distance_m": config.FOLLOW_MARKER_RESUME_DISTANCE_M - 0.01, "x": 0.0}
+            ]
+        }
+    )
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+
+    stream.ingest(
+        {
+            "markers": [
+                {"id": 208, "distance_m": config.FOLLOW_MARKER_RESUME_DISTANCE_M + 0.01, "x": 0.0}
+            ]
+        }
+    )
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
 
 
 def test_missing_target_searches_with_stationary_scan_then_turns_and_advances():
@@ -181,16 +296,16 @@ def test_sideways_sighting_turns_the_body_toward_it_never_forward(pan, turn):
     assert not nav.step(car)
     assert car._last["head"] == (pan, 120)
 
-    clock.now = 0.3
+    clock.now = SETTLE
     assert stream.ingest({"markers": [{"id": 210, "distance_m": 1.8, "x": 0.0}]})
     assert not nav.step(car)
     assert car._last["head"] == (config.PAN_CENTER, config.TILT_APPROACH)
     assert car._last["drive"] == (0, 0)
-    clock.now = 0.4
+    clock.now = SETTLE + 0.1
     assert stream.ingest({"markers": [{"id": 210, "distance_m": 1.8, "x": 0.0}]})
     assert not nav.step(car)  # a frame from before the head turned is not steered on
     assert car._last["drive"] == (0, 0)
-    clock.now = 0.8
+    clock.now = 2 * SETTLE + 0.2
     assert stream.ingest({"markers": []})
     assert not nav.step(car)
     assert car._last["drive"] == turn
@@ -213,7 +328,7 @@ def test_hallway_step_follows_the_tape_and_stops_off_it(bits):
     nav.step(car)
     clock.now = 0.1
     nav.step(car)  # scan done -> forward step with the head level
-    clock.now = config.HEAD_SETTLE_S + 0.05
+    clock.now = SETTLE + 0.05
     assert stream.ingest({"markers": []})
 
     assert not nav.step(car)
@@ -225,3 +340,23 @@ def test_hallway_step_follows_the_tape_and_stops_off_it(bits):
             int(config.LINE_DUTY + correction),
             int(config.LINE_DUTY - correction),
         )
+
+
+def test_marker_search_timeout_is_a_failure_not_an_arrival():
+    clock = Clock()
+    stream = receiver(clock, [])
+    nav = MarkerNavigator(
+        stream,
+        scanner=HeadScanner(clock, pans=(90,), tilts=(90,), dwell_s=0.1),
+        clock=clock,
+        active_search=False,
+        search_max_s=0.2,
+    )
+    car = FakeCar()
+    nav.start("210")
+
+    assert not nav.step(car)
+    clock.now = 0.2
+    assert not nav.step(car)
+    assert nav.failed()
+    assert car._last["drive"] == (0, 0)

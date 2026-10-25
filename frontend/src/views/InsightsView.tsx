@@ -43,7 +43,7 @@ export function InsightsView({ data }: { data: BellhopData }) {
           <header className="panel-head">
             <h2>Response time target</h2>
           </header>
-          <Ring value={k.within10} target={0.8} label="Answered within 10 minutes" sub="Target: 80% of calls. This is the 80/10 service level." />
+          <Ring value={k.within10} target={0.8} label="Answered within 10 minutes" sub="The goal is 8 in every 10 calls answered within 10 minutes." />
         </section>
         <section className="panel">
           <header className="panel-head">

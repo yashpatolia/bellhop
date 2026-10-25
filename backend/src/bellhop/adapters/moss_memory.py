@@ -43,6 +43,11 @@ class MossMemoryIndex:
                 log.warning("moss upsert failed; fallback index still has the fact", exc_info=True)
 
     def recall(self, resident_id: str, utterance: str, k: int = 3) -> list[MemoryFact]:
+        # Empty recall is the rover's request for a small resident briefing.  It has no
+        # semantic query to send over the network; the local source of truth can answer
+        # it immediately and deterministically.
+        if not utterance.strip():
+            return self._fallback.recall(resident_id, utterance, k)
         if self._configured:
             try:
                 found = self._resolve(resident_id, self._search(resident_id, utterance, k))
@@ -73,9 +78,10 @@ class MossMemoryIndex:
 
     def _resolve(self, resident_id: str, fact_ids: list[str]) -> list[MemoryFact]:
         # The wrapped index is the source of truth: Moss may still hold deleted facts.
-        live = {f.id for f in self.facts(resident_id)}
-        facts = (self._facts.get(i) for i in fact_ids if i in live)
-        return [f for f in facts if f is not None and f.resident_id == resident_id]
+        # Do not use only ``_facts`` here.  SpacetimeDB hydrates the wrapped local index
+        # at startup, so persisted facts predate this wrapper and are not in that cache.
+        live = {fact.id: fact for fact in self.facts(resident_id)}
+        return [live[fact_id] for fact_id in fact_ids if fact_id in live]
 
     # --- Moss SDK boundary: the only code that touches the SDK (API shape unverified). ---
 

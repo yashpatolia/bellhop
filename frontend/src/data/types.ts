@@ -106,7 +106,7 @@ export interface Resident {
   medical: MedicalHistory
 }
 
-export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging' | 'fault'
+export type RobotState = 'idle' | 'en_route' | 'with_resident' | 'charging' | 'fault' | 'offline'
 
 export interface Robot {
   id: string
@@ -173,6 +173,8 @@ export interface Actions {
   updateResident: (residentId: string, input: ResidentInput) => Promise<void>
   /** Drive this robot to a room or marker (POST /robots/{id}/navigate). True once the robot accepted it. */
   driveRobot: (robotId: string, target: string) => Promise<boolean>
+  /** Maintain standoff from a moving physical ArUco marker (POST /robots/{id}/follow-marker). */
+  followMarker: (robotId: string, target: string) => Promise<boolean>
   /** Ask this robot to stop where it is (POST /robots/{id}/stop). */
   stopRobot: (robotId: string) => Promise<boolean>
   /** Add a robot to the fleet (PUT /robots/{id}), standing by at `room` if given. Rejects with the backend's reason. */

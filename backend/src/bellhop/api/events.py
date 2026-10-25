@@ -2,8 +2,9 @@
 
 The bus is synchronous and may run in worker threads, so `emit` only appends to a bounded
 per-client deque and wakes the client's event loop with `call_soon_threadsafe`. It never
-blocks or awaits: a slow or dead client cannot slow `publish`. Messages carry ids only; the
-full Call, Alert or Robot is read from the store when a frame is sent.
+blocks or awaits: a slow or dead client cannot slow `publish`. Each message captures its full
+Call, Alert or Robot at emission time, so a delayed client never receives a later state under
+an earlier event name.
 """
 
 from __future__ import annotations
@@ -19,13 +20,21 @@ from typing import Any
 
 from fastapi.encoders import jsonable_encoder
 
-from bellhop.domain.events import AlertRaised, CallAssigned, CallRaised, CallResolved, CallScored
+from bellhop.domain.events import (
+    AlertRaised,
+    CallAssigned,
+    CallRaised,
+    CallResolved,
+    CallScored,
+    CallUpdated,
+)
 
 log = logging.getLogger(__name__)
 
 EVENT_NAMES = {
     CallRaised: "call.raised",
     CallAssigned: "call.assigned",
+    CallUpdated: "call.updated",
     CallScored: "call.scored",
     CallResolved: "call.resolved",
     AlertRaised: "alert.raised",
@@ -42,6 +51,7 @@ class Message:
     id: int
     name: str
     ids: dict[str, Any]
+    payload: dict[str, Any] | None = None
 
 
 @dataclass(eq=False)
@@ -107,7 +117,9 @@ class EventStream:
         dead: list[Client] = []
         with self._lock:
             self._counter += 1
-            message = Message(self._counter, name, ids)
+            # A Call continues to mutate during a visit. Snapshot before queueing so an old
+            # `call.updated` event cannot claim a later (for example resolved) state.
+            message = Message(self._counter, name, ids, self._payload(name, ids))
             for client in self._clients:
                 client.queue.append(message)  # bounded: the oldest is dropped, never blocks
                 if client.loop is not None and client.wakeup is not None:
@@ -119,22 +131,24 @@ class EventStream:
                 client.closed = True
                 self._clients.remove(client)
 
-    def _payload(self, message: Message) -> dict[str, Any]:
-        ids = message.ids
+    def _payload(self, name: str, ids: dict[str, Any]) -> dict[str, Any]:
         data: dict[str, Any] = dict(ids)
         try:
-            if message.name == "alert.raised":
+            if name == "alert.raised":
                 data["alert"] = jsonable_encoder(self._store.alerts.get(ids["alert_id"]))
-            elif message.name == "robot.updated":
+            elif name == "robot.updated":
                 data["robot"] = jsonable_encoder(self._store.robots.get(ids["robot_id"]))
             else:
                 data["call"] = jsonable_encoder(self._store.calls.get(ids["call_id"]))
         except Exception:
-            log.exception("could not load object for %s", message.name)
+            log.exception("could not load object for %s", name)
         return data
 
     def frame(self, message: Message) -> str:
-        data = json.dumps(self._payload(message), separators=(",", ":"))
+        payload = message.payload
+        if payload is None:
+            payload = self._payload(message.name, message.ids)
+        data = json.dumps(payload, separators=(",", ":"))
         return f"id: {message.id}\nevent: {message.name}\ndata: {data}\n\n"
 
     async def frames(self, client: Client) -> AsyncIterator[str]:

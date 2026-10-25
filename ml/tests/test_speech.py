@@ -1,4 +1,5 @@
 import math
+import threading
 import time
 from types import SimpleNamespace
 
@@ -207,6 +208,44 @@ def test_mic_half_duplex_mute_and_echo_tail():
     assert not mic.muted(stopped + config.ECHO_TAIL_S + 0.05)
     mic.set_speaking(False)  # a repeated "not speaking" must not restart the tail
     assert not mic.muted(stopped + config.ECHO_TAIL_S + 0.05)
+
+
+def test_mic_discards_stale_blocks_when_the_consumer_falls_behind(monkeypatch):
+    """A busy cloud reply must not make the next heard sentence several seconds old."""
+    monkeypatch.setattr(config, "MIC_QUEUE_BLOCKS", 2)
+    mic = Mic()
+    for value in (1, 2, 3):
+        mic._on_audio(np.full((config.BLOCK_SAMPLES, 1), value, dtype=np.int16), 0, None, None)
+
+    assert [mic.read()[0], mic.read()[0]] == [2, 3]
+
+
+def test_flux_send_never_blocks_the_microphone_loop():
+    class SlowSocket:
+        def __init__(self):
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def send_media(self, pcm):
+            self.started.set()
+            self.release.wait(1)
+
+    flux = FluxStream([], lambda *_: None)
+    socket = SlowSocket()
+    flux._socket, flux._live = socket, True
+    flux._sender = threading.Thread(target=flux._send_loop, daemon=True)
+    flux._sender.start()
+
+    flux.send(b"first")
+    assert socket.started.wait(0.2)
+    started = time.monotonic()
+    flux.send(b"second")
+    assert time.monotonic() - started < 0.05
+
+    socket.release.set()
+    flux._live = False
+    flux._media.put_nowait(None)
+    flux._sender.join(1)
 
 
 def test_moonshine_requires_a_complete_cached_model(tmp_path):

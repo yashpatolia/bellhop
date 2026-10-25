@@ -97,8 +97,23 @@ def test_history_keeps_last_exchanges(monkeypatch):
     history.add("resident", "last")
     messages = history.messages()
     assert messages[0]["role"] == "user"
-    assert [m["content"] for m in messages] == ["r4", "b4", "last"]
+    assert "r3" in messages[0]["content"] and messages[0]["content"].endswith("r4")
+    assert [m["content"] for m in messages[1:]] == ["b4", "last"]
     assert len(history.transcript()) == 12
+
+
+def test_history_keeps_a_compact_reminder_when_a_visit_runs_long(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_EXCHANGES", 1)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    history.add("resident", "My daughter Ana visits on Sundays.")
+    history.add("robot", "I will remember that Ana visits on Sundays.")
+    history.add("resident", "What did I tell you about my daughter?")
+
+    messages = history.messages()
+    assert messages[0]["role"] == "user"
+    assert "daughter Ana visits on Sundays" in messages[0]["content"]
+    assert "What did I tell you" in messages[-1]["content"]
 
 
 def test_split_tone():

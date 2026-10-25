@@ -11,8 +11,9 @@ import { FACT_KIND_OF, isFactCategory } from './staffEntries'
 const POLL_MS = 10_000
 const RETRY_MS = 3_000
 const PROBLEM_MS = 8_000
+const REQUEST_TIMEOUT_MS = 5_000
 const MAX_CALLS = 1000
-const EVENTS = ['call.raised', 'call.assigned', 'call.scored', 'call.resolved', 'alert.raised', 'robot.updated'] as const
+const EVENTS = ['call.raised', 'call.assigned', 'call.updated', 'call.scored', 'call.resolved', 'alert.raised', 'robot.updated'] as const
 
 export interface StoreOptions {
   baseUrl: string
@@ -60,6 +61,9 @@ export class LiveStore {
   private problemTimer: ReturnType<typeof setTimeout> | undefined
   private stream: EventSource | null = null
   private running = false
+  private refreshJob: Promise<void> | null = null
+  /** Invalidate a REST snapshot whenever a newer REST load or SSE event changes live state. */
+  private liveEpoch = 0
   private connection: Snapshot['connection'] = { state: 'connecting', problem: null, empty: false }
   private readonly base: string
   private readonly fetchFn: typeof fetch
@@ -102,7 +106,9 @@ export class LiveStore {
   // -- loading --------------------------------------------------------------------------------
   private async connect() {
     try {
-      await Promise.all([this.loadLive(), this.loadResidents()])
+      // Robot status and Stop must remain usable when a nonessential profile service has a
+      // partial outage. Loading live controls first makes that distinction explicit.
+      await this.loadLive()
     } catch (e) {
       this.goOffline(e)
       return
@@ -111,6 +117,12 @@ export class LiveStore {
     this.openStream()
     clearInterval(this.poll)
     this.poll = setInterval(() => void this.refresh(), POLL_MS)
+    try {
+      await this.loadResidents()
+    } catch (e) {
+      const why = e instanceof Error ? e.message : 'unknown error'
+      this.showProblem(`Resident details could not be loaded (${why}). Robot controls remain available.`)
+    }
   }
 
   private goOffline(e: unknown) {
@@ -125,6 +137,7 @@ export class LiveStore {
 
   /** Calls, alerts, robots, nurses and metrics: everything the live screen shows. */
   async loadLive() {
+    const epoch = ++this.liveEpoch
     const [calls, alerts, robots, nurses, metrics] = await Promise.all([
       this.get<ApiCall[]>(`/calls?limit=${MAX_CALLS}`),
       this.get<ApiAlert[]>('/alerts?limit=1000'),
@@ -132,6 +145,9 @@ export class LiveStore {
       this.get<ApiNurse[]>('/nurses'),
       this.get<ApiMetrics>('/metrics'),
     ])
+    // An SSE event or a later refresh won the race. Applying this older snapshot would make a
+    // resolved call or a stopped robot appear to move backwards in the touchscreen.
+    if (epoch !== this.liveEpoch) return
     this.raw.calls = new Map(calls.map((c) => [c.id, c]))
     this.raw.alerts = new Map(alerts.map((a) => [a.id, a]))
     this.raw.robots = new Map(robots.map((r) => [r.id, r]))
@@ -172,7 +188,17 @@ export class LiveStore {
     return { prefs, facts, pending, medical, care }
   }
 
-  private async refresh() {
+  private refresh(): Promise<void> {
+    if (this.refreshJob) return this.refreshJob
+    const job = this.refreshOnce()
+    this.refreshJob = job
+    void job.finally(() => {
+      if (this.refreshJob === job) this.refreshJob = null
+    })
+    return job
+  }
+
+  private async refreshOnce() {
     try {
       await this.loadLive()
       if (this.connection.state !== 'live') this.setConnection({ state: 'live', problem: null })
@@ -190,10 +216,22 @@ export class LiveStore {
     this.stream = es
     // Events missed while disconnected are not replayed: refetch on every (re)connect.
     es.addEventListener('open', () => void this.refresh())
-    for (const name of EVENTS) es.addEventListener(name, (e) => this.onEvent(name, JSON.parse((e as MessageEvent).data)))
+    es.addEventListener('error', () => void this.refresh())
+    for (const name of EVENTS) {
+      es.addEventListener(name, (e) => {
+        try {
+          const data: unknown = JSON.parse((e as MessageEvent).data)
+          if (data && typeof data === 'object') this.onEvent(name, data as Record<string, unknown>)
+        } catch {
+          this.showProblem('Bellhop sent an invalid live update. Refreshing from the server.')
+          void this.refresh()
+        }
+      })
+    }
   }
 
   onEvent(name: (typeof EVENTS)[number], data: Record<string, unknown>) {
+    this.liveEpoch += 1
     if (name === 'alert.raised' && data.alert) this.raw.alerts.set((data.alert as ApiAlert).id, data.alert as ApiAlert)
     else if (name === 'robot.updated' && data.robot) this.raw.robots.set((data.robot as ApiRobot).id, data.robot as ApiRobot)
     else if (data.call) {
@@ -229,10 +267,11 @@ export class LiveStore {
         await this.loadLive()
       }),
     driveRobot: (robotId, target) => this.command(robotId, 'navigate', { target }),
+    followMarker: (robotId, target) => this.command(robotId, 'follow-marker', { target }),
     stopRobot: (robotId) => this.command(robotId, 'stop'),
     addRobot: async (robotId, room) => {
-      // The robot replaces battery and position with its own the first time it reports in.
-      const robot = await this.send<ApiRobot>('PUT', `/robots/${encodeURIComponent(robotId)}`, { status: 'idle', battery: 1, room })
+      // Offline until the robot itself reports in: it takes no calls before then.
+      const robot = await this.send<ApiRobot>('PUT', `/robots/${encodeURIComponent(robotId)}`, { status: 'offline', battery: 0, room })
       this.raw.robots.set(robot.id, robot)
       this.touch()
     },
@@ -266,11 +305,17 @@ export class LiveStore {
       const out = await this.send<ApiRefined>('POST', `/residents/${residentId}/notes/refine`, draft)
       return { category: out.category as EntryCategory, text: out.text, since: out.since ?? undefined, notes: out.notes ?? [] }
     },
-    addEntry: (residentId, entry) =>
-      this.guard(async () => {
+    addEntry: async (residentId, entry) => {
+      try {
         await this.saveEntry(residentId, entry)
         await this.refreshResident(residentId)
-      }),
+      } catch (e) {
+        this.showProblem(e instanceof Error ? e.message : 'That did not work.')
+        // Forms need this rejection to keep reviewed clinical-adjacent information visible
+        // instead of claiming it was saved after the server refused it.
+        throw e
+      }
+    },
     reviewFact: (residentId, factId, decision) =>
       this.guard(async () => {
         await this.send('POST', `/residents/${residentId}/memory/pending/${factId}/${decision}`)
@@ -288,7 +333,7 @@ export class LiveStore {
   }
 
   /** A manual robot command. The backend answers with the robot, so the screen updates at once. */
-  private async command(robotId: string, what: 'navigate' | 'stop', body?: unknown): Promise<boolean> {
+  private async command(robotId: string, what: 'navigate' | 'follow-marker' | 'stop', body?: unknown): Promise<boolean> {
     try {
       const robot = await this.send<ApiRobot>('POST', `/robots/${encodeURIComponent(robotId)}/${what}`, body)
       this.raw.robots.set(robot.id, robot)
@@ -333,7 +378,22 @@ export class LiveStore {
   }
 
   private async send<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await this.fetchFn(`${this.base}${path}`, { method, headers: this.headers(), body: body === undefined ? undefined : JSON.stringify(body) })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    let res: Response
+    try {
+      res = await this.fetchFn(`${this.base}${path}`, {
+        method,
+        headers: this.headers(),
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (e) {
+      if (controller.signal.aborted) throw new Error(`${method} ${path} timed out`)
+      throw e
+    } finally {
+      clearTimeout(timer)
+    }
     if (!res.ok) {
       let detail = ''
       try {

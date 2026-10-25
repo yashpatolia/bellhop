@@ -62,6 +62,18 @@ class _ResidentIndex:
             self.postings.setdefault(token, {})[fact.id] = weight
 
     def recall(self, utterance: str, k: int) -> list[MemoryFact]:
+        if k <= 0:
+            return []
+        # An empty query is a deliberate resident briefing request from the rover and the
+        # learning pipeline. There are no lexical terms to score, so return a bounded,
+        # deterministic newest-first briefing instead of pretending this resident has no
+        # memories at all.
+        if not utterance.strip():
+            ranked = sorted(
+                self.facts,
+                key=lambda i: (-self.facts[i].created_at.timestamp(), i),
+            )
+            return [self.facts[i] for i in ranked[:k]]
         scores: dict[str, float] = {}
         for token in tokenize(utterance):
             for fact_id, weight in list(self.postings.get(token, {}).items()):

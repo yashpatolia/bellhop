@@ -3,14 +3,14 @@ import pytest
 from bellhop.adapters.event_bus import InMemoryEventBus
 from bellhop.adapters.memory_store import InMemoryStore
 from bellhop.domain import CallStatus, InvalidTransition, Resident, Urgency
-from bellhop.domain.events import CallRaised, CallResolved, CallScored
+from bellhop.domain.events import CallRaised, CallResolved, CallScored, CallUpdated
 from bellhop.services.call_service import CallNotFound, CallService
 
 
 @pytest.fixture
 def env(clock, ids):
     store, bus, events = InMemoryStore(), InMemoryEventBus(), []
-    for t in (CallRaised, CallScored, CallResolved):
+    for t in (CallRaised, CallScored, CallResolved, CallUpdated):
         bus.subscribe(t, events.append)
     svc = CallService(store.calls, store.residents, bus, clock, ids)
     return svc, store, events
@@ -32,12 +32,13 @@ def test_raise_call_attaches_resident_by_room(env):
     assert svc.raise_call("99").resident_id is None
 
 
-def test_add_turn_appends_to_transcript(env):
-    svc, store, _ = env
+def test_add_turn_appends_to_transcript_and_publishes_a_live_update(env):
+    svc, store, events = env
     call = svc.raise_call("12")
     svc.add_turn(call.id, "resident", "I'd like tea")
     turns = store.calls.get(call.id).transcript
     assert [(t.speaker, t.text) for t in turns] == [("resident", "I'd like tea")]
+    assert events[-1] == CallUpdated(call_id=call.id)
 
 
 def test_score_records_summary_and_publishes(env):
@@ -63,14 +64,15 @@ def test_lower_rescore_keeps_urgency_and_publishes_effective_level(env):
     assert events[-1].category == "fall"
 
 
-def test_mark_in_visit_sets_first_response(env, clock):
-    svc, store, _ = env
+def test_mark_in_visit_sets_first_response_and_publishes_a_live_update(env, clock):
+    svc, store, events = env
     call = svc.raise_call("12")
     store.calls.save(_assigned(store, call.id, clock))
     svc.mark_in_visit(call.id)
     saved = store.calls.get(call.id)
     assert saved.status is CallStatus.IN_VISIT
     assert saved.first_response_at == clock.now()
+    assert events[-1] == CallUpdated(call_id=call.id)
 
 
 def _assigned(store, call_id, clock):

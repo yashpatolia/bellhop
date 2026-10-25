@@ -2,7 +2,9 @@
 
 import contextlib
 import os
+import queue
 import threading
+import time
 from collections.abc import Callable
 
 from deepgram import DeepgramClient
@@ -25,6 +27,9 @@ class FluxStream:
         self._stack = contextlib.ExitStack()
         self._socket = None
         self._live = False
+        self._media: queue.Queue[bytes | None] = queue.Queue(maxsize=config.FLUX_SEND_QUEUE_BLOCKS)
+        self._sender: threading.Thread | None = None
+        self._last_queue_warning = 0.0
 
     def start(self) -> bool:
         api_key = os.environ.get("DEEPGRAM_API_KEY", "")
@@ -46,6 +51,8 @@ class FluxStream:
             print(f"fallback: Flux connect failed: {exc}")
             return False
         self._live = True
+        self._sender = threading.Thread(target=self._send_loop, name="flux-send", daemon=True)
+        self._sender.start()
         threading.Thread(target=self._listen, daemon=True).start()
         return True
 
@@ -54,18 +61,48 @@ class FluxStream:
         if not self._live:
             return
         try:
-            self._socket.send_media(pcm)
-        except Exception as exc:
-            self._fail(f"Flux send failed: {exc}")
+            self._media.put_nowait(pcm)
+        except queue.Full:
+            # Do not block the microphone loop on weak venue Wi-Fi. Keep the newest audio so a
+            # delayed sender cannot make the rover respond to a stale earlier sentence.
+            try:
+                self._media.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                self._media.put_nowait(pcm)
+            except queue.Full:
+                return
+            now = time.monotonic()
+            if now - self._last_queue_warning >= 1.0:
+                print("flux: send queue full; dropping stale audio")
+                self._last_queue_warning = now
 
     def close(self) -> None:
         was_live, self._live = self._live, False
+        try:
+            self._media.put_nowait(None)
+        except queue.Full:
+            pass
         try:
             if was_live:
                 self._socket.send_close_stream()
             self._stack.close()
         except Exception as exc:
             print(f"flux: close failed: {exc}")
+        if self._sender is not None:
+            self._sender.join(timeout=0.2)
+
+    def _send_loop(self) -> None:
+        while True:
+            pcm = self._media.get()
+            if pcm is None or not self._live:
+                return
+            try:
+                self._socket.send_media(pcm)
+            except Exception as exc:
+                self._fail(f"Flux send failed: {exc}")
+                return
 
     def _listen(self) -> None:
         try:

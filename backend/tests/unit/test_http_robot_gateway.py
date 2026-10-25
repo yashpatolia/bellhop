@@ -23,6 +23,30 @@ def test_go_to_posts_room():
     assert seen == [("POST", "http://pi.local:8080/go_to", b'{"room":"12"}')]
 
 
+def test_follow_marker_posts_marker_target():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, str(request.url), request.read()))
+        return httpx.Response(202)
+
+    make(handler).follow_marker("robot_1", "208")
+    assert seen == [("POST", "http://pi.local:8080/follow_marker", b'{"room":"208"}')]
+
+
+def test_default_client_bypasses_proxy_environment(monkeypatch):
+    seen = {}
+
+    def client(**kwargs):
+        seen.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("bellhop.adapters.http_robot_gateway.httpx.Client", client)
+    HttpRobotGateway("http://100.73.9.29:8080")
+
+    assert seen == {"timeout": 5.0, "trust_env": False}
+
+
 def test_set_led_posts_state():
     seen = []
 

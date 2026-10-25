@@ -136,6 +136,7 @@ export const LOW_BATTERY = 20
 /** Whether a robot can take a manual drive now, in words. The backend accepts only an idle robot. */
 export function robotAvailability(r: Robot): { free: boolean; words: string } {
   if (r.state === 'fault') return { free: false, words: 'Needs attention' }
+  if (r.state === 'offline') return { free: false, words: 'Not reporting yet' }
   if (r.state === 'charging') return { free: false, words: 'Charging' }
   if (r.state === 'en_route') return { free: false, words: r.targetRoom ? `Driving, room ${r.targetRoom}` : 'Driving' }
   if (r.state === 'with_resident') return { free: false, words: r.targetRoom ? `With a resident, room ${r.targetRoom}` : 'With a resident' }

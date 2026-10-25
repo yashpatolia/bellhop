@@ -91,14 +91,29 @@ class VisitHistory:
                 merged[-1]["content"] += f" {text}"
             else:
                 merged.append({"role": role, "content": text})
-        # shortcut: older exchanges are dropped; summarise them if visits get long
-        recent = merged[-2 * config.HISTORY_EXCHANGES :]
-        if recent and recent[0]["role"] == "assistant":
-            if len(recent) < len(merged):
-                recent = recent[1:]  # the cut split an exchange: drop its orphaned robot line
+        # Keep the normal request bounded, but retain a compact deterministic reminder of what
+        # happened before that window. Dropping it outright made long live conversations look
+        # like a new conversation to the model.
+        limit = 2 * config.HISTORY_EXCHANGES
+        cut = max(0, len(merged) - limit)
+        if cut and merged[cut]["role"] == "assistant":
+            cut += 1  # never begin a request with an orphaned assistant response
+        earlier, recent = merged[:cut], merged[cut:]
+        if earlier:
+            context = "\n".join(
+                f"{SPEAKER_BY_ROLE[row['role']]}: {row['content']}" for row in earlier
+            )[-config.HISTORY_CONTEXT_CHARS :]
+            reminder = (
+                "Earlier in this visit. Keep this context and do not repeat questions already "
+                f"answered:\n{context}"
+            )
+            if recent and recent[0]["role"] == "user":
+                recent[0] = {"role": "user", "content": f"{reminder}\n\n{recent[0]['content']}"}
             else:
-                # The API needs a user turn first; keep the robot's greeting rather than drop it.
-                recent.insert(0, {"role": "user", "content": VISIT_START})
+                recent.insert(0, {"role": "user", "content": reminder})
+        if recent and recent[0]["role"] == "assistant":
+            # The API needs a user turn first; keep the robot's greeting rather than drop it.
+            recent.insert(0, {"role": "user", "content": VISIT_START})
         return recent
 
     def transcript(self) -> list[tuple[str, str]]:

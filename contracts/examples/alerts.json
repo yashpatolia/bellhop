@@ -1,20 +1,20 @@
 [
   {
-    "id": "alert_32fbc394",
-    "call_id": "call_4d7f6dc0",
+    "id": "alert_448a5fb0",
+    "call_id": "call_9c6ad209",
     "nurse_id": null,
     "level": 4,
     "message": "Resident in room 12 needs a nurse",
-    "created_at": "2026-10-24T22:35:50.895384Z",
+    "created_at": "2026-10-25T04:53:49.618992Z",
     "acked_at": null
   },
   {
-    "id": "alert_fdb46633",
-    "call_id": "call_6bdb875b",
+    "id": "alert_12036359",
+    "call_id": "call_98a749b9",
     "nurse_id": "nurse_priya",
     "level": 3,
     "message": "Hip pain since last night",
-    "created_at": "2026-10-24T22:35:50.887538Z",
+    "created_at": "2026-10-25T04:53:49.603024Z",
     "acked_at": null
   }
 ]

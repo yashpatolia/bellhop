@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
@@ -46,12 +47,14 @@ from bellhop.domain.care import (
     Preferences,
     RefinedNote,
 )
+from bellhop.domain.events import RobotAvailable
 from bellhop.ports.content import ContentItem
 from bellhop.services.admin import Conflict
 from bellhop.services.memory_guard import Accepted, PendingFact
 
 MAX_BODY_BYTES = 1024 * 1024
 MAX_LIST = 1000
+log = logging.getLogger(__name__)
 
 
 class RaiseCall(BaseModel):
@@ -83,6 +86,9 @@ class RobotReport(BaseModel):
     status: RobotStatus
     battery: float = Field(ge=0, le=1, allow_inf_nan=False)
     room: str | None = Field(default=None, max_length=32)
+    # The Pi always includes this. Its presence matters: dashboard/admin reports that omit it
+    # must not erase a navigation command still in progress.
+    target: str | None = Field(default=None, max_length=32)
 
 
 class NavigateIn(BaseModel):
@@ -231,7 +237,14 @@ class BodyLimit:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        declared = dict(scope["headers"]).get(b"content-length", b"0")
+        declared = dict(scope["headers"]).get(b"content-length")
+        # ASGI servers are not required to send an http.request message for a bodyless GET.
+        # Waiting for one here deadlocks read-only dashboard requests under TestClient and some
+        # proxies. A declared GET body still takes the bounded streaming path below.
+        if scope["method"] in {"GET", "HEAD", "OPTIONS"} and declared in {None, b"0"}:
+            await self.app(scope, receive, send)
+            return
+        declared = declared or b"0"
         too_big = declared.isdigit() and int(declared) > MAX_BODY_BYTES
         messages: list[Message] = []
         size = 0
@@ -708,10 +721,40 @@ def create_app(container: Container) -> FastAPI:
         try:
             command_gateway().go_to(robot_id, body.target)
         except Exception as exc:
+            log.warning("robot navigation command failed for %s: %s", robot_id, exc)
             raise RobotCommandFailed("robot navigation command failed") from exc
         # The backend deliberately does not set room from target: only the Pi can establish its
         # physical position after resolving its own marker/map configuration.
         robot.status = RobotStatus.BUSY
+        robot.target = body.target
+        container.store.robots.save(robot)
+        container.events.emit("robot.updated", {"robot_id": robot_id})
+        return robot
+
+    @api.post(
+        "/robots/{robot_id}/follow-marker",
+        responses={
+            404: {"description": "unknown robot"},
+            409: {"description": "robot is not idle"},
+            503: {"description": "robot command failed"},
+        },
+    )
+    def follow_marker(robot_id: str, body: NavigateIn) -> Robot:
+        """Maintain safe standoff from a moving physical ArUco marker.
+
+        This is intentionally separate from navigation: room navigation completes at arrival,
+        while marker following remains active until stopped or its Pi-side safety timeout expires.
+        """
+        robot = robot_for_command(robot_id)
+        if robot.status is not RobotStatus.IDLE:
+            raise InvalidTransition(f"robot {robot_id} is not idle")
+        try:
+            command_gateway().follow_marker(robot_id, body.target)
+        except Exception as exc:
+            log.warning("robot follow-marker command failed for %s: %s", robot_id, exc)
+            raise RobotCommandFailed("robot follow-marker command failed") from exc
+        robot.status = RobotStatus.BUSY
+        robot.target = body.target
         container.store.robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
         return robot
@@ -728,12 +771,18 @@ def create_app(container: Container) -> FastAPI:
         try:
             command_gateway().stop(robot_id)
         except Exception as exc:
+            log.warning("robot stop command failed for %s: %s", robot_id, exc)
             raise RobotCommandFailed("robot stop command failed") from exc
         # An active care call owns the busy status until its normal resolution path finishes.
-        if not any(call.robot_id == robot_id for call in container.store.calls.list_open()):
+        # Stopping a physical rover always clears its manual navigation target.
+        freed = not any(call.robot_id == robot_id for call in container.store.calls.list_open())
+        robot.target = None
+        if freed:
             robot.status = RobotStatus.IDLE
-            container.store.robots.save(robot)
+        container.store.robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
+        if freed:
+            container.bus.publish(RobotAvailable(robot_id=robot_id))
         return robot
 
     @api.put("/robots/{robot_id}")
@@ -743,15 +792,20 @@ def create_app(container: Container) -> FastAPI:
         if robot is None:
             if not settings.allow_new_robots:
                 raise LookupError(robot_id)
-            robot = Robot(id=robot_id)
+            robot = Robot(id=robot_id, status=RobotStatus.OFFLINE)
+        was_free = robot.status is RobotStatus.IDLE
         holds_call = any(c.robot_id == robot_id for c in container.store.calls.list_open())
         # A robot with an open call stays busy: only a resolved call frees it (safer than
         # trusting a stale "idle" report). Battery and room are still applied.
         if not (holds_call and body.status is RobotStatus.IDLE):
             robot.status = body.status
         robot.battery, robot.room = body.battery, body.room
+        if "target" in body.model_fields_set:
+            robot.target = body.target
         robots.save(robot)
         container.events.emit("robot.updated", {"robot_id": robot_id})
+        if robot.status is RobotStatus.IDLE and not was_free:
+            container.bus.publish(RobotAvailable(robot_id=robot_id))
         return robot
 
     @api.get("/metrics")

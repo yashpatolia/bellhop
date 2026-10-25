@@ -38,10 +38,10 @@ When the backend runs with `BELLHOP_API_KEY` set, send `X-API-Key: <key>` on eve
 | `GET /calls/{id}/note` | One-line visit note `{text, resident_id, room, at}` |
 | `POST /calls/{id}/in-visit` | Robot reached the resident |
 | `POST /calls/{id}/resolve {by_robot?}` | Finish the call |
-| `GET /robots` | Robots with `status`, `battery`, `room` |
-| `POST /robots/{id}/navigate {target}` | Dashboard manual-navigation request. `target` is a nonempty string up to 32 chars and is sent unchanged to the Pi; the Pi resolves it against its own marker/map configuration. Only an `idle` known robot accepts it (409 otherwise); success marks it `busy` but does **not** claim that its `room` changed. Pi failure is 503. |
-| `POST /robots/{id}/stop` | Immediately ask the Pi to stop. It returns the robot and marks it idle unless the robot still owns an open care call. Pi failure is 503. |
-| `PUT /robots/{id} {status, battery, room?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. Unknown id is created unless the server sets `BELLHOP_ALLOW_NEW_ROBOTS=0` (then 404). An `idle` report is ignored for status while the robot holds an open call (battery and room still apply) |
+| `GET /robots` | Robots with `status`, `battery`, physical `room`, and requested `target` |
+| `POST /robots/{id}/navigate {target}` | Dashboard manual-navigation request. `target` is a nonempty string up to 32 chars and is sent unchanged to the Pi; the Pi resolves it against its own marker/map configuration. Only an `idle` known robot accepts it (409 otherwise); success marks it `busy` and stores `target`, but does **not** claim that its physical `room` changed. Pi failure is 503. |
+| `POST /robots/{id}/stop` | Immediately ask the Pi to stop and clear its requested `target`. It returns the robot and marks it idle unless the robot still owns an open care call. Pi failure is 503. |
+| `PUT /robots/{id} {status, battery, room?, target?}` | Robot status report (Pi, every 5 s). `status` is `idle|busy|charging|fault`, `battery` 0 to 1 else 422. The Pi includes `target`, including `null` when it arrives/stops; reports that omit it preserve the target. Unknown id is created unless the server sets `BELLHOP_ALLOW_NEW_ROBOTS=0` (then 404). An `idle` report is ignored for status while the robot holds an open call (battery, room, and explicit target still apply) |
 | `PUT /residents/{id} {birth_year}` | Set the resident's birth year (1880 to 2015, else 422; unknown id 404). Needed for reminiscence |
 | `GET /residents/{id}/reminiscence?k=3` | Era-appropriate `ContentItem`s `{id, kind song|film|news|event, year, title, blurb}` from the resident's youth (ages 15-25); empty list without a birth year. Source chosen by `BELLHOP_CONTENT` (`local` default, `wikipedia`, `apify`). See `examples/reminiscence.json` |
 | `POST /residents/{id}/reminiscence/ingest?k=5` | Store the era items as memory facts tagged `reminiscence`; returns the 201 list of `MemoryFact`s. Run it at ingest time, not in the voice loop |
@@ -99,6 +99,7 @@ Unknown call, alert, flag, pending fact or resident gives 404.
 | --- | --- | --- |
 | `call.raised` | `call_id`, `room` | `call` |
 | `call.assigned` | `call_id`, `robot_id`, `nurse_id` (either may be null) | `call` |
+| `call.updated` | `call_id` | `call` (visit start or a live transcript turn) |
 | `call.scored` | `call_id`, `urgency` (1 to 4), `category` | `call` |
 | `call.resolved` | `call_id`, `by_robot` | `call` |
 | `alert.raised` | `alert_id`, `call_id`, `level` | `alert` |
@@ -108,7 +109,7 @@ The object is read at send time, so it can be newer than the event that triggere
 
 ```js
 const es = new EventSource("http://localhost:8000/events"); // add ?api_key=... if a key is set
-for (const name of ["call.raised", "call.assigned", "call.scored", "call.resolved", "alert.raised", "robot.updated"]) {
+for (const name of ["call.raised", "call.assigned", "call.updated", "call.scored", "call.resolved", "alert.raised", "robot.updated"]) {
   es.addEventListener(name, (e) => render(name, JSON.parse(e.data)));
 }
 es.onerror = () => {}; // the browser reconnects by itself (about 3 s)
