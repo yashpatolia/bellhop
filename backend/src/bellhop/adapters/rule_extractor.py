@@ -36,6 +36,11 @@ _SELF = re.compile(r"\bI\b")
 _OTHER_SUBJECT = re.compile(r"^(?:he|she|they|we|it|you)\b", re.IGNORECASE)
 # "Likes it" says nothing; the thing liked must be named.
 _PRONOUN_OBJECT = re.compile(r"^(?:it|that|this|them|those|these)\b", re.IGNORECASE)
+# Nor does a routine about "it" or "them" ("I always take them after breakfast").
+_PRONOUN_ROUTINE = re.compile(
+    r"\bI (?:always |usually |often |never |still )?[a-z]+ (?:it|that|this|them|those|these)\b",
+    re.IGNORECASE,
+)
 # "Oh yes, I just love being woken at five" is a complaint, not a like.
 _SARCASM = re.compile(
     r"^(?:oh|yeah|well|sure)\b[^.]*\bI (?:just |really )?(?:love|adore|enjoy)", re.IGNORECASE
@@ -141,6 +146,7 @@ class RuleFactExtractor:
             and _SELF.search(sentence)
             and not _OTHER_SUBJECT.match(sentence)
             and not _SARCASM.search(sentence)
+            and not _PRONOUN_ROUTINE.search(sentence)
         ):
             found.append(self._fact(FactKind.ROUTINE, _about_resident(sentence), sentence))
         return found

@@ -57,6 +57,7 @@ def test_a_routine_about_someone_else_or_a_fragment_is_not_stored():
 def test_liking_a_pronoun_says_nothing():
     assert run(("resident", "It keeps my mind sharp, and I love it.")) == []
     assert run(("resident", "That television, I hate it.")) == []
+    assert run(("resident", "I always take them after breakfast.")) == []
 
 
 def test_sarcasm_is_not_a_like():

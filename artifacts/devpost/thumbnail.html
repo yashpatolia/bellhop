@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Bellhop thumbnail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;700;800&family=Young+Serif&family=DM+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  /* 1200 x 800 (3:2) Devpost thumbnail. Render: headless Chrome --window-size=1200,800 */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1200px; height: 800px; overflow: hidden; }
+  body {
+    font-family: 'Hanken Grotesk', sans-serif;
+    color: #2b3240;
+    background:
+      radial-gradient(900px 520px at 92% -6%, #cfe3ef 0%, transparent 62%),
+      radial-gradient(760px 560px at -8% 105%, #e5fafc 0%, transparent 58%),
+      radial-gradient(circle at 1px 1px, rgba(67, 89, 125, 0.13) 1px, transparent 1.5px) 0 0 / 26px 26px,
+      #e7eff3;
+  }
+  .wrap { position: relative; display: grid; grid-template-columns: 560px 1fr; align-items: center; gap: 40px; height: 100%; padding: 64px 64px 64px 72px; }
+  .brand { display: flex; align-items: center; gap: 22px; }
+  .brand svg { flex: none; }
+  .brand h1 { margin: 0; font-size: 128px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.9; }
+  .tag { margin: 34px 0 0; font-size: 50px; font-weight: 700; line-height: 1.05; letter-spacing: -0.015em; }
+  .serif { margin: 14px 0 0; font-family: 'Young Serif', serif; font-size: 31px; line-height: 1.25; color: #43597d; }
+  .badge { display: inline-flex; align-items: center; gap: 14px; margin-top: 40px; padding: 8px 22px 8px 12px; border: 2px solid #2b3240; border-radius: 16px; background: #ffffff; font-size: 24px; font-weight: 700; }
+  .badge img { height: 58px; width: auto; display: block; }
+  .scene { border-radius: 26px; box-shadow: 0 34px 80px -30px rgba(43, 50, 64, 0.45); }
+  .scene svg { display: block; width: 100%; height: auto; border-radius: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="brand">
+      <svg width="132" height="132" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="9" r="4.5" fill="#de7456"/>
+        <rect x="29" y="12" width="6" height="4" rx="1" fill="#43597d"/>
+        <path d="M32 15C21 15 15.5 23 15.5 33V41C15.5 44 13.5 46 11 47.5H53C50.5 46 48.5 44 48.5 41V33C48.5 23 43 15 32 15Z" fill="#43597d"/>
+        <rect x="21" y="26" width="22" height="10" rx="5" fill="#e5fafc"/>
+        <circle cx="27.5" cy="31" r="2.2" fill="#2b3240"/>
+        <circle cx="36.5" cy="31" r="2.2" fill="#2b3240"/>
+        <rect x="10" y="47" width="44" height="5" rx="2.5" fill="#2b3240"/>
+        <circle cx="21" cy="55" r="4.5" fill="#2b3240"/>
+        <circle cx="43" cy="55" r="4.5" fill="#2b3240"/>
+        <circle cx="21" cy="55" r="1.6" fill="#e5fafc"/>
+        <circle cx="43" cy="55" r="1.6" fill="#e5fafc"/>
+      </svg>
+      <h1>Bellhop</h1>
+    </div>
+    <p class="tag">An autonomous robot fleet that answers the call bell.</p>
+    <p class="serif">Nurses saved for the moments that need them.</p>
+    <div class="badge"><img src="../../frontend/public/calhacks-13.svg" alt="" /> Built at Cal Hacks 13.0</div>
+  </div>
+
+  <div class="scene">
+    <svg viewBox="0 0 520 560" role="img" aria-label="A call light rings above room 104 and a Bellhop robot arrives at the door.">
+      <rect width="520" height="560" fill="#f4f9fb"/>
+      <rect y="470" width="520" height="90" fill="#d8e5ec"/>
+      <!-- room 103 -->
+      <rect x="34" y="200" width="170" height="270" rx="8" fill="#ffffff" stroke="#a0c0d7" stroke-width="3"/>
+      <circle cx="180" cy="340" r="6" fill="#a0c0d7"/>
+      <text x="119" y="246" text-anchor="middle" font-family="DM Mono, monospace" font-size="26" fill="#43597d">103</text>
+      <circle cx="119" cy="150" r="17" fill="#d8e5ec" stroke="#a0c0d7" stroke-width="3"/>
+      <!-- room 104, ringing -->
+      <rect x="290" y="200" width="170" height="270" rx="8" fill="#ffffff" stroke="#a0c0d7" stroke-width="3"/>
+      <circle cx="436" cy="340" r="6" fill="#a0c0d7"/>
+      <text x="375" y="246" text-anchor="middle" font-family="DM Mono, monospace" font-size="26" fill="#43597d">104</text>
+      <circle cx="375" cy="150" r="44" fill="none" stroke="#de7456" stroke-width="4" opacity="0.35"/>
+      <circle cx="375" cy="150" r="30" fill="none" stroke="#de7456" stroke-width="4" opacity="0.7"/>
+      <circle cx="375" cy="150" r="17" fill="#de7456" stroke="#c45f43" stroke-width="3"/>
+      <!-- speech bubble -->
+      <rect x="96" y="28" width="408" height="64" rx="16" fill="#2b3240"/>
+      <path d="M352 92 L366 112 L378 92 Z" fill="#2b3240"/>
+      <text x="300" y="68" text-anchor="middle" font-family="Hanken Grotesk, sans-serif" font-weight="700" font-size="22" fill="#ffffff">Hello Margaret, what can I get you?</text>
+      <!-- robot arriving at 104 -->
+      <g transform="translate(266 344) scale(2.05)">
+        <circle cx="32" cy="9" r="4.5" fill="#de7456"/>
+        <rect x="29" y="12" width="6" height="4" rx="1" fill="#43597d"/>
+        <path d="M32 15C21 15 15.5 23 15.5 33V41C15.5 44 13.5 46 11 47.5H53C50.5 46 48.5 44 48.5 41V33C48.5 23 43 15 32 15Z" fill="#43597d"/>
+        <rect x="21" y="26" width="22" height="10" rx="5" fill="#e5fafc"/>
+        <circle cx="27.5" cy="31" r="2.2" fill="#2b3240"/>
+        <circle cx="36.5" cy="31" r="2.2" fill="#2b3240"/>
+        <rect x="10" y="47" width="44" height="5" rx="2.5" fill="#2b3240"/>
+        <circle cx="21" cy="55" r="4.5" fill="#2b3240"/>
+        <circle cx="43" cy="55" r="4.5" fill="#2b3240"/>
+        <circle cx="21" cy="55" r="1.6" fill="#e5fafc"/>
+        <circle cx="43" cy="55" r="1.6" fill="#e5fafc"/>
+      </g>
+      <!-- motion lines -->
+      <path d="M226 420 H268 M214 438 H262 M230 456 H272" stroke="#a0c0d7" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+  </div>
+</div>
+</body>
+</html>

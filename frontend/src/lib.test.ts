@@ -38,3 +38,12 @@ describe('nextRobotId', () => {
     expect(nextRobotId(['scout'])).toBe('robot_1')
   })
 })
+
+describe('formatMetric', () => {
+  it('shows shares as percentages', async () => {
+    const { formatMetric } = await import('./lib')
+    expect(formatMetric(1, 'share_answered_within_10min')).toBe('100%')
+    expect(formatMetric(0.634, 'share_answered_within_10min')).toBe('63%')
+    expect(formatMetric(428, 'minutes_saved')).toBe('428')
+  })
+})

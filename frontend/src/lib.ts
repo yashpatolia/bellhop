@@ -106,8 +106,10 @@ export function humanizeKey(key: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-export function formatMetric(v: number | string): string {
+/** Shares (share_*) come from the backend as 0 to 1 and read as percentages. */
+export function formatMetric(v: number | string, key = ''): string {
   if (typeof v === 'string') return v
+  if (key.startsWith('share')) return `${Math.round(v * 100)}%`
   return Number.isInteger(v) ? String(v) : v.toFixed(2)
 }
 
