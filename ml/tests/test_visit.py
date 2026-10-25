@@ -1031,3 +1031,69 @@ def test_a_waiting_turn_said_to_the_robot_is_answered_even_if_the_next_is_not(
     gate.set()
     visit.job.result(timeout=5)
     assert brain.calls == 1 and visit.voice.said == ["Of course."]
+
+
+class OpenBook:
+    """Reader stand-in: a heading, then one paragraph, then the end."""
+
+    def __init__(self):
+        self.parts = [["Chapter 1."], ["It was cold.", "They walked."]]
+        self.reading = True
+
+    def next_part(self):
+        part = self.parts.pop(0) if self.parts else []
+        self.reading = bool(self.parts)
+        return part
+
+    def pause(self):
+        was, self.reading = self.reading, False
+        return was
+
+    def resume(self):
+        self.reading = bool(self.parts)
+
+    def status(self):
+        return "The Happy Prince by Oscar Wilde, stopped about 10% through."
+
+
+class WaitBrain(FakeBrain):
+    def reply(self, system, messages, on_sentence, tool_ctx, allow_tools=True, cancel=None):
+        self.calls += 1
+        return WAIT, False
+
+
+def test_the_open_book_is_read_in_the_gaps(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), FakeBrain())
+    assert visit.tool_ctx.reader is visit.reader  # the read_book tool opens this visit's book
+    visit.reader = OpenBook()
+    visit.check_timers(time.monotonic())
+    visit.job.result(5)
+    assert visit.voice.said == ["Chapter 1."] and visit.last_reply == "Chapter 1."
+    gap_over = visit.read_done_at + config.READ_GAP_S
+    visit.check_timers(gap_over - 0.1)  # the gap: the mic is listening
+    visit.speech_end, visit.turn_pending = gap_over, True
+    visit.check_timers(gap_over)  # they are speaking
+    assert visit.submitted == 1
+    visit.turn_pending = False
+    visit.check_timers(gap_over)
+    visit.job.result(5)
+    assert visit.voice.said == ["Chapter 1.", "It was cold.", "They walked."]
+    assert visit.history.transcript() == []  # the book is not the conversation
+
+
+def test_any_turn_stops_the_book_and_only_wait_reads_on(tmp_path, monkeypatch):
+    visit = make_visit(tmp_path, monkeypatch, FakeBackend(), WaitBrain())
+    visit.reader = OpenBook()
+    visit.handle_turn("so I told her", "flux", block(1), 0.5, time.monotonic(), None, True)
+    assert visit.reader.reading  # that was not for the robot
+
+    visit.handle_turn("help me", "flux", block(1), 0.5, time.monotonic(), None, False)
+    assert not visit.reader.reading  # not facing the robot, but it may be a call for help
+    visit.reader.resume()
+    visit.brain = FakeBrain(("I'll stop there.",))
+    visit.handle_turn("stop reading", "flux", block(1), 0.5, time.monotonic(), None, True)
+    assert not visit.reader.reading and visit.voice.said == ["I'll stop there."]
+    for thread in visit.triage_threads:
+        thread.join()
+    status = "The Happy Prince by Oscar Wilde, stopped about 10% through."
+    assert f"## A story is open\n{status}" in visit.system_prompt()

@@ -263,6 +263,54 @@ MAX_REPLY_TOKENS = 300
 BRAIN_EFFORT = "low"  # chat: low keeps the time to first spoken word short
 BRAIN_MAX_TOOL_ROUNDS = 3
 BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before giving up
+# Claude's own web search (server side, about 1 cent a search). The basic version: the newer
+# web_search_20260209 filters results with code first, which is slower to the first spoken word.
+WEB_SEARCH_TOOL = "web_search_20250305"
+WEB_SEARCH_MAX_USES = 2  # per reply
+WEB_SEARCH_LOCATION = {"type": "approximate", "country": "US", "timezone": "America/Los_Angeles"}
+
+# News and trends through Apify (APIFY_TOKEN in .env), refreshed in the background into runs/
+APIFY_API = "https://api.apify.com/v2"
+APIFY_RUN_S = 100  # the actor's own time limit (run-sync gives up at 300 s)
+APIFY_TIMEOUT_S = 120.0  # the HTTP wait: a little over the run limit
+APIFY_MAX_CHARGE_USD = 0.05  # cap on one run's cost
+FEED_RETRY_S = 600.0  # after a failed refresh
+FEED_CHECK_S = 60.0  # how often the refresher looks for a feed that is due
+FEED_DESCRIPTION_CHARS = 200  # of each news story, for the tool
+FEEDS = {
+    # data_xplorer/google-news-scraper-fast: $1 per 1,000 articles, so about 1.2 cents a refresh
+    "news": {
+        "actor": "data_xplorer~google-news-scraper-fast",
+        "every_s": 3600.0,
+        "input": {
+            "topics": ["NATION", "WORLD", "ENTERTAINMENT", "SPORTS"],
+            "maxArticles": 3,
+            "region_language": "US:en",
+            "extractDescriptions": True,
+            "extractImages": False,
+        },
+    },
+    # data_xplorer/google-trends-trending-now: $0.25 per 1,000 trends
+    "trends": {
+        "actor": "data_xplorer~google-trends-trending-now",
+        "every_s": 21600.0,
+        "input": {"geo": "US", "timeframe": "24", "trendStatus": "all", "maxItems": 20},
+    },
+}
+
+# Short stories read aloud, from Project Gutenberg (no key); the list is STORIES in agent/books.py
+GUTENBERG_TEXT_URL = "https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt"
+BOOK_TIMEOUT_S = 15.0
+BOOKS_DIR = RUNS_DIR / "books"  # downloaded texts, and bookmarks.json
+READ_CHUNK_SENTENCES = 4  # read this much, then pause READ_GAP_S with the mic open
+READ_GAP_S = 2.0
+READ_TONE = "calm"
+READ_MAX_PARTS = 40  # about 15 minutes with no word to the robot: they may be asleep
+READ_STOP_LINE = "I'll stop there for now. Just ask if you'd like more."
+# A story's heading counts only with a paragraph this long in the next READ_LOOKAHEAD (so the
+# contents list and title page are skipped)
+READ_FIRST_WORDS = 30
+READ_LOOKAHEAD = 3
 
 # Triage
 TRIAGE_TIMEOUT_S = 6.0  # overall budget for Claude and its retry

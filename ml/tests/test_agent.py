@@ -8,6 +8,7 @@ import httpx
 
 from rover import config
 from rover.agent import brain, context, tools
+from rover.agent.books import STORIES
 from rover.agent.brain import Brain, SentenceSplitter, split_tone
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
 from rover.agent.tools import ToolContext, run_tool
@@ -279,6 +280,10 @@ def test_request_staff_without_call_reports_failure():
         "face_patient",
         "start_game",
         "end_game",
+        "news",
+        "trends",
+        "read_book",
+        "web_search",
     ]
 
 
@@ -512,3 +517,107 @@ def test_the_prompt_lists_what_the_robot_did_so_it_does_not_redo_it():
     assert "- end_game: closed 2" in prompt and f"- end_game: closed {len(actions) - 1}" in prompt
     assert "- end_game: closed 1\n" not in prompt and "- end_game: closed 0" not in prompt
     assert "## What you have done" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)
+
+
+def searched(query, stop_reason="end_turn"):
+    block = SimpleNamespace(
+        type="server_tool_use", id="srv_1", name="web_search", input={"query": query}
+    )
+    return SimpleNamespace(stop_reason=stop_reason, content=[block], stop_details=None)
+
+
+def test_a_paused_web_search_is_sent_back_and_noted():
+    client = FakeClient(
+        FakeStream([], searched("giants score", "pause_turn")),
+        FakeStream(["[excited] They won!"], done()),
+    )
+    ctx = ToolContext(FakeBackend(), "c1")
+    said = []
+    question = {"role": "user", "content": "who won?"}
+    _, wanted_tool = Brain(client).reply("sys", [question], lambda t, s: said.append(s), ctx)
+    assert said == ["They won!"] and wanted_tool is False
+    resent = client.requests[1]["messages"]
+    assert resent == [question, {"role": "assistant", "content": searched("giants score").content}]
+    gone = "the results are gone now: search again if needed"
+    assert ctx.done == [f'web_search: searched for "giants score" ({gone})']
+
+
+class SearchingStream(FakeStream):
+    def __iter__(self):
+        block = SimpleNamespace(type="server_tool_use")
+        yield SimpleNamespace(type="content_block_start", content_block=block)
+        raise AssertionError("the draft read on past the search")
+
+
+class PreambleStream(FakeStream):
+    def __init__(self, said):
+        super().__init__([], searched("score"))
+        self.said = said
+
+    def __iter__(self):
+        yield SimpleNamespace(type="text", text="[calm] Let me look.")
+        block = SimpleNamespace(type="server_tool_use")
+        yield SimpleNamespace(type="content_block_start", content_block=block)
+        assert self.said == ["Let me look."]  # said while the search runs, not after it
+        yield SimpleNamespace(type="text", text=" They won.")
+
+
+def test_the_words_before_a_tool_are_said_before_it_runs():
+    said = []
+    Brain(FakeClient(PreambleStream(said))).reply("sys", [], lambda t, s: said.append(s), None)
+    assert said == ["Let me look.", "They won."]
+
+
+def test_a_draft_stops_at_a_web_search():
+    client = FakeClient(SearchingStream([], done()))
+    _, wanted_tool = Brain(client).reply("sys", [], lambda t, s: None, None, allow_tools=False)
+    assert wanted_tool is True
+
+
+def test_web_search_is_anthropics_own_tool():
+    search = tools.TOOLS[-1]
+    assert search["type"] == config.WEB_SEARCH_TOOL and search["name"] == "web_search"
+    assert "strict" not in search and "input_schema" not in search
+
+
+class FakeReader:
+    def __init__(self):
+        self.opened = []
+
+    def open(self, query):
+        self.opened.append(query)
+        return "now reading it"
+
+
+def test_news_trends_and_books_dispatch(monkeypatch):
+    monkeypatch.setattr(tools.feeds, "tool_text", lambda name: f"{name} head:\n- one\n- two")
+    ctx = ToolContext(MemoryBackend(), "c1")
+    assert run_tool("news", {}, ctx) == "news head:\n- one\n- two"
+    assert run_tool("trends", {}, ctx).startswith("trends head:")
+    book = {"story": "the_gift_of_the_magi"}
+    assert run_tool("read_book", book, ctx) == "you cannot read aloud right now"
+    assert ctx.done[:2] == [
+        "news: news head: (that list is gone now: use news again to see it)",
+        "trends: trends head: (that list is gone now: use trends again to see it)",
+    ]
+
+    games, reader = FakeGames(), FakeReader()
+    games.phase = "play"
+    ctx = ToolContext(MemoryBackend(), "c1", None, games, reader=reader)
+    assert run_tool("read_book", book, ctx).startswith("a game is on your screen")
+    games.phase = None
+    assert run_tool("read_book", book, ctx) == "now reading it"
+    assert reader.opened == ["the_gift_of_the_magi"]
+
+
+def test_read_book_offers_only_the_short_stories():
+    tool = next(t for t in tools.TOOLS if t["name"] == "read_book")
+    assert tool["strict"] and tool["input_schema"]["properties"]["story"]["enum"] == list(STORIES)
+    assert "The Gift of the Magi by O. Henry, about 14 minutes" in tool["description"]
+
+
+def test_prompt_shows_the_open_book():
+    status = "Emma, stopped about 20% through."
+    prompt = build_system_prompt(None, None, [], "", None, NOW, reading=status)
+    assert "## A story is open\nEmma, stopped about 20% through." in prompt
+    assert "A story is open" not in build_system_prompt(None, None, [], "", None, NOW)

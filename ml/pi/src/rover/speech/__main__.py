@@ -24,6 +24,8 @@ from typing import Any
 import numpy as np
 
 from rover import config, obslog, safety
+from rover.agent import feeds
+from rover.agent.books import Reader
 from rover.agent.brain import WAIT, Brain
 from rover.agent.context import (
     CHAT_GREETING,
@@ -132,7 +134,10 @@ class Visit:
         self.backend, self.brain, self.voice, self.stt = backend, brain, voice, stt
         self.listener, self.face = listener, face
         self.games = games  # None: no screen, so start_game says it cannot play
-        self.tool_ctx = ToolContext(backend, self.call_id, call.get("resident_id"), games)
+        self.reader = Reader(call.get("resident_id"))  # a book read aloud, between turns
+        self.tool_ctx = ToolContext(
+            backend, self.call_id, call.get("resident_id"), games, reader=self.reader
+        )
         self.gates = gates if gates is not None else Gates()
         self.triage_fn = triage_fn  # None = the real triage_and_post (looked up when used)
         self.eyes = eyes if eyes is not None else Eyes()  # Eyes() alone draws nothing
@@ -181,6 +186,7 @@ class Visit:
         # written by the worker, read by the main thread
         self.last_reply = ""
         self.last_activity = time.monotonic()
+        self.read_done_at = -math.inf  # when the last few sentences of the book finished
         self.phase = "talk"  # talk -> ending -> (wait_nurse -> resolving) -> over
         self.nurse_status: str | None = None
         self.done = False
@@ -341,6 +347,9 @@ class Visit:
         while self.transcribing and self.transcribing[0].done():
             self.heard_turn(*self.transcribing[0].result())
             self.transcribing.pop(0)  # after the submit: resident_spoke() sees one or the other
+        reading = self.phase == "talk" and self.reader.reading and not self.turn_pending
+        if reading and self.idle() and now - self.read_done_at >= config.READ_GAP_S:
+            self.submit(self.read_on)  # the gap before it is when the mic can hear them
         quiet_s = now - self.last_activity
         if self.phase == "talk" and self.idle() and not self.turn_pending:
             if quiet_s >= self.quiet_limit_s():
@@ -433,6 +442,7 @@ class Visit:
             self.games_known,
             self.games.status() if self.games is not None else None,
             self.tool_ctx.done,
+            self.reader.status(),
         )
 
     def greet(self) -> None:
@@ -485,6 +495,8 @@ class Visit:
             print(f"visit: dropped turn {text!r}: the call is already resolved")
             return
         print(f"resident: {text}  ({source})")
+        # any turn stops the book, even one not facing the robot: it may be a call for help
+        was_reading = self.reader.pause()
         obslog.event(
             "visit.turn", call_id=self.call_id, room=self.room, source=source, chars=len(text)
         )
@@ -517,6 +529,8 @@ class Visit:
             self.eyes.base = "listening"
             self.tone_pick = None
         self.record_robot(full)
+        if was_reading and full == WAIT:
+            self.reader.resume()  # that speech was not for the robot: read on
 
         def since(at: float | None) -> float | None:
             return None if at is None else at - speech_end
@@ -594,6 +608,19 @@ class Visit:
         if keep:
             self.record_robot(line)
         self.last_activity = time.monotonic()
+
+    def read_on(self) -> None:
+        """The next few sentences of the open book. Not kept in the history: the prompt's book
+        status says where it stopped."""
+        sentences = self.reader.next_part()
+        for sentence in sentences:
+            if self.interrupt.is_set():
+                break
+            self.speak(config.READ_TONE, sentence)
+        self.voice.wait()
+        self.last_reply = " ".join(sentences)  # its echo in the gap is dropped like a reply's
+        self.gates.open_attention(time.monotonic())  # a quiet "stop" in the gap is heard
+        self.read_done_at = self.last_activity = time.monotonic()  # a chat never sleeps mid-book
 
     def say_line(self, line: str) -> None:
         self.speak("calm", line)
@@ -922,6 +949,8 @@ def main() -> None:
 
     backend = Backend()
     start_status(backend, disabled=args.no_status)
+    if not args.script or args.live_claude:  # mock text runs never spend Apify credit
+        feeds.start()
     if args.script:
         from rover.speech import textmode  # text mode only: keeps the audio stack out of its way
 

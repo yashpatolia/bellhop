@@ -255,12 +255,21 @@ class Brain:
                         return False
                     if event.type == "text":
                         turn.add_text(event.text)
+                    elif event.type == "content_block_start" and event.content_block.type != "text":
+                        if not allow_tools and event.content_block.type == "server_tool_use":
+                            return True  # a draft never searches: the real turn will
+                        turn.flush()  # "let me look that up" is said before the tool, not after
                 final = stream.get_final_message()
             turn.flush()
+            _note_searches(final, tool_ctx)
             if final.stop_reason == "refusal":
                 category = final.stop_details.category if final.stop_details else None
                 turn.fail(f"Claude declined to answer ({category})")
                 return False
+            if final.stop_reason == "pause_turn":
+                # a long web search paused on Anthropic's side: send it back and it carries on
+                messages = [*messages, {"role": "assistant", "content": final.content}]
+                continue
             tool_uses = [block for block in final.content if block.type == "tool_use"]
             if final.stop_reason != "tool_use" or not tool_uses:
                 return False
@@ -274,6 +283,18 @@ class Brain:
             ]
         print(f"brain: gave up after {config.BRAIN_MAX_TOOL_ROUNDS} tool rounds")
         return False
+
+
+def _note_searches(final, tool_ctx: ToolContext | None) -> None:
+    """Web searches run inside the reply; list them like other tools so they are not repeated."""
+    for block in final.content:
+        if getattr(block, "type", None) != "server_tool_use" or block.name != "web_search":
+            continue  # the newer search versions also run code_execution steps
+        query = block.input.get("query", "") if isinstance(block.input, dict) else ""
+        print(f"brain: tool {block.name} {query!r}")
+        if tool_ctx is not None:
+            gone = "the results are gone now: search again if needed"
+            tool_ctx.done.append(f'{block.name}: searched for "{query}" ({gone})')
 
 
 def _tool_result(block, tool_ctx: ToolContext | None) -> dict:

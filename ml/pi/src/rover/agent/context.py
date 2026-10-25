@@ -88,6 +88,7 @@ def build_system_prompt(
     known_games: Sequence[str] = (),
     game_status: str | None = None,
     actions: Sequence[str] = (),
+    reading: str | None = None,
 ) -> str:
     parts = [load_persona(), _resident_block(resident, preferences, memories, known_games)]
     if scene_note:
@@ -101,6 +102,11 @@ def build_system_prompt(
             f"{game_status}\n"
             "You opened it with start_game. Call start_game again only to switch to a different "
             "game.\nKeep each reply to one short sentence while they play."
+        )
+    if reading:
+        parts.append(
+            f"## A story is open\n{reading}\n"
+            "To go on, use read_book with the same story, but only if they want more."
         )
     if actions:
         done = "\n".join(f"- {action}" for action in actions[-config.ACTIONS_SHOWN :])

@@ -1,5 +1,5 @@
 """The brain's tools: look, request_staff, stop, go_to_room, follow_patient, face_patient,
-start_game, end_game.
+start_game, end_game, news, trends, read_book, and Claude's own web_search (run by Anthropic).
 
 The moving tools only ask rover.drive (the robot server on this Pi); it decides how to move.
 """
@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 import httpx
 
 from rover import config
+from rover.agent import feeds
+from rover.agent.books import STORIES, Reader
 from rover.backend import Backend
 from rover.games import GAMES, Games
 
@@ -134,6 +136,55 @@ TOOLS: list[dict] = [
         "strict": True,
         "input_schema": NO_INPUT,
     },
+    {
+        "name": "news",
+        "description": (
+            "Today's top news (national, world, entertainment and sports), refreshed hourly. Use "
+            "it when the resident asks what is in the news. Share one or two stories in plain "
+            "words, lighter ones first, and skip distressing details unless they ask. For a "
+            "story or topic that is not listed, use web_search."
+        ),
+        "strict": True,
+        "input_schema": NO_INPUT,
+    },
+    {
+        "name": "trends",
+        "description": (
+            "What people across the country are searching for online today (Google Trends). "
+            "Use it when the resident asks what is trending or what people are talking about, "
+            "or when you want something new to chat about. Pick one or two cheerful ones; if you "
+            "do not know why one is trending, use web_search before explaining it."
+        ),
+        "strict": True,
+        "input_schema": NO_INPUT,
+    },
+    {
+        "name": "read_book",
+        "description": (
+            "Read a classic short story aloud, a few sentences at a time. Use it when the "
+            "resident asks you to read to them, or to go on with the story you were reading; it "
+            "picks up where you stopped. After it, say one short sentence: the reading starts "
+            "when you finish and stops when they speak. The stories, read aloud: "
+            + "; ".join(
+                f"{s['title']} by {s['author']}, about {s['minutes']} minutes"
+                for s in STORIES.values()
+            )
+        ),
+        "strict": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {"story": {"type": "string", "enum": list(STORIES)}},
+            "required": ["story"],
+            "additionalProperties": False,
+        },
+    },
+    # run by Anthropic inside the reply: no run_tool, and no strict flag
+    {
+        "type": config.WEB_SEARCH_TOOL,
+        "name": "web_search",
+        "max_uses": config.WEB_SEARCH_MAX_USES,
+        "user_location": config.WEB_SEARCH_LOCATION,
+    },
 ]
 
 
@@ -144,6 +195,7 @@ class ToolContext:
     resident_id: str | None = None
     games: Games | None = None
     done: list[str] = field(default_factory=list)  # "tool: result", for the prompt
+    reader: Reader | None = None  # None: no voice to read a book with
 
 
 def _look() -> str | list[dict]:
@@ -218,12 +270,27 @@ def _start_game(args: dict, ctx: ToolContext) -> str:
     return ctx.games.start(game)
 
 
+def _read_book(args: dict, ctx: ToolContext) -> str:
+    if ctx.reader is None:
+        return "you cannot read aloud right now"
+    if ctx.games is not None and ctx.games.phase is not None:
+        return "a game is on your screen: close it with end_game first"
+    return ctx.reader.open(str(args.get("story") or ""))
+
+
 def run_tool(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
     """Return the content for the tool_result block, and note the call in ctx.done."""
     result = _run(name, args, ctx)
-    seen = "looked through the camera (that picture is gone now: look again to see)"
-    ctx.done.append(f"{name}: {result if isinstance(result, str) else seen}")
+    ctx.done.append(f"{name}: {_note(name, result)}")
     return result
+
+
+def _note(name: str, result: str | list[dict]) -> str:
+    """What the prompt keeps of a result: a picture or a long list would ride along every turn."""
+    if not isinstance(result, str):
+        return "looked through the camera (that picture is gone now: look again to see)"
+    head, _, rest = result.partition("\n")
+    return f"{head} (that list is gone now: use {name} again to see it)" if rest else result
 
 
 def _run(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
@@ -243,5 +310,9 @@ def _run(name: str, args: dict, ctx: ToolContext) -> str | list[dict]:
         return _start_game(args, ctx)
     if name == "end_game":
         return ctx.games.stop() if ctx.games is not None else "no game was open"
+    if name in ("news", "trends"):
+        return feeds.tool_text(name)
+    if name == "read_book":
+        return _read_book(args, ctx)
     print(f"tool: unknown tool {name!r}")
     return f"unknown tool {name}"
