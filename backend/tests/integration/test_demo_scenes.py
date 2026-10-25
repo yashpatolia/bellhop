@@ -1,4 +1,4 @@
-"""The three demo scenes from docs/plan/01-project.md, run through the real container."""
+"""The three demo scenes from artifacts/plan/01-project.md, run through the real container."""
 
 import pytest
 

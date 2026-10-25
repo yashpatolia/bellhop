@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Run the whole stack on this machine.
 #
-#   scripts/dev.sh mock    backend + simulator (example residents and live bell presses) + dashboard
-#   scripts/dev.sh empty   backend + dashboard, nothing in the home (the real robot and staff fill it)
+#   scripts/dev.sh mock    backend + simulator (example residents and live bell presses) + frontend
+#   scripts/dev.sh empty   backend + frontend, nothing in the home (the real robot and staff fill it)
 #
 # Extra arguments go to `bellhop-sim run` in mock mode, for example:
 #   scripts/dev.sh mock --scene busy --rate 3 --speed 2
 #
-# Ports: BACKEND_PORT (8000) and DASHBOARD_PORT (5173). Ctrl+C stops everything.
+# Ports: BACKEND_PORT (8000) and FRONTEND_PORT (5173). Ctrl+C stops everything.
 set -euo pipefail
 
 mode="${1:-}"
@@ -19,7 +19,7 @@ esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 backend_port="${BACKEND_PORT:-8000}"
-dashboard_port="${DASHBOARD_PORT:-5173}"
+frontend_port="${FRONTEND_PORT:-5173}"
 api="http://127.0.0.1:${backend_port}"
 pids=()
 
@@ -50,8 +50,8 @@ else
   echo "empty home: nothing is simulated"
 fi
 
-echo "dashboard on http://localhost:${dashboard_port}"
-(cd "$root/dashboard" && VITE_BELLHOP_API_URL="$api" exec npm run dev -- --port "$dashboard_port" --strictPort) &
+echo "frontend on http://localhost:${frontend_port}"
+(cd "$root/frontend" && VITE_BELLHOP_API_URL="$api" exec npm run dev -- --port "$frontend_port" --strictPort) &
 pids+=($!)
 
 wait

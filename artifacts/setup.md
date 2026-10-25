@@ -36,7 +36,7 @@ Then, from the repo root:
 
 ```bash
 git clone git@github.com:yashpatolia/calhacks-13.git && cd calhacks-13
-(cd dashboard && npm install)
+(cd frontend && npm install)
 scripts/dev.sh mock      # backend + simulator + dashboard with example data
 ```
 
@@ -63,7 +63,7 @@ Starting data (pick one):
 | --- | --- |
 | `BELLHOP_SEED_FILE=scenarios/empty.json` | Nothing in the home. Add residents on the dashboard, nurses and robots through the API |
 | `BELLHOP_SEED_DEMO=1` | The small demo home (Margaret in room 12, Arthur in 14, two nurses, one robot) |
-| `BELLHOP_SEED_FILE=path/to/home.json` | Your own home, format in `backend/scenarios/README.md` |
+| `BELLHOP_SEED_FILE=path/to/home.json` | Your own home, format in `artifacts/components/backend-scenarios.md` |
 
 Add a nurse and a robot by hand (the dashboard's "I'm on my way" needs a nurse on shift):
 
@@ -108,12 +108,12 @@ uv run pytest && uv run ruff check src tests scripts && uv run ruff format --che
 ## 4. Dashboard
 
 ```bash
-cd dashboard
+cd frontend
 npm install
 npm run dev                  # http://localhost:5173
 ```
 
-The dashboard has no data of its own and reads only the backend. Set where it is with `dashboard/.env.local` (git-ignored; `.env.example` shows the names):
+The dashboard has no data of its own and reads only the backend. Set where it is with `frontend/.env.local` (git-ignored; `.env.example` shows the names):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ scripts/dev.sh empty      # backend and dashboard only
 scripts/dev.sh mock --scene busy --rate 3 --speed 2     # options for the simulator
 ```
 
-Or by hand, with a backend already running: `cd simulator && uv sync && uv run bellhop-sim run --seed-home`. Options (`--rate`, `--speed`, `--scene`, `--nurse-delay`) are in `simulator/README.md`. The simulator needs the same `--base-url` and `--api-key` (or `BELLHOP_API` and `BELLHOP_API_KEY`) as the backend if you changed them.
+Or by hand, with a backend already running: `cd simulator && uv sync && uv run bellhop-sim run --seed-home`. Options (`--rate`, `--speed`, `--scene`, `--nurse-delay`) are in `artifacts/components/simulator.md`. The simulator needs the same `--base-url` and `--api-key` (or `BELLHOP_API` and `BELLHOP_API_KEY`) as the backend if you changed them.
 
 Seeding is safe to repeat. A restarted in-memory backend loses everything, so run the simulator again (`scripts/dev.sh` does).
 
@@ -145,10 +145,13 @@ Without it the backend keeps everything in memory and loses it on restart. With 
 1. Install the CLI and start a local server (leave it running):
 
    ```bash
-   curl -sSf https://install.spacetimedb.com | sh
-   spacetime version list                    # confirms the install
-   spacetime start                           # http://127.0.0.1:3000
+   curl -sSf https://install.spacetimedb.com | sh   # answer yes; downloads about 50 MB
+   export PATH="$HOME/.local/bin:$PATH"             # the installer does not do this for you
+   spacetime --version                              # confirms the install
+   spacetime start                                  # http://127.0.0.1:3000
    ```
+
+   To keep the PATH in new terminal tabs: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`. If a command says `spacetime: command not found`, this is the cause. `spacetime start` runs in the foreground, so give it its own terminal tab. It does not restart by itself after a reboot.
 
    Or with Docker: `docker run --rm --pull always -p 3000:3000 clockworklabs/spacetime start`.
 
@@ -156,20 +159,25 @@ Without it the backend keeps everything in memory and loses it on restart. With 
 
    ```bash
    (cd spacetimedb && npm install && npx tsc --noEmit)
-   spacetime publish bellhop --module-path spacetimedb --server local
+   spacetime publish bellhop --module-path spacetimedb --server local -y
    ```
 
-   The first publish onto a database made by an older version of the module needs `--delete-data`, which wipes its rows. Publish again after any change to `spacetimedb/src/index.ts`.
+   The first publish also logs the CLI in to the local server. The first publish onto a database made by an older version of the module needs `--delete-data`, which wipes its rows. Publish again after any change to `spacetimedb/src/index.ts`.
 
-3. Start the backend against it:
+3. Start the backend against it, with the server from step 1 already running:
 
    ```bash
    export BELLHOP_STORE=spacetimedb
    export BELLHOP_STDB_URL=http://127.0.0.1:3000
    export BELLHOP_STDB_DB=bellhop
+   cd backend && uv run uvicorn bellhop.api.main:app --port 8000
    ```
 
-4. Check: add a resident on the dashboard, restart the backend, and the resident is still there. `spacetime sql bellhop "SELECT * FROM resident" --server local` shows the rows.
+   If `BELLHOP_STORE` is not set in the shell that starts the backend, it silently uses memory.
+
+4. Check: add a resident on the dashboard, restart the backend, and the resident is still there. `spacetime sql bellhop "SELECT * FROM resident" --server local` shows the rows. If you wipe the database with `--delete-data`, restart the backend and run `bellhop-sim seed` again, otherwise the running backend writes its old in-memory rows back.
+
+   This was checked against a real local server (v2.13.0): residents, memory facts, the review queue, care readings, medical history and calls all came back after a backend restart.
 
 If the server cannot be reached the backend logs a warning and falls back to memory. If the module is older than the backend (the memory and care tables are missing) it keeps working and logs that those tables are not persisted; publish the module again. Prefer a local server for the demo over the hosted Maincloud, which needs `spacetime login` and `BELLHOP_STDB_TOKEN`, so venue Wi-Fi is not in the loop.
 
@@ -231,13 +239,13 @@ uv run uvicorn bellhop.api.main:app --port 8000 &     # the agent reads from the
 uv run python -m bellhop.fetchai
 ```
 
-Open the Agent Inspector link printed at startup and connect the Mailbox once. This has never been run, so expect to fix something on the first try. Details: `docs/architecture/06-integrations.md`.
+Open the Agent Inspector link printed at startup and connect the Mailbox once. This has never been run, so expect to fix something on the first try. Details: `artifacts/architecture/06-integrations.md`.
 
 ## 11. The robot (Raspberry Pi)
 
-The Pi runs `rover.drive` (motors and a small HTTP server on port 8080), `rover.vision` (camera, people, door markers) and `rover.speech` (microphone, speech to text, Claude replies, voice). It talks to the backend only over HTTP. Full detail: `ml/README.md` and `ml/pi/deploy/README.md`.
+The Pi runs `rover.drive` (motors and a small HTTP server on port 8080), `rover.vision` (camera, people, door markers) and `rover.speech` (microphone, speech to text, Claude replies, voice). It talks to the backend only over HTTP. Full detail: `artifacts/components/ml.md` and `artifacts/components/robot-deploy.md`.
 
-Hardware: Freenove 4WD car kit with a Raspberry Pi 5, Camera Module 3, a USB microphone and speaker, and a stable separate power supply for the Pi. Wiring and the safe-stop checklist are in `ml/pi/deploy/WIRING.md` and `ml/pi/deploy/SAFE_STOP_CHECKLIST.md`; do the checklist with the wheels off the ground before the first drive.
+Hardware: Freenove 4WD car kit with a Raspberry Pi 5, Camera Module 3, a USB microphone and speaker, and a stable separate power supply for the Pi. Wiring and the safe-stop checklist are in `artifacts/components/robot-wiring.md` and `artifacts/components/robot-safe-stop.md`; do the checklist with the wheels off the ground before the first drive.
 
 Keys:
 
@@ -286,13 +294,13 @@ Run it (the backend laptop must be started with `--host 0.0.0.0`):
 export BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:8080
 # on the Pi
 uv run python -m rover.drive            # motors and the server
-uv run python -m rover.vision           # camera (one terminal each; see ml/README.md for the 2 GB note)
+uv run python -m rover.vision           # camera (one terminal each; see artifacts/components/ml.md for the 2 GB note)
 uv run python -m rover.speech           # voice
 ```
 
-To start them at boot instead, put the same variables in `/etc/bellhop/env` (mode 600) and install the systemd units from `ml/pi/deploy/` (steps in `ml/pi/deploy/README.md`).
+To start them at boot instead, put the same variables in `/etc/bellhop/env` (mode 600) and install the systemd units from `ml/pi/deploy/` (steps in `artifacts/components/robot-deploy.md`).
 
-Before any drive test, run the safe stationary conversation test in `ml/README.md`: it exercises the whole voice path with the backend's `BELLHOP_ROBOT_URL` unset so nothing can drive.
+Before any drive test, run the safe stationary conversation test in `artifacts/components/ml.md`: it exercises the whole voice path with the backend's `BELLHOP_ROBOT_URL` unset so nothing can drive.
 
 Then open the dashboard: the robot should appear under Robots within seconds, and the Dispatch tab can drive it to a room.
 
@@ -323,7 +331,7 @@ Then set the same key as `BELLHOP_API_KEY` on the Pi and as `VITE_BELLHOP_API_KE
 1. Laptop and Pi on Tailscale ([12](#12-network-tailscale)).
 2. Laptop: SpacetimeDB running and the module published ([6](#6-spacetimedb-persistence)).
 3. Laptop: backend with `BELLHOP_STORE=spacetimedb`, `BELLHOP_ROBOT_URL`, `BELLHOP_API_KEY`, `BELLHOP_CORS_ORIGINS`, and the Claude settings if you have a key ([3](#3-backend), [7](#7-claude-anthropic)).
-4. Laptop: dashboard (`npm run dev`, or `npm run build` and serve `dashboard/dist`).
+4. Laptop: dashboard (`npm run dev`, or `npm run build` and serve `frontend/dist`).
 5. Pi: `rover.drive`, `rover.vision`, `rover.speech` ([11](#11-the-robot-raspberry-pi)).
 6. Dashboard: add residents and rooms on the Residents tab, and a nurse and the robot through the API.
 7. Press a bell (`curl -X POST $API/calls -H 'Content-Type: application/json' -d '{"room":"12"}'`, or the bell button) and watch it on the Live tab.
@@ -337,10 +345,11 @@ Then set the same key as `BELLHOP_API_KEY` on the Pi and as `VITE_BELLHOP_API_KE
 | Browser console shows a CORS error | `BELLHOP_CORS_ORIGINS` does not include the dashboard's address |
 | "This home is empty" | Normal for `empty`; add residents on the Residents tab or run the simulator |
 | "I'm on my way" does nothing useful | No nurse on shift: `POST /nurses` |
+| `spacetime: command not found` | `~/.local/bin` is not on your PATH ([6](#6-spacetimedb-persistence)) |
 | Data gone after restarting the backend | `BELLHOP_STORE` is `memory`, or SpacetimeDB was unreachable (look for a warning at startup) |
 | Warning "module lacks the memory and care tables" | Publish `spacetimedb/` again ([6](#6-spacetimedb-persistence)) |
 | `BELLHOP_LEARNING=claude` fails at startup or learning does nothing | `uv sync --extra claude` and `ANTHROPIC_API_KEY` |
 | Robot does not appear on the dashboard | `BELLHOP_API` on the Pi; `ROBOT_ID`; the Pi can `curl <backend>/health` |
 | Dashboard Drive or a bell does nothing on the robot | `BELLHOP_ROBOT_URL` on the backend; `rover.drive` running; `curl <pi>:8080/snapshot` |
 | Robot cannot hear or speak | `MIC_NAME` and `SPEAKER_NAME`; `scripts/doctor.py`; the default speaker is HDMI |
-| Port already in use | Another run is still going: stop it, or set `BACKEND_PORT` and `DASHBOARD_PORT` for `scripts/dev.sh` |
+| Port already in use | Another run is still going: stop it, or set `BACKEND_PORT` and `FRONTEND_PORT` for `scripts/dev.sh` |

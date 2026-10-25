@@ -4,7 +4,7 @@ import { createLiveSource } from './store'
 
 // The one place that decides where data comes from: the Bellhop backend (contracts/openapi.json).
 // With nothing in the backend you get an empty home; with the simulator running (see
-// simulator/README.md) you get a populated one. The screens cannot tell the difference.
+// artifacts/components/simulator.md) you get a populated one. The screens cannot tell the difference.
 
 export interface DataSource {
   subscribe: (fn: () => void) => () => void

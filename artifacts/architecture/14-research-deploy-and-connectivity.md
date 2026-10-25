@@ -1,6 +1,6 @@
 # Research: running Bellhop together (hosting, Pi link, live updates, demo day)
 
-Researched 2026-10-23. The vendor and network claims below remain unverified because page fetches failed in this session. Since this research was written, the recommended `GET /events` SSE endpoint has been implemented; its actual wire contract is in [contracts/README.md](../../contracts/README.md#live-updates). Tailscale setup and the Pi watchdog remain deployment work.
+Researched 2026-10-23. The vendor and network claims below remain unverified because page fetches failed in this session. Since this research was written, the recommended `GET /events` SSE endpoint has been implemented; its actual wire contract is in [artifacts/components/contracts.md](../components/contracts.md#live-updates). Tailscale setup and the Pi watchdog remain deployment work.
 ## Assumptions
 1. Backend is `bellhop.api.main:app` (FastAPI, Python 3.12, `uv`), default `BELLHOP_STORE=memory` (verified in `container.py`). `GET /health` exists.
 2. The React dashboard runs on a teammate's machine and needs to reach the backend over HTTP from a different host (CORS default `*`, verified).

@@ -64,6 +64,6 @@ Keep secrets in env vars or a git-ignored `.env`, never in the repo.
 
 ## Further reading
 
-- [../AGENTS.md](../AGENTS.md): rules and commands for contributors
-- [../docs/architecture/README.md](../docs/architecture/README.md): architecture
-- [../contracts/README.md](../contracts/README.md): API contract and examples
+- [../AGENTS.md](../../AGENTS.md): rules and commands for contributors
+- [architecture/README.md](../architecture/README.md): architecture
+- [contracts.md](contracts.md): API contract and examples

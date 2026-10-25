@@ -1,11 +1,11 @@
 # AGENTS.md
 
-Entry point for any contributor or tooling. Read [CONTEXT.md](CONTEXT.md) for the full handoff, then this, then [docs/architecture/README.md](docs/architecture/README.md).
+Entry point for any contributor or tooling. Read [artifacts/context.md](artifacts/context.md) for the full handoff, then this, then [artifacts/architecture/README.md](artifacts/architecture/README.md).
 
 ## What this repo is
 Bellhop: a care-home robot that answers the call bell and escalates to a nurse only when needed.
-Product plan: `docs/plan/01-project.md`. Static overview pages: `artifacts/`.
-Current progress, gaps and handoffs: [docs/architecture/11-status.md](docs/architecture/11-status.md). Frontend API contract: [contracts/README.md](contracts/README.md).
+Product plan: `artifacts/plan/01-project.md`. Static overview pages: `artifacts/`.
+Current progress, gaps and handoffs: [artifacts/architecture/11-status.md](artifacts/architecture/11-status.md). Frontend API contract: [artifacts/components/contracts.md](artifacts/components/contracts.md).
 
 ## Layout
 ```
@@ -13,12 +13,14 @@ backend/src/bellhop/   domain, ports, services, adapters, api, fetchai, labelled
 backend/tests/         unit/ and integration/ (mirror src)
 backend/scripts/       demo_scenes.py, export_contract.py
 contracts/             openapi.json + example payloads (drift-tested)
+frontend/              nurse dashboard (Vite, React, TypeScript); reads the backend only
+simulator/             bellhop-sim: plays a fictional home against the backend API
+ml/                    the robot (Raspberry Pi): speech, vision, driving
 spacetimedb/           TypeScript module for the optional SpacetimeDB store
-docs/architecture/     module map, decisions, testing, status, research (00 to 14)
-docs/plan/             product plan and research (read-only)
-artifacts/             static HTML overview pages
+scripts/dev.sh         runs backend, simulator and frontend together (mock or empty)
+artifacts/             all documentation: setup.md, context.md, overview.md, architecture/, plan/, components/, HTML pages
 tools/                 local Node tooling, git-ignored
-.github/workflows/     backend.yml: lint, format check, tests
+.github/workflows/     backend.yml, frontend.yml, simulator.yml: lint, format check, tests
 ```
 
 ## Commands (run from `backend/`)
@@ -52,7 +54,7 @@ Not Python-only: TypeScript/Node is fine where it fits (SpacetimeDB module, dash
 4. **One behaviour change = one test + one small diff.** No speculative abstractions (YAGNI).
 5. **Lean toward escalation:** urgency never ratchets down (`Call.score`); uncertain triage is treated as more urgent.
 6. **No diagnosis, no real patient data.** Prototype only.
-7. Keep files small and single-purpose. Public behaviour is documented in `docs/architecture/`; update docs in the same change.
+7. Keep files small and single-purpose. Public behaviour is documented in `artifacts/architecture/`; update docs in the same change.
 
 ## Where things go
-See [01-module-map.md](docs/architecture/01-module-map.md). To extend (new adapter, dispatch rule, alert channel) see [02-extension-guide.md](docs/architecture/02-extension-guide.md).
+See [01-module-map.md](artifacts/architecture/01-module-map.md). To extend (new adapter, dispatch rule, alert channel) see [02-extension-guide.md](artifacts/architecture/02-extension-guide.md).

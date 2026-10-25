@@ -52,7 +52,7 @@ Rules: `Call.charge(nurse)` counts a call against a nurse at most once (`Call.nu
 ### WP-D: composition and HTTP
 | File | Public interface |
 | --- | --- |
-| `container.py` | `build_container(settings=None, *, stdb_client=None) -> Container` wiring everything; `Settings.from_env()` reads the variables in the table in [backend/README.md](../../backend/README.md#configuration) (`BELLHOP_MEMORY`, `BELLHOP_LEARNING`, `BELLHOP_STORE`, `BELLHOP_SEED_DEMO`, `BELLHOP_STDB_URL/DB/TOKEN`, `MOSS_PROJECT_ID/KEY`, `BELLHOP_GUARDS`, `BELLHOP_ROBOT_URL`, `BELLHOP_CONTENT`, `APIFY_TOKEN`, `BELLHOP_API_KEY`, `BELLHOP_CORS_ORIGINS`, `BELLHOP_ALLOW_NEW_ROBOTS`). `Settings` also has `notifier_timeout`, `gateway_timeout`, `memory_budget_ms` (not env-driven). Robot and SpacetimeDB URLs must be http(s). Unreachable SpacetimeDB at build time logs and falls back to memory |
+| `container.py` | `build_container(settings=None, *, stdb_client=None) -> Container` wiring everything; `Settings.from_env()` reads the variables in the table in [artifacts/components/backend.md](../components/backend.md#configuration) (`BELLHOP_MEMORY`, `BELLHOP_LEARNING`, `BELLHOP_STORE`, `BELLHOP_SEED_DEMO`, `BELLHOP_STDB_URL/DB/TOKEN`, `MOSS_PROJECT_ID/KEY`, `BELLHOP_GUARDS`, `BELLHOP_ROBOT_URL`, `BELLHOP_CONTENT`, `APIFY_TOKEN`, `BELLHOP_API_KEY`, `BELLHOP_CORS_ORIGINS`, `BELLHOP_ALLOW_NEW_ROBOTS`). `Settings` also has `notifier_timeout`, `gateway_timeout`, `memory_budget_ms` (not env-driven). Robot and SpacetimeDB URLs must be http(s). Unreachable SpacetimeDB at build time logs and falls back to memory |
 | `api/app.py` | `create_app(container) -> FastAPI`. 46 operations, listed once in [HTTP routes](#http-routes) below. Optional `X-API-Key` auth on every route but `/health` (`BELLHOP_API_KEY`), 1 MB body limit, field length limits, `?limit=` on `/calls` and `/alerts` |
 | `api/events.py` | `EventStream(bus, store, max_clients=20, queue_size=100, heartbeat=15)`: subscribes to `CallRaised/Assigned/Scored/Resolved`, `AlertRaised`; `emit(name, ids)` is thread-safe and non-blocking (bounded deque per client, oldest dropped, `call_soon_threadsafe` wake); `connect()` raises `TooManyClients` (route: 503); `frames(client)` yields SSE text (`retry:`, `id/event/data` with the full object read from the store, `: ping`). `Container.events`, `app.state.events` |
 | `api/deps.py` | Helpers the routes use: `get_call`, `ack_alert`, `require_resident`, `triage_score` (runs `TriageGuard.decide`, then `CallService.score`), `AlertNotFound`, `ResidentNotFound` |
@@ -91,7 +91,7 @@ Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` al
 | File | Public interface |
 | --- | --- |
 | `adapters/spacetimedb_store.py` | `SpacetimeDBStore(url, db, token=None, *, client=None, max_queue=500)` with `.calls .residents .nurses .robots .visits .alerts` like `InMemoryStore`. Reads from an in-memory mirror; each `save` also POSTs the reducer (`save_*`, `append_turn` for new turns) with a 2 s timeout. Failures are logged and queued, retried in order on the next save, never raised. `pending`, `flush()`, `hydrate()` (SQL into the mirror; raises `httpx.HTTPError` if unreachable) |
-| `spacetimedb/src/index.ts` (repo root) | TypeScript module (tables `call call_turn resident nurse robot alert visit memory_fact`, reducers `save_*` upserts, `append_turn`); build and run steps in `spacetimedb/README.md` |
+| `spacetimedb/src/index.ts` (repo root) | TypeScript module (tables `call call_turn resident nurse robot alert visit memory_fact`, reducers `save_*` upserts, `append_turn`); build and run steps in `artifacts/components/spacetimedb.md` |
 
 ### Research
 - `06-integrations.md`: SpacetimeDB (TypeScript module, Python via HTTP), Moss (async SDK bridged with a 50 ms timeout), Fetch.ai (one Liaison uAgent). All three adapters are written; verification state is in [11-status.md](11-status.md).
@@ -106,7 +106,7 @@ Select with `BELLHOP_CONTENT=local|wikipedia|apify` (default `local`; `apify` al
 | Memory call | Yash / Companion | `MemoryService.recall`, under 50 ms |
 
 ## HTTP routes
-Schemas and examples: [contracts/openapi.json](../../contracts/openapi.json) and [contracts/README.md](../../contracts/README.md). Auth: every route except `GET /health` needs `X-API-Key` when `BELLHOP_API_KEY` is set (401), open otherwise. Errors: unknown id 404, illegal state change 409, bad body 422, body over 1 MB 413. CORS from `BELLHOP_CORS_ORIGINS` (default all).
+Schemas and examples: [contracts/openapi.json](../../contracts/openapi.json) and [artifacts/components/contracts.md](../components/contracts.md). Auth: every route except `GET /health` needs `X-API-Key` when `BELLHOP_API_KEY` is set (401), open otherwise. Errors: unknown id 404, illegal state change 409, bad body 422, body over 1 MB 413. CORS from `BELLHOP_CORS_ORIGINS` (default all).
 
 | Area | Method and path | Purpose |
 | --- | --- | --- |
@@ -140,7 +140,7 @@ Schemas and examples: [contracts/openapi.json](../../contracts/openapi.json) and
 | Metrics | `GET /metrics` | Savings counter and breakdowns |
 
 ## Care, visit notes, family, memory guard, triage guard
-All wired in `container.py` (`care_store`, `care_signals`, `visit_notes`, `family`, `preferences`, `memory_guard`, `triage_guard`) and exposed by `api/app.py`; endpoints are in `contracts/README.md`.
+All wired in `container.py` (`care_store`, `care_signals`, `visit_notes`, `family`, `preferences`, `memory_guard`, `triage_guard`) and exposed by `api/app.py`; endpoints are in `artifacts/components/contracts.md`.
 - **Care** (`domain/care.py`, `ports/care.py`, `adapters/care_store.py`, `services/care_signals.py`): mood/pain/drink/repeat-question entries, trends (pain streak, mood lower than usual, hydration) and flags. Three days of pain in a row raises one open PAIN flag with a reason. Observations only, no diagnosis.
 - **Visit notes** (`services/visit_notes.py`): one-line note per call built from care entries and urgency.
 - **Family** (`services/family.py`): voice notes to the resident, replies, and a daily postcard built only from fixed templates and allowlisted drink names (care notes are never echoed).
@@ -170,7 +170,7 @@ Stdlib-only package for checking and tuning triage against hand-labelled calls. 
 Container wiring: `Container.guarded_notifier` / `guarded_gateway` (None when `Settings(guard_timeouts=False)`, env `BELLHOP_GUARDS=0`); the memory index is wrapped only for `moss`. `Container.notifier` and `gateway` remain the recorders.
 
 ## Scenarios and admin
-- `scenarios.py` (`Scenario`, `load_scenario`, `apply_scenario`, `ScenarioError`) loads a JSON setup (format in `backend/scenarios/README.md`). `seed.py` is a thin wrapper over `scenarios/demo.json`. `BELLHOP_SEED_FILE` (`Settings.seed_file`) applies any scenario at startup and beats `BELLHOP_SEED_DEMO`; a bad file fails startup.
+- `scenarios.py` (`Scenario`, `load_scenario`, `apply_scenario`, `ScenarioError`) loads a JSON setup (format in `artifacts/components/backend-scenarios.md`). `seed.py` is a thin wrapper over `scenarios/demo.json`. `BELLHOP_SEED_FILE` (`Settings.seed_file`) applies any scenario at startup and beats `BELLHOP_SEED_DEMO`; a bad file fails startup.
 - `services/admin.py` (`AdminService`, exposed as `Container.admin`): `create_resident`, `update_resident`, `list_residents`, `get_resident`, `create_nurse`, `update_nurse`, `list_nurses`. Errors: `ResidentNotFound` / `NurseNotFound` (`LookupError`, API maps to 404) and `Conflict` (`ValueError`: duplicate id or a room another resident occupies).
 
 ### Admin routes
