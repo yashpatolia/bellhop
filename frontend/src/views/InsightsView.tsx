@@ -74,7 +74,7 @@ export function InsightsView({ data }: { data: BellhopData }) {
               {Object.entries(data.metrics).map(([key, value]) => (
                 <div key={key} className="kpi">
                   <div className="kpi-label">{humanizeKey(key)}</div>
-                  <div className="kpi-value">{formatMetric(value)}</div>
+                  <div className="kpi-value">{formatMetric(value, key)}</div>
                 </div>
               ))}
             </div>

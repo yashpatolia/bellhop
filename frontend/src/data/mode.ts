@@ -9,6 +9,14 @@ export const DEMO_URL = (import.meta.env.VITE_BELLHOP_DEMO_URL as string | undef
 const KEY = 'bellhop.mode'
 
 export function readMode(): Mode {
+  // A shared link like /?mode=demo#/live opens the demo; the choice is remembered and the
+  // parameter dropped from the address, so Exit demo still works after a reload.
+  const asked = new URLSearchParams(window.location?.search ?? '').get('mode')
+  if (asked === 'demo' || asked === 'live') {
+    saveMode(asked)
+    window.history?.replaceState(null, '', window.location.pathname + window.location.hash)
+    return asked
+  }
   try {
     return window.localStorage.getItem(KEY) === 'demo' ? 'demo' : 'live'
   } catch {
