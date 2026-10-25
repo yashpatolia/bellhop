@@ -341,7 +341,7 @@ def run_all(hardware: bool = True, env: Mapping[str, str] | None = None) -> list
             results.append(run_check(name, check))
     else:
         results.append(Result("hardware", SKIPPED, "--no-hardware"))
-    with httpx.Client(timeout=config.HTTP_TIMEOUT_S) as client:
+    with httpx.Client(timeout=config.BACKEND_HTTP_TIMEOUT_S) as client:
         results.append(
             run_check("Pi server", lambda: check_pi_server(client, config.PI_SERVER_URL))
         )
