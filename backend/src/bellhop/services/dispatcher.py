@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from bellhop.domain import Call, CallStatus, Nurse, Resident, Robot, RobotStatus
-from bellhop.domain.events import CallAssigned, CallRaised, RobotUnreachable
+from bellhop.domain.events import CallAssigned, CallRaised, RobotAvailable, RobotUnreachable
 from bellhop.ports import (
     CallRepository,
     Clock,
@@ -78,6 +78,29 @@ class Dispatcher:
         self._bus = bus
         self._clock = clock
         bus.subscribe(CallRaised, self._on_call_raised)
+        bus.subscribe(RobotAvailable, self._on_robot_available)
+
+    def _on_robot_available(self, event: RobotAvailable) -> None:
+        """A bell that rang while every robot was busy went to a nurse alone. Once a robot is
+        free, send it to the oldest such call so the resident is not left waiting."""
+        robot = self._robots.get(event.robot_id)
+        if robot is None or robot.status is not RobotStatus.IDLE or robot.battery < MIN_BATTERY:
+            return
+        waiting = [
+            c
+            for c in self._calls.list_open()
+            if c.status is CallStatus.ASSIGNED and c.robot_id is None
+        ]
+        if not waiting:
+            return
+        call = min(waiting, key=lambda c: c.created_at)
+        if not self._send_robot(robot.id, call.room):
+            return  # the call keeps its nurse; nothing new to tell them
+        call.transition(CallStatus.ROBOT_EN_ROUTE, self._clock.now())
+        call.robot_id = robot.id
+        call.assigned_to = [robot.id, *call.assigned_to]
+        self._calls.save(call)
+        self._bus.publish(CallAssigned(call_id=call.id, robot_id=robot.id, nurse_id=None))
 
     def _on_call_raised(self, event: CallRaised) -> None:
         call = self._calls.get(event.call_id)

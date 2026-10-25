@@ -88,7 +88,8 @@ export function Robots({ data }: { data: BellhopData }) {
   return (
     <ul className="sb-robots" aria-label="Robots">
       {data.robots.map((r) => {
-        const low = r.battery < 30 && r.state !== 'charging'
+        const offline = r.state === 'offline'
+        const low = r.battery < 30 && r.state !== 'charging' && !offline
         return (
           <li key={r.id} className={low ? 'low' : ''}>
             <b>{r.name}</b>
@@ -96,10 +97,14 @@ export function Robots({ data }: { data: BellhopData }) {
               {ROBOT_WORDS[r.state]}
               {r.targetRoom ? `, room ${r.targetRoom}` : ''}
             </span>
-            <em>
-              <Battery pct={r.battery} charging={r.state === 'charging'} />
-              {Math.round(r.battery)}%{low ? ' low' : ''}
-            </em>
+            {offline ? (
+              <em>No battery report</em>
+            ) : (
+              <em>
+                <Battery pct={r.battery} charging={r.state === 'charging'} />
+                {Math.round(r.battery)}%{low ? ' low' : ''}
+              </em>
+            )}
           </li>
         )
       })}

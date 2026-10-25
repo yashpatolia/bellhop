@@ -131,6 +131,7 @@ export function toRobot(r: ApiRobot, calls: Call[]): Robot {
   let state: RobotState = 'idle'
   if (r.status === 'charging') state = 'charging'
   else if (r.status === 'fault') state = 'fault'
+  else if (r.status === 'offline') state = 'offline'
   else if (call) state = call.status === 'robot_en_route' ? 'en_route' : 'with_resident'
   else if (r.status === 'busy') state = 'en_route'
   return {

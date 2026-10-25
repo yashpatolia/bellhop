@@ -2,7 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { BellhopData, Call } from '../data/types'
 import { isOpen } from '../lib'
 
-export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_route: 'Driving', with_resident: 'With a resident', charging: 'Charging', fault: 'Needs attention' }
+export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_route: 'Driving', with_resident: 'With a resident', charging: 'Charging', fault: 'Needs attention', offline: 'Not reporting yet' }
 
 export const NAV = [
   { id: 'live', label: 'Live', href: '#/live' },

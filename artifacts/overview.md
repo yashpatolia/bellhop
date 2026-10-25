@@ -60,7 +60,10 @@ robot_en_route -> robot_with_resident -> resolved                  (urgency 1 an
 robot_en_route -> robot_with_resident -> nurse_notified -> nurse_en_route -> resolved   (urgency 3)
 robot_en_route -> nurse_notified (immediately, robot stays) -> nurse_en_route -> resolved (urgency 4)
 waiting -> nurse_notified -> ...                                   (no robot was free, a nurse owns it)
+waiting -> robot_en_route -> ...                                   (a robot freed up: it takes the oldest waiting call)
 ```
+
+A robot counts as free again when its call ends, when staff stop it, or when it reports itself idle; each publishes `RobotAvailable`, and the dispatcher sends that robot to the oldest call still waiting for one. A robot that staff add from the Dispatch tab starts as `offline` and gets no calls until its first report of its own.
 
 Urgency levels, always shown with words as well as colour:
 
