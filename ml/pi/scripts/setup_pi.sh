@@ -52,9 +52,9 @@ pick_pkg() {
 }
 # smbus: motor board and battery (I2C); gpiozero + lgpio: ultrasonic on a Pi 5; spidev: LEDs
 # python3-venv: needed by 'python3 -m venv' (the uv fallback install below)
-packages=(git python3-venv)
+packages=(git python3-venv build-essential swig python3-dev)
 for want in "python3-picamera2" "libportaudio2" "libgl1" "libglib2.0-0t64 libglib2.0-0" \
-  "python3-smbus" "python3-lgpio" "python3-gpiozero" "python3-spidev"; do
+  "python3-smbus" "python3-lgpio" "liblgpio-dev" "python3-gpiozero" "python3-spidev"; do
   # shellcheck disable=SC2086
   if pkg=$(pick_pkg $want); then
     packages+=("$pkg")
@@ -136,7 +136,12 @@ echo "success: no errors above; nothing is downloaded on a re-run"
 step "6b/7 Optional GPIO PS2 receiver library"
 # The receiver is a direct GPIO peripheral, not a USB joystick. Keep this hardware-only package
 # outside the lock so laptop development and non-PS2 deployments do not install Blinka.
-uv pip install --python "$python" --quiet --upgrade adafruit-blinka circuitpython-ps2controller
+# Raspberry Pi OS Trixie uses Python 3.13; upstream lgpio can otherwise fall back to a source
+# build that needs a C toolchain. Adafruit provides matching aarch64 wheels, so prefer them while
+# retaining the apt build prerequisites above as a fallback for another OS release.
+uv pip install --python "$python" --quiet --upgrade \
+  --find-links https://github.com/adafruit/lgpio-python-wheels/raw/main/wheels/ \
+  adafruit-blinka circuitpython-ps2controller
 echo "success: Blinka and circuitpython-ps2controller installed"
 
 step "7/7 Models, then the smoke test"
