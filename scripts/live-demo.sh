@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command live demo launcher. It syncs the Pi, starts the laptop backend/dashboard, then
+# One-command live demo launcher. It syncs the Pi, starts the laptop backend/frontend, then
 # runs the complete rover stack over SSH. Ctrl-C stops the local processes and the remote rover.
 #
 # BELLHOP_PI_HOST=pi@100.73.9.29 BELLHOP_PI_IP=100.73.9.29 bash scripts/live-demo.sh
@@ -38,8 +38,8 @@ for _ in $(seq 1 30); do
 done
 curl -fsS "$api/health" >/dev/null || { echo "live-demo: backend did not start" >&2; exit 1; }
 
-if [ -x "$root/dashboard/node_modules/.bin/vite" ]; then
-  (cd "$root/dashboard" && VITE_BELLHOP_API_URL="$api" exec npm run dev -- --host 0.0.0.0) &
+if [ -x "$root/frontend/node_modules/.bin/vite" ]; then
+  (cd "$root/frontend" && VITE_BELLHOP_API_URL="$api" exec npm run dev -- --host 0.0.0.0) &
   pids+=("$!")
   echo "live-demo: dashboard on http://127.0.0.1:5173"
 else
