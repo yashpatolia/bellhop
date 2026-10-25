@@ -121,8 +121,12 @@ VISION_WATCHDOG_S = 0.5  # no fresh vision message this long -> stop
 MOTOR_FORWARD_SIGN = int(os.environ.get("BELLHOP_MOTOR_FORWARD_SIGN", "1"))
 if MOTOR_FORWARD_SIGN not in (-1, 1):
     raise ValueError("BELLHOP_MOTOR_FORWARD_SIGN must be 1 or -1")
-# Optional manual backup control. Linux exposes most USB/Bluetooth PS2 adapters as /dev/input/js*;
-# it is off unless rover.drive is launched with --controller.
+# Optional manual backup control. The demo receiver is a Yahboom PS2 board wired directly to the
+# GPIO header; it bit-bangs the PS2 protocol and must not share the kernel SPI pins. A generic
+# Linux joystick is still available as an alternate backend for USB/Bluetooth gamepads.
+MANUAL_BACKEND = os.environ.get("BELLHOP_MANUAL_BACKEND", "ps2").strip().lower()
+if MANUAL_BACKEND not in {"ps2", "joystick"}:
+    raise ValueError("BELLHOP_MANUAL_BACKEND must be ps2 or joystick")
 MANUAL_DEVICE = os.environ.get("BELLHOP_MANUAL_DEVICE", "/dev/input/js0")
 MANUAL_DEADMAN_BUTTON = int(os.environ.get("BELLHOP_MANUAL_DEADMAN_BUTTON", "4"))
 MANUAL_FORWARD_AXIS = int(os.environ.get("BELLHOP_MANUAL_FORWARD_AXIS", "1"))
@@ -131,6 +135,22 @@ MANUAL_DEADZONE = float(os.environ.get("BELLHOP_MANUAL_DEADZONE", "0.12"))
 MANUAL_MAX_DUTY = int(os.environ.get("BELLHOP_MANUAL_MAX_DUTY", "1000"))
 MANUAL_TIMEOUT_S = float(os.environ.get("BELLHOP_MANUAL_TIMEOUT_S", "0.35"))
 MANUAL_REFRESH_S = 0.1
+# Yahboom PS2 receiver wiring, with physical header pins 23/19/24/21 mapped to BCM
+# GPIO11/10/8/9. The library needs Blinka's board pin names rather than header numbers.
+PS2_CLK_PIN = os.environ.get("BELLHOP_PS2_CLK_PIN", "D11")
+PS2_CMD_PIN = os.environ.get("BELLHOP_PS2_CMD_PIN", "D10")
+PS2_ATT_PIN = os.environ.get("BELLHOP_PS2_ATT_PIN", "D8")
+PS2_DAT_PIN = os.environ.get("BELLHOP_PS2_DAT_PIN", "D9")
+PS2_DEADMAN_BUTTON = os.environ.get("BELLHOP_PS2_DEADMAN_BUTTON", "R2").upper()
+PS2_POLL_S = float(os.environ.get("BELLHOP_PS2_POLL_S", "0.02"))
+if PS2_POLL_S <= 0:
+    raise ValueError("BELLHOP_PS2_POLL_S must be positive")
+# The Freenove LED strip uses GPIO10 through the kernel SPI path. It would contend with the
+# direct-wired PS2 CMD pin, so PS2 mode deliberately disables LEDs. The rest of the car uses I2C
+# and separate GPIOs and remains available.
+FREENOVE_LEDS_ENABLED = os.environ.get(
+    "BELLHOP_FREENOVE_LEDS", "0" if MANUAL_BACKEND == "ps2" else "1"
+) == "1"
 PAN_CENTER = 90
 TILT_DRIVE = 90  # level: door markers are mounted low
 # Freenove's servo client applies a +10-degree calibration error. Although its UI permits

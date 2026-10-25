@@ -2,6 +2,7 @@ from rover.drive.car import FakeCar
 from rover.drive.control import Controller
 from rover.drive.manual import ManualMixer
 from rover.drive.navigator import SimNavigator
+from rover.drive.ps2 import PS2Mixer
 
 
 class RecordingCar(FakeCar):
@@ -42,3 +43,16 @@ def test_manual_drive_cancels_navigation_and_blocks_late_dispatch():
     controller.stop()
     assert controller.snapshot()["mode"] == "idle"
     assert car.commands[-1] == (0, 0)
+
+
+def test_gpio_ps2_deadman_and_link_loss_never_return_a_drive_command():
+    mixer = PS2Mixer(deadzone=0.1, max_duty=1000)
+    assert mixer.command(linked=False, deadman=True, left_x=128, left_y=0) is None
+    assert mixer.command(linked=True, deadman=False, left_x=128, left_y=0) is None
+    assert mixer.command(linked=True, deadman=True, left_x=128, left_y=0) == (1000, 1000)
+
+
+def test_gpio_ps2_turns_from_left_stick_x():
+    mixer = PS2Mixer(deadzone=0.1, max_duty=1000)
+    left, right = mixer.command(linked=True, deadman=True, left_x=255, left_y=128)  # type: ignore[misc]
+    assert left > 0 > right
