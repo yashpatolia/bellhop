@@ -144,6 +144,13 @@ class MarkerNavigator:
         search_turns_per_lap: int = config.SEARCH_TURNS_PER_LAP,
         search_advance_s: float = config.SEARCH_ADVANCE_S,
         search_max_s: float = config.SEARCH_MAX_S,
+        turn_center_x: float = config.MARKER_TURN_CENTER_X,
+        turn_duty: int = config.MARKER_TURN_DUTY,
+        turn_min_s: float = config.MARKER_TURN_MIN_S,
+        turn_max_s: float = config.MARKER_TURN_MAX_S,
+        turn_settle_s: float = config.MARKER_TURN_SETTLE_S,
+        turn_overshoot_scale: float = config.MARKER_TURN_OVERSHOOT_SCALE,
+        turn_min_scale: float = config.MARKER_TURN_MIN_SCALE,
     ) -> None:
         self._vision, self._marker_for_room = vision, marker_for_room
         self._marker_id: int | None = None
@@ -155,6 +162,13 @@ class MarkerNavigator:
             search_advance_s,
             search_max_s,
         )
+        self._turn_center_x, self._marker_turn_duty = turn_center_x, turn_duty
+        self._marker_turn_min_s, self._marker_turn_max_s = turn_min_s, turn_max_s
+        self._marker_turn_settle_s = turn_settle_s
+        self._marker_turn_overshoot_scale, self._marker_turn_min_scale = (
+            turn_overshoot_scale,
+            turn_min_scale,
+        )
         self._search_phase = "scan"  # scan -> turn -> advance
         self._phase_started = 0.0
         self._search_started: float | None = None
@@ -164,6 +178,12 @@ class MarkerNavigator:
         self._following = False
         self._holding_distance = False
         self._follow_last_seen_at: float | None = None
+        self._marker_turn_until: float | None = None
+        self._marker_turn_direction = 0
+        self._marker_turn_ready_at: float | None = None
+        self._marker_turn_frame_after: float | None = None
+        self._marker_turn_last_x: float | None = None
+        self._marker_turn_scale = 1.0
 
     def start(self, room: str) -> None:
         self._begin(room, following=False)
@@ -182,6 +202,7 @@ class MarkerNavigator:
         self._following = following
         self._holding_distance = False
         self._follow_last_seen_at = None
+        self._reset_marker_turn()
         self._reset_search()
 
     def cancel(self) -> None:
@@ -190,6 +211,7 @@ class MarkerNavigator:
         self._following = False
         self._holding_distance = False
         self._follow_last_seen_at = None
+        self._reset_marker_turn()
         self._reset_search()
 
     def failed(self) -> bool:
@@ -199,6 +221,64 @@ class MarkerNavigator:
         self._scanner.reset()
         self._search_phase, self._phase_started = "scan", 0.0
         self._search_started, self._turns = None, 0
+
+    def _reset_marker_turn(self) -> None:
+        self._marker_turn_until = None
+        self._marker_turn_direction = 0
+        self._marker_turn_ready_at = None
+        self._marker_turn_frame_after = None
+        self._marker_turn_last_x = None
+        self._marker_turn_scale = 1.0
+
+    def _align_marker_heading(
+        self, car: FakeCar | RealCar, x: float, observed_at: float
+    ) -> bool:
+        """Centre a marker with bounded turn/recheck pulses, never dead-reckoning wheel angle."""
+        now = self._clock()
+        if self._marker_turn_until is not None:
+            if now < self._marker_turn_until:
+                car.drive(
+                    self._marker_turn_direction * self._marker_turn_duty,
+                    -self._marker_turn_direction * self._marker_turn_duty,
+                )
+                return False
+            car.stop()
+            self._marker_turn_until = None
+            self._marker_turn_ready_at = now + self._marker_turn_settle_s
+            self._marker_turn_frame_after = now
+            return False
+        if self._marker_turn_ready_at is not None:
+            car.stop()
+            awaiting_frame = self._marker_turn_frame_after or now
+            if now < self._marker_turn_ready_at or observed_at <= awaiting_frame:
+                return False
+            self._marker_turn_ready_at = None
+            self._marker_turn_frame_after = None
+        error = abs(x)
+        if error <= self._turn_center_x:
+            self._marker_turn_last_x = None
+            self._marker_turn_scale = 1.0
+            return True
+        # A sign change means the previous pulse crossed centre. Halve subsequent pulses, down
+        # to a practical floor, instead of oscillating with the original broad correction.
+        if self._marker_turn_last_x is not None and x * self._marker_turn_last_x < 0:
+            self._marker_turn_scale = max(
+                self._marker_turn_min_scale,
+                self._marker_turn_scale * self._marker_turn_overshoot_scale,
+            )
+        fraction = (error - self._turn_center_x) / (1.0 - self._turn_center_x)
+        duration = (
+            self._marker_turn_min_s
+            + (self._marker_turn_max_s - self._marker_turn_min_s) * fraction
+        ) * self._marker_turn_scale
+        self._marker_turn_direction = 1 if x > 0 else -1
+        self._marker_turn_until = now + duration
+        self._marker_turn_last_x = x
+        car.drive(
+            self._marker_turn_direction * self._marker_turn_duty,
+            -self._marker_turn_direction * self._marker_turn_duty,
+        )
+        return False
 
     @staticmethod
     def _forward_clear(car: FakeCar | RealCar) -> bool:
@@ -228,6 +308,8 @@ class MarkerNavigator:
         return True
 
     def _search(self, car: FakeCar | RealCar) -> bool:
+        # A target is no longer visible, so any heading pulse based on its old image is invalid.
+        self._reset_marker_turn()
         now = self._clock()
         if self._search_started is None:
             self._search_started = now
@@ -282,9 +364,10 @@ class MarkerNavigator:
         marker_id = self._marker_id
         if marker_id is None:
             return self._follow_search(car) if self._following else self._search(car)
-        markers = self._vision.markers()
-        if markers is None:
+        observation = self._vision.observation()
+        if observation is None:
             return self._follow_search(car) if self._following else self._search(car)
+        observed_at, markers = observation
         target = next((row for row in markers if row.get("id") == marker_id), None)
         if target is None:
             return self._follow_search(car) if self._following else self._search(car)
@@ -300,6 +383,8 @@ class MarkerNavigator:
             self._follow_last_seen_at = self._clock()
         if not self._head_ready(car):
             return False
+        if not self._align_marker_heading(car, x, observed_at):
+            return False
         if self._following:
             return self._follow_target(car, distance, x)
         if distance <= config.ARRIVE_DISTANCE_M:
@@ -309,8 +394,7 @@ class MarkerNavigator:
         if not self._forward_clear(car):
             car.stop()
             return False
-        correction = config.STEER_GAIN * x
-        car.drive(config.FORWARD_DUTY + correction, config.FORWARD_DUTY - correction)
+        car.drive(config.FORWARD_DUTY, config.FORWARD_DUTY)
         return False
 
     def _follow_search(self, car: FakeCar | RealCar) -> bool:
@@ -321,6 +405,7 @@ class MarkerNavigator:
         away from where the target was last seen. Exploration is still stationary—never blind
         wheel movement.
         """
+        self._reset_marker_turn()
         car.stop()
         last_seen = self._follow_last_seen_at
         if last_seen is not None and self._clock() - last_seen < config.FOLLOW_MARKER_LOST_GRACE_S:
@@ -342,6 +427,5 @@ class MarkerNavigator:
         if not self._forward_clear(car):
             car.stop()
             return False
-        correction = config.STEER_GAIN * x
-        car.drive(config.FORWARD_DUTY + correction, config.FORWARD_DUTY - correction)
+        car.drive(config.FORWARD_DUTY, config.FORWARD_DUTY)
         return False

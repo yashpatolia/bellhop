@@ -235,6 +235,28 @@ APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)
 CENTER_TOLERANCE = 0.1  # share of half the frame width counted as centred
+# Encoders are unavailable, so heading is closed-loop visual servoing rather than a timed turn
+# guessed from wheel RPM.  When a marker is materially off centre, stop forward travel, apply one
+# short in-place turn pulse, wait for a fresh post-turn camera frame, then measure again.  If a
+# pulse crosses the centre line, following pulses are reduced—binary-search-like correction
+# driven by the only truthful measurement we have: the camera.
+MARKER_TURN_CENTER_X = float(os.environ.get("BELLHOP_MARKER_TURN_CENTER_X", "0.16"))
+MARKER_TURN_DUTY = int(os.environ.get("BELLHOP_MARKER_TURN_DUTY", "900"))
+MARKER_TURN_MIN_S = float(os.environ.get("BELLHOP_MARKER_TURN_MIN_S", "0.07"))
+MARKER_TURN_MAX_S = float(os.environ.get("BELLHOP_MARKER_TURN_MAX_S", "0.24"))
+MARKER_TURN_SETTLE_S = float(os.environ.get("BELLHOP_MARKER_TURN_SETTLE_S", "0.12"))
+MARKER_TURN_OVERSHOOT_SCALE = float(
+    os.environ.get("BELLHOP_MARKER_TURN_OVERSHOOT_SCALE", "0.5")
+)
+MARKER_TURN_MIN_SCALE = float(os.environ.get("BELLHOP_MARKER_TURN_MIN_SCALE", "0.35"))
+if (
+    not 0 < MARKER_TURN_CENTER_X < 1
+    or not 0 < MARKER_TURN_DUTY <= 4095
+    or not 0 < MARKER_TURN_MIN_S <= MARKER_TURN_MAX_S
+    or MARKER_TURN_SETTLE_S < 0
+    or not 0 < MARKER_TURN_MIN_SCALE <= MARKER_TURN_OVERSHOOT_SCALE < 1
+):
+    raise ValueError("marker turning settings are invalid")
 FACE_TURN_DUTY = 900
 FOLLOW_STOP_HEIGHT = 0.7  # person box taller than this share of the frame -> close enough
 FORWARD_DUTY = 1200

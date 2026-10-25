@@ -51,8 +51,44 @@ def test_target_marker_wins_over_a_closer_distractor():
         }
     )
     assert not nav.step(car)
-    assert car._last["drive"][0] > 0
-    assert car._last["drive"] != (0, 0)
+    assert car._last["drive"] == (config.MARKER_TURN_DUTY, -config.MARKER_TURN_DUTY)
+
+
+def test_marker_heading_uses_turn_stop_fresh_frame_then_smaller_crossing_pulse():
+    clock = Clock()
+    stream = receiver(clock, [])
+    scanner = HeadScanner(clock)
+    scanner.centered()
+    nav = MarkerNavigator(
+        stream,
+        scanner=scanner,
+        clock=clock,
+        turn_center_x=0.1,
+        turn_duty=500,
+        turn_min_s=0.1,
+        turn_max_s=0.2,
+        turn_settle_s=0.05,
+        turn_overshoot_scale=0.5,
+        turn_min_scale=0.25,
+    )
+    car = FakeCar()
+    nav.start("210")
+
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": 0.9}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (500, -500)
+
+    clock.now = 0.25  # first pulse completes
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+
+    clock.now = 0.31  # wait for a camera frame captured after the turn stopped
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+    stream.ingest({"markers": [{"id": 210, "distance_m": 2.0, "x": -0.2}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (-500, 500)
+    assert nav._marker_turn_scale == 0.5
 
 
 def test_missing_or_stale_target_stops_wheels_and_sweeps_head():

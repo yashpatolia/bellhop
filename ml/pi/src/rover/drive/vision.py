@@ -57,12 +57,24 @@ class VisionReceiver:
         return True
 
     def markers(self, max_age_s: float = config.VISION_WATCHDOG_S) -> list[dict[str, Any]] | None:
+        observation = self.observation(max_age_s)
+        return None if observation is None else observation[1]
+
+    def observation(
+        self, max_age_s: float = config.VISION_WATCHDOG_S
+    ) -> tuple[float, list[dict[str, Any]]] | None:
+        """Return the timestamp and markers from one fresh camera observation.
+
+        Navigation uses the timestamp to ensure a heading correction is evaluated against a
+        frame received after the wheels have stopped, rather than reusing an image from while the
+        chassis was turning.
+        """
         with self._lock:
             if self._message is None or self._received_at is None:
                 return None
             if self._clock() - self._received_at > max_age_s:
                 return None
-            return list(self._message["markers"])
+            return self._received_at, list(self._message["markers"])
 
     def clear(self) -> None:
         """Drop the current frame before a new navigation command.
