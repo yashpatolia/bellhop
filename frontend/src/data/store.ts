@@ -230,6 +230,12 @@ export class LiveStore {
       }),
     driveRobot: (robotId, target) => this.command(robotId, 'navigate', { target }),
     stopRobot: (robotId) => this.command(robotId, 'stop'),
+    addRobot: async (robotId, room) => {
+      // The robot replaces battery and position with its own the first time it reports in.
+      const robot = await this.send<ApiRobot>('PUT', `/robots/${encodeURIComponent(robotId)}`, { status: 'idle', battery: 1, room })
+      this.raw.robots.set(robot.id, robot)
+      this.touch()
+    },
     resolve: (callId) =>
       this.guard(async () => {
         await this.send('POST', `/calls/${callId}/resolve`, { by_robot: false })

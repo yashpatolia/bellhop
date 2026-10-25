@@ -5,7 +5,7 @@ import { isOpen } from '../lib'
 export const ROBOT_WORDS: Record<string, string> = { idle: 'Standing by', en_route: 'Driving', with_resident: 'With a resident', charging: 'Charging', fault: 'Needs attention' }
 
 export const NAV = [
-  { id: 'live', label: 'Live', href: '#/' },
+  { id: 'live', label: 'Live', href: '#/live' },
   { id: 'dispatch', label: 'Dispatch', href: '#/dispatch' },
   { id: 'insights', label: 'Insights', href: '#/insights' },
   { id: 'residents', label: 'Residents', href: '#/residents' },

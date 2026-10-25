@@ -12,12 +12,21 @@
 }
 .lx-sumi.screen { --vh: 900px; }
 .lx-sumi *, .lx-sumi *::before, .lx-sumi *::after { box-sizing: border-box; }
+/* Focus is always drawn inside the element, so scrolling panels never clip it and it never
+   overlaps a neighbour. Fields get a thick border; buttons and links an inner ring with a light
+   gap, which stays visible on dark buttons too. */
+.lx-sumi input:focus, .lx-sumi textarea:focus, .lx-sumi select:focus { outline: none; border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.lx-sumi a:focus-visible, .lx-sumi button:focus-visible, .lx-sumi .sb-btn:focus-visible, .lx-sumi summary:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: inset 0 0 0 4px var(--surface); }
+.lx-sumi input[type='radio']:focus-visible, .lx-sumi input[type='checkbox']:focus-visible { box-shadow: none; outline: 2px solid var(--ink); outline-offset: 1px; }
 
 .lx-sumi .sm-top { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; padding: 14px 40px; border-bottom: 1px solid var(--ink); }
-.lx-sumi .sm-brand { font-family: var(--f-display); font-weight: var(--d-weight); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
+.lx-sumi .sm-brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: var(--d-weight); font-size: 1.5rem; color: var(--ink); text-decoration: none; }
 .lx-sumi .sm-brand small { margin-left: 12px; font-family: var(--f-body); font-weight: 400; font-size: 0.9rem; color: var(--ink-2); }
 .lx-sumi .sb-nav a[aria-current='page'] { background: var(--ink); color: var(--bg); }
-.lx-sumi .sm-clock { margin-left: auto; font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink-2); }
+.lx-sumi .sm-demo { margin-left: auto; padding: 6px 14px; border: 1.5px dashed var(--ink); border-radius: var(--radius-sm); background: none; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+.lx-sumi .sm-demo:hover { background: var(--accent-tint); }
+.lx-sumi .sm-demo[aria-pressed='true'] { border-style: solid; background: var(--ink); color: var(--bg); }
+.lx-sumi .sm-clock { font-family: var(--f-mono); font-size: 0.9rem; color: var(--ink-2); }
 .lx-sumi .sb-btn.primary { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 
 .lx-sumi .sm-first { height: calc(var(--vh) - 64px); min-height: 520px; display: flex; flex-direction: column; padding: 0 40px; }
@@ -107,7 +116,6 @@
 
 /* search, tendencies, add note, call history */
 .lx-sumi .sm-search { width: 100%; padding: 10px 12px; margin-bottom: 6px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; }
-.lx-sumi .sm-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lx-sumi .sm-count { margin: 0 0 8px; font-size: 0.88rem; color: var(--ink-2); }
 .lx-sumi .sm-tendencies { margin: 0 0 14px; padding: 0; list-style: none; }
 .lx-sumi .sm-tendencies li { display: grid; gap: 1px; padding: 8px 0 8px 14px; border-left: 4px solid var(--accent); margin-bottom: 6px; }
@@ -118,7 +126,6 @@
 .lx-sumi .sm-form label { display: grid; gap: 4px; font-weight: 600; color: var(--ink-2); }
 .lx-sumi .sm-form select, .lx-sumi .sm-form textarea, .lx-sumi .sm-form input { padding: 10px 12px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
 .lx-sumi .sm-form textarea { resize: vertical; }
-.lx-sumi .sm-form :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .lx-sumi .sm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .lx-sumi li > .sm-actions { margin-top: 8px; }
 .lx-sumi .sm-original { margin: 0; color: var(--ink-2); }
@@ -138,6 +145,12 @@
 .lx-sumi .sm-callview .sb-detail { max-width: 760px; }
 
 /* dispatch: rooms on the left, robots and the send button on the right */
+.lx-sumi .sm-addrobot form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; align-items: end; gap: 12px; margin-top: 10px; }
+.lx-sumi .sm-addrobot label { display: grid; gap: 4px; font-weight: 600; color: var(--ink-2); }
+.lx-sumi .sm-addrobot label small { font-weight: 400; }
+.lx-sumi .sm-addrobot input { padding: 10px 12px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
+.lx-sumi .sm-addrobot .sb-btn { padding: 11px 18px; }
+@media (max-width: 720px) { .lx-sumi .sm-addrobot form { grid-template-columns: minmax(0, 1fr); } }
 .lx-sumi .sm-other { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .lx-sumi .sm-other label { display: grid; gap: 4px; font-weight: 600; color: var(--ink-2); }
 .lx-sumi .sm-other input { padding: 8px 10px; border: 1.5px solid var(--ink-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }

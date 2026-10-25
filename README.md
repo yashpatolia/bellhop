@@ -2,7 +2,7 @@
 
 An autonomous robot fleet that takes the non-urgent call bells off nurses' hands.
 
-Most bell presses in a care home are not emergencies. They are a drink, a chat, a question or a small request, and each one still pulls a nurse away from residents who need hands. Bellhop sends a robot from the fleet to the room instead. It talks to the resident, handles what it can, and calls a nurse only when something is urgent, so nursing time goes to the people who need it. Built at Cal Hacks 13.
+Most bell presses in a care home are not emergencies. They are a drink, a chat, a question or a small request, and each one still pulls a nurse away from residents who need hands. Bellhop sends a robot from the fleet to the room instead. It talks to the resident, handles what it can, and calls a nurse only when something is urgent, so nursing time goes to the people who need it. Built at Cal Hacks 13.0 ([Devpost](https://devpost.com/software/bellhop)).
 
 ## What it does
 
@@ -40,6 +40,7 @@ You need [`uv`](https://docs.astral.sh/uv/) and Node 22.
 cd frontend && npm install && cd ..
 scripts/dev.sh mock     # backend, simulator and dashboard with an example home
 scripts/dev.sh empty    # the same with an empty home, for the real robot
+scripts/dev.sh demo     # an empty real home, plus a Demo button that switches to an example one
 ```
 
 Open http://localhost:5173.

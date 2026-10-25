@@ -74,7 +74,7 @@ function ResidentList({ data, selectedId }: { data: BellhopData; selectedId?: st
       <p className="sm-count" aria-live="polite">
         {query ? `${shown.length} of ${data.residents.length} residents` : `${data.residents.length} residents`}
       </p>
-      {shown.length === 0 && <p className="sm-empty">No resident matches "{query}".</p>}
+      {data.residents.length > 0 && shown.length === 0 && <p className="sm-empty">No resident matches "{query}".</p>}
       <ul>
         {shown.map((r) => {
           const open = data.calls.find((c) => c.residentId === r.id && isOpen(c))

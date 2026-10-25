@@ -5,7 +5,7 @@ Bellhop is an autonomous robot fleet that answers the non-urgent call bells in c
 ## Working rules
 
 - Build top down: get a working MVP first, then refine.
-- The dashboard has no mock data of its own. It reads the backend only (`frontend/src/data/store.ts`, wire format mapped in `adapt.ts`). Example data lives in `simulator/`, which feeds the backend over its API; run `scripts/dev.sh mock` or `scripts/dev.sh empty`.
+- The dashboard has no mock data of its own. It reads the backend only (`frontend/src/data/store.ts`, wire format mapped in `adapt.ts`). Example data lives in `simulator/`, which feeds the backend over its API; run `scripts/dev.sh mock`, `empty` or `demo`. The Demo button only points the dashboard at a second backend; it never adds data to the frontend.
 - NEVER use em dashes (or en dashes) in code, copy, comments or docs.
 - Fill the whole page width. No narrow centred max-width layouts.
 
