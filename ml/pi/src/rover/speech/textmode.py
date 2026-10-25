@@ -165,6 +165,9 @@ class PrintVoice:
     def say(self, sentence: str, tone: str) -> None:
         print(f"robot: {sentence}")
 
+    def wait(self) -> None:
+        pass  # nothing plays
+
 
 class TextVisit(voice_main.Visit):
     """The real Visit with its inputs swapped: script for the mic, mock for the models."""

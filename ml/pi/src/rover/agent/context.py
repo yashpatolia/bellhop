@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from rover import config
+from rover.games import GAMES
 
 ACTIVITY_BY_CATEGORY = {"pain": "pain_check", "confusion": "gentle"}
 MAX_MEMORY_FACTS = 3
@@ -17,6 +19,21 @@ SPEAKER_BY_ROLE = {
 }
 ROLE_BY_SPEAKER = {"resident": "user", "robot": "assistant"}
 VISIT_START = "(The robot has arrived and greeted the resident.)"
+GREETING = (
+    "(The robot has just arrived in room {room}. Greet the resident and ask how you can help, "
+    "then add in a few words that you can also play games on your screen.)"
+)
+CHAT_GREETING = (
+    "(Someone has just called you over by name for a chat; they did not press a call bell. Greet "
+    "them and ask how you can help, then add in a few words that you can also play games on your "
+    "screen.)"
+)
+GAMES_QUERY = "knows how to play a game"  # recalls the facts start_game saved
+
+
+def games_known(facts: list[dict]) -> list[str]:
+    """The games a resident knows, from the memory facts start_game tagged with the game."""
+    return sorted({tag for fact in facts for tag in fact.get("tags") or () if tag in GAMES})
 
 
 def load_persona() -> str:
@@ -32,7 +49,12 @@ def activity_for(category: str | None) -> str | None:
     return ACTIVITY_BY_CATEGORY.get(category or "")
 
 
-def _resident_block(resident: dict | None, preferences: dict | None, memories: list[dict]) -> str:
+def _resident_block(
+    resident: dict | None,
+    preferences: dict | None,
+    memories: list[dict],
+    known: Sequence[str] = (),
+) -> str:
     if resident is None:
         return "## Who you are talking to\nUnknown. Ask their name."
     lines = ["## Who you are talking to"]
@@ -47,10 +69,14 @@ def _resident_block(resident: dict | None, preferences: dict | None, memories: l
         wanted.append(f"favourite drink: {prefs['favourite_drink']}")
     if wanted:
         lines.append(f"Preferences: {', '.join(wanted)}")
-    facts = [m["text"] for m in memories if m.get("text")][:MAX_MEMORY_FACTS]
+    # the games line below already says which games they know
+    facts = [m["text"] for m in memories if m.get("text") and "game" not in (m.get("tags") or ())]
+    facts = facts[:MAX_MEMORY_FACTS]
     if facts:
         lines.append("Things you know about them:")
         lines += [f"- {fact}" for fact in facts]
+    if known:
+        lines.append(f"Games they already know how to play: {', '.join(GAMES[g] for g in known)}")
     return "\n".join(lines)
 
 
@@ -61,14 +87,49 @@ def build_system_prompt(
     scene_note: str,
     activity: str | None,
     now: datetime,
+    known_games: Sequence[str] = (),
+    game_status: str | None = None,
+    actions: Sequence[str] = (),
+    reading: str | None = None,
 ) -> str:
-    parts = [load_persona(), _resident_block(resident, preferences, memories)]
+    parts = [load_persona(), _resident_block(resident, preferences, memories, known_games)]
     if scene_note:
         parts.append(f"## What your camera sees\n{scene_note}")
     parts.append(f"## Now\nIt is {now:%A %d %B %Y}, {now:%H:%M}.")
     if activity:
         parts.append(load_activity(activity))
+    if game_status:
+        parts.append(
+            "## Right now: a game is on your screen\n"
+            f"{game_status}\n"
+            "You opened it with start_game. Call start_game again only to switch to a different "
+            "game.\nKeep each reply to one short sentence while they play."
+        )
+    if reading:
+        parts.append(
+            f"## A story is open\n{reading}\n"
+            "To go on, use read_book with the same story, but only if they want more."
+        )
+    if actions:
+        done = "\n".join(f"- {action}" for action in actions[-config.ACTIONS_SHOWN :])
+        parts.append(
+            "## What you have done this visit\n"
+            "Your tool calls and what each returned, oldest first. Trust these results: never say "
+            "one that worked did not happen, and never say one worked if its result says it "
+            "failed. Do not repeat one unless it failed, the resident asks, or something new "
+            "happens (use request_staff again for a new problem, and stop whenever needed):\n"
+            f"{done}"
+        )
     return "\n\n".join(part.strip() for part in parts)
+
+
+def _clip(text: str) -> str:
+    """The start (who they are, why they called) and the end (what leads into now) of a text
+    over HISTORY_CONTEXT_CHARS."""
+    if len(text) <= config.HISTORY_CONTEXT_CHARS:
+        return text
+    half = config.HISTORY_CONTEXT_CHARS // 2
+    return f"{text[:half]}\n(...)\n{text[-half:]}"
 
 
 class VisitHistory:
@@ -98,11 +159,13 @@ class VisitHistory:
         cut = max(0, len(merged) - limit)
         if cut and merged[cut]["role"] == "assistant":
             cut += 1  # never begin a request with an orphaned assistant response
-        earlier, recent = merged[:cut], merged[cut:]
+        earlier = merged[:cut]
+        # turns with no reply (WAIT, a TV) pile into one message, so each is clipped too
+        recent = [{**row, "content": _clip(row["content"])} for row in merged[cut:]]
         if earlier:
-            context = "\n".join(
-                f"{SPEAKER_BY_ROLE[row['role']]}: {row['content']}" for row in earlier
-            )[-config.HISTORY_CONTEXT_CHARS :]
+            context = _clip(
+                "\n".join(f"{SPEAKER_BY_ROLE[row['role']]}: {row['content']}" for row in earlier)
+            )
             reminder = (
                 "Earlier in this visit. Keep this context and do not repeat questions already "
                 f"answered:\n{context}"

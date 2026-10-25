@@ -1,10 +1,10 @@
-"""Draw every OLED expression into runs/face_preview.png; with --oled, also show each on the screen.
+"""Draw every expression into runs/face_preview.png; with --screen, also show each on the screen.
 
-Usage (Mac or Pi): uv run python scripts/check_face.py
-Usage (Pi):        uv run python scripts/check_face.py --oled   # rover.speech stopped (it owns it)
-On the screen: two eyes, happy ones like an upside-down U. A blank screen: check OLED_ADDRESS
-(i2cdetect -y 1); eyes shifted 2 px or a noise strip at the edge: OLED_COLUMN_OFFSET=2 (SH1106);
-happy eyes look sad: OLED_FLIP=1.
+Usage (Mac or Pi): uv run python scripts/check_face.py  # animated on a Mac: ../dev/face_window.py
+Usage (Pi):        uv run python scripts/check_face.py --screen  # rover.speech stopped (it owns it)
+On the screen: two cyan eyes, happy ones like an upside-down U, full screen in a window when the
+desktop is running (q closes it). Not 1024x600: add video=HDMI-A-1:1024x600@60 to
+/boot/firmware/cmdline.txt and reboot. Happy eyes look sad: EYES_FLIP=1.
 """
 
 import argparse
@@ -14,20 +14,21 @@ import cv2
 import numpy as np
 
 from rover import config
-from rover.eyes import EXPRESSIONS, Eyes, Oled, draw
+from rover.eyes import EXPRESSIONS, Eyes, draw, open_screen
 
-SCALE = 3  # preview pixels per OLED pixel
+SCALE = 3  # preview pixels per face pixel
 HOLD_S = 3.0  # each expression on the real screen, animated
+TIMED_FRAMES = 20
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="OLED eyes preview")
-    parser.add_argument("--oled", action="store_true", help="also cycle the faces on the OLED")
+    parser = argparse.ArgumentParser(description="Eyes preview")
+    parser.add_argument("--screen", action="store_true", help="also cycle the faces on the screen")
     args = parser.parse_args()
 
     tiles = []
     for name in EXPRESSIONS:
-        tile = np.repeat(np.repeat(draw(name), SCALE, 0), SCALE, 1).astype(np.uint8) * 255
+        tile = draw(name, scale=SCALE).astype(np.uint8) * 255
         tile = cv2.copyMakeBorder(tile, 24, 4, 4, 4, cv2.BORDER_CONSTANT, value=60)
         cv2.putText(tile, name, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.6, 255, 1)
         tiles.append(tile)
@@ -38,14 +39,22 @@ def main() -> None:
     cv2.imwrite(str(out), sheet)
     print(f"success: {len(EXPRESSIONS)} expressions drawn into {out}")
 
-    if args.oled:
-        eyes = Eyes(Oled()).start()
+    if args.screen:
+        screen = open_screen()
+        width, height = screen.size
+        print(f"screen: {type(screen).__name__} {width}x{height}, face drawn x{screen.scale}")
+        start = time.perf_counter()
+        for _ in range(TIMED_FRAMES):
+            screen.show(draw("cheerful", scale=screen.scale))
+        ms = (time.perf_counter() - start) / TIMED_FRAMES * 1000
+        print(f"screen: {ms:.1f} ms a frame = {ms * config.EYES_FPS / 10:.0f}% of a core")
+        eyes = Eyes(screen).start()
         for name in EXPRESSIONS:
-            print(f"oled: {name}")
+            print(f"screen: {name}")
             eyes.base = name
             time.sleep(HOLD_S)
         eyes.stop()
-        print("success: each expression showed on the OLED, then it went dark")
+        print("success: each expression showed on the screen, then it went dark")
 
 
 if __name__ == "__main__":

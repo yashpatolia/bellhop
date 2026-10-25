@@ -1,10 +1,16 @@
 """Piper voice (Poppy): one sentence at a time, tone tags set speed, pitch and expressiveness."""
 
+import atexit
+import time
+from collections.abc import Callable
+
 import numpy as np
 from piper import PiperVoice, SynthesisConfig
 
 from rover import config
 from rover.speech.mic import find_device
+
+PLAY_POLL_S = 0.02  # how often a playing sentence is checked for its end
 
 
 def effective_tone(tone: str, settings: dict | None) -> str:
@@ -15,7 +21,8 @@ def effective_tone(tone: str, settings: dict | None) -> str:
 
 
 def tone_params(tone: str, settings: dict | None) -> tuple[float, float, float]:
-    """(length_scale, pitch, noise_scale) for a tone tag, adjusted by backend speech-settings."""
+    """(length_scale, pitch, noise_scale) for a tone tag, adjusted by backend speech-settings.
+    VOICE_PITCH moves every tone alike, on top of the tone's own (clamped) shift."""
     length, pitch, noise = config.TONES[effective_tone(tone, settings)]
     settings = settings or {}
     slow = settings.get("rate") == "slow"
@@ -24,7 +31,7 @@ def tone_params(tone: str, settings: dict | None) -> tuple[float, float, float]:
     if slow or settings.get("volume") == "loud" or settings.get("captions"):
         pitch = 0.0  # hard of hearing: keep the natural pitch
     length = max(length, config.MIN_LENGTH_SCALE)
-    pitch = min(max(pitch, -config.MAX_PITCH), config.MAX_PITCH)
+    pitch = min(max(pitch, -config.MAX_PITCH), config.MAX_PITCH) + config.VOICE_PITCH
     return length, pitch, noise
 
 
@@ -48,6 +55,11 @@ class Voice:
         self, settings: dict | None = None, device_name: str = config.SPEAKER_NAME
     ) -> None:
         self.settings = settings
+        # a visit mutes its mic: on_play(when the sound ends) as it starts, on_play(None) at the end
+        self.on_play: Callable[[float | None], None] = lambda until: None
+        self._stream = None  # the sentence playing now, until wait() sees it end
+        self._keepalive = None  # held so the silent stream is never garbage collected
+        self._ends_by = 0.0
         self._voice: PiperVoice | None = None
         self._device: int | None = None
         self._device_rate = 0
@@ -64,9 +76,48 @@ class Voice:
         except Exception as exc:
             print(f"tts: no output device ({exc}); printing lines only")
             self._voice = None
+            return
+        if config.AUDIO_KEEPALIVE:
+            self._keepalive = self._keep_awake()
+
+    def _keep_awake(self):
+        """A silent stream for the life of the process; sentences play over it (PipeWire mixes)."""
+        import sounddevice as sd
+
+        def silence(outdata, frames, at, status) -> None:
+            outdata.fill(0)
+
+        try:
+            stream = sd.OutputStream(
+                samplerate=self._device_rate,
+                device=self._device,
+                channels=1,
+                dtype="float32",
+                latency="high",
+                blocksize=config.KEEPALIVE_BLOCK,
+                callback=silence,
+            )
+            stream.start()
+        except Exception as exc:
+            print(f"fallback: could not keep the speaker awake ({exc})")
+            return None
+        try:  # a speaker that plays one sound at a time (raw ALSA) would now refuse every sentence
+            sd.OutputStream(
+                samplerate=self._device_rate, device=self._device, channels=1, dtype="float32"
+            ).close()
+        except Exception as exc:
+            stream.close(ignore_errors=True)
+            print(f"fallback: the speaker plays one sound at a time ({exc}); not keeping it awake")
+            return None
+        # stopped before sounddevice's own exit handler: closing a running stream can hang
+        atexit.register(lambda: (stream.stop(ignore_errors=True), stream.close(ignore_errors=True)))
+        print("tts: keeping the speaker awake with a silent stream (AUDIO_KEEPALIVE)")
+        return stream
 
     def say(self, sentence: str, tone: str) -> None:
-        """Speak one sentence and block until it has played."""
+        """Make one sentence, then play it once the sentence before it has finished. It returns as
+        this one starts (PortAudio's own thread plays it), so the caller makes the next sentence
+        meanwhile and there is no gap between them. wait() for the last one."""
         print(f"robot: {sentence}")
         if self._voice is None or not sentence.strip():
             return
@@ -87,9 +138,35 @@ class Voice:
             # USB speakers often refuse Piper's 22.05 kHz, so play at the device's own rate
             voice_rate = self._voice.config.sample_rate
             audio = resample(audio, round(len(audio) * self._device_rate / voice_rate))
-            import sounddevice as sd  # lazy: needs the PortAudio system library
-
-            sd.play(audio, samplerate=self._device_rate, device=self._device)
-            sd.wait()
+            self.wait()  # the sentence before this one ends while this one was made
+            self._start(audio)
         except Exception as exc:
             print(f"tts: speaking failed: {exc}")
+
+    def _start(self, audio: np.ndarray) -> None:
+        import sounddevice as sd  # lazy: needs the PortAudio system library
+
+        sd.play(audio, samplerate=self._device_rate, device=self._device)
+        stream = sd.get_stream()
+        ends = time.monotonic() + len(audio) / self._device_rate + stream.latency
+        self._ends_by = ends + config.PLAYBACK_GRACE_S
+        self._stream = stream
+        self.on_play(ends)  # muted until then by itself, not when the next sentence is ready
+
+    def wait(self) -> None:
+        """Block until the sentence playing now has finished. A speaker that stops mid-sentence (an
+        HDMI screen re-syncing drops its audio) is cut off at the sentence's length plus
+        PLAYBACK_GRACE_S, so the robot never hangs here with its mic muted."""
+        stream, self._stream = self._stream, None
+        if stream is None:
+            return
+        try:
+            while stream.active:
+                if time.monotonic() > self._ends_by:
+                    print("fallback: the speaker stopped playing; cut the sentence off")
+                    stream.abort(ignore_errors=True)  # stop() waits for audio that never drains
+                    break
+                time.sleep(PLAY_POLL_S)
+            stream.close(ignore_errors=True)  # as sd.wait() did: frees the device
+        finally:
+            self.on_play(None)

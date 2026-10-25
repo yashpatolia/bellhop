@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bellhop
+Comment=The robot on its screen: say Hey Bellhop to chat and play games (swipe down from the top edge to close)
+Exec=bash /home/pi/ml/scripts/robot.sh open
+Icon=/home/pi/ml/deploy/bellhop.png
+Terminal=false
+Categories=Utility;

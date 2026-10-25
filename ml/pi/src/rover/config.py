@@ -264,14 +264,19 @@ BLOCK_SAMPLES = 512  # Silero needs 512-sample frames at 16 kHz
 PREROLL_S = 0.5
 ECHO_TAIL_S = 0.3  # mic stays muted this long after the robot stops talking
 # Neither the microphone callback nor an STT network send may wait on a slow cloud request.
-# Keep only a short recent window when the Pi is under load; stale speech is worse than a small
-# dropped gap because it makes the robot answer something said several seconds ago.
+# A full mic queue drops its oldest blocks: stale speech is worse than a small gap. A full Flux
+# send queue (64 x 64 ms, about 4 s behind, under FLUX_TURN_LIMIT_S) means the network is down
+# or too slow, so Moonshine takes the turns.
 MIC_QUEUE_BLOCKS = int(os.environ.get("MIC_QUEUE_BLOCKS", "64"))
 FLUX_SEND_QUEUE_BLOCKS = int(os.environ.get("FLUX_SEND_QUEUE_BLOCKS", "64"))
 if MIC_QUEUE_BLOCKS < 1 or FLUX_SEND_QUEUE_BLOCKS < 1:
     raise ValueError("audio queue sizes must be positive")
 MIC_NAME = os.environ.get("MIC_NAME", "")  # part of the device name; empty = default
 SPEAKER_NAME = os.environ.get("SPEAKER_NAME", "")
+# an idle speaker goes to sleep, and waking an HDMI screen's speaker blanks some screens for
+# seconds: a silent stream keeps it awake. 0 turns it off
+AUDIO_KEEPALIVE = os.environ.get("AUDIO_KEEPALIVE", "1") != "0"
+KEEPALIVE_BLOCK = 4096  # frames per silent callback: few Python calls a second
 # PortAudio opens ALSA "plughw" (converts rate and channels) instead of raw "hw", so a USB mic
 # that only records at 44.1/48 kHz still opens at 16 kHz. Read when sounddevice is imported.
 os.environ.setdefault("PA_ALSA_PLUGHW", "1")
@@ -291,6 +296,7 @@ EOT_THRESHOLD = 0.8
 EAGER_EOT_THRESHOLD = 0.5
 EOT_TIMEOUT_MS = 3000
 FLUX_TURN_LIMIT_S = 5.0  # no final text this long after speech stops -> Moonshine
+FLUX_CLOSE_S = 1.0  # at a visit's end, how long the queued audio gets to go out
 ROBOT_NAME = os.environ.get("ROBOT_NAME", "Bellhop")  # pick a 3+ syllable name at kickoff
 MOONSHINE_ARCH = "small-streaming"  # offline fallback STT; scripts/download_models.py fetches it
 
@@ -302,11 +308,62 @@ TRIAGE_MODEL = "claude-haiku-5-5"
 FIRST_TEXT_TIMEOUT_S = 6.0
 CLAUDE_KEEPALIVE_S = 60.0  # keep the TLS connection to Claude between turns (SDK default is 5 s)
 HISTORY_EXCHANGES = 20
+ACTIONS_SHOWN = 8  # the latest tool calls listed in the prompt (the history keeps only words)
 HISTORY_CONTEXT_CHARS = 1200  # compact deterministic reminder when a long visit outgrows its window
 MAX_REPLY_TOKENS = 300
 BRAIN_EFFORT = "low"  # chat: low keeps the time to first spoken word short
 BRAIN_MAX_TOOL_ROUNDS = 3
 BRAIN_STREAM_TIMEOUT_S = 10.0  # longest silence on the reply stream before giving up
+# Claude's own web search (server side, about 1 cent a search). The basic version: the newer
+# web_search_20260209 filters results with code first, which is slower to the first spoken word.
+WEB_SEARCH_TOOL = "web_search_20250305"
+WEB_SEARCH_MAX_USES = 2  # per request: a reply makes up to BRAIN_MAX_TOOL_ROUNDS + 1
+WEB_SEARCH_LOCATION = {"type": "approximate", "country": "US", "timezone": "America/Los_Angeles"}
+
+# News and trends through Apify (APIFY_TOKEN in .env), refreshed in the background into runs/
+APIFY_API = "https://api.apify.com/v2"
+APIFY_RUN_S = 100  # the actor's own time limit (run-sync gives up at 300 s)
+APIFY_TIMEOUT_S = 120.0  # the HTTP wait: a little over the run limit
+APIFY_MAX_CHARGE_USD = 0.05  # cap on one run's cost
+FEED_RETRY_S = 600.0  # after a failed refresh
+FEED_CHECK_S = 60.0  # how often the refresher looks for a feed that is due
+FEED_DESCRIPTION_CHARS = 200  # of each news story, for the tool
+FEEDS = {
+    # data_xplorer/google-news-scraper-fast: $1 per 1,000 articles, so about 1.2 cents a refresh
+    "news": {
+        "actor": "data_xplorer~google-news-scraper-fast",
+        "every_s": 3600.0,
+        "input": {
+            "topics": ["NATION", "WORLD", "ENTERTAINMENT", "SPORTS"],
+            "maxArticles": 3,
+            "region_language": "US:en",
+            "extractDescriptions": True,
+            "extractImages": False,
+        },
+    },
+    # data_xplorer/google-trends-trending-now: $0.25 per 1,000 trends
+    "trends": {
+        "actor": "data_xplorer~google-trends-trending-now",
+        "every_s": 21600.0,
+        "input": {"geo": "US", "timeframe": "24", "trendStatus": "all", "maxItems": 20},
+    },
+}
+
+# Short stories read aloud, from Project Gutenberg (no key); the list is STORIES in agent/books.py
+GUTENBERG_TEXT_URL = "https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt"
+BOOK_TIMEOUT_S = 15.0
+BOOKS_DIR = RUNS_DIR / "books"  # downloaded texts, and bookmarks.json
+# The mic is off while sound plays, so a story is read in parts of whole sentences up to this
+# many words (about 12 s; a longer sentence is split at a comma), then READ_GAP_S with it open
+READ_PART_WORDS = 30
+READ_GAP_S = 2.0
+READ_TONE = "calm"
+READ_MAX_S = 900.0  # this long with no word to the robot and it stops: they may be asleep
+READ_STOP_LINE = "I'll stop there for now. Just ask if you'd like more."
+# A story's heading counts only with a paragraph this long in the next READ_LOOKAHEAD (so the
+# contents list and title page are skipped)
+READ_FIRST_WORDS = 30
+READ_LOOKAHEAD = 3
 
 # Triage
 TRIAGE_TIMEOUT_S = 6.0  # overall budget for Claude and its retry
@@ -326,6 +383,8 @@ TRIAGE_MAX_TOKENS = 1024  # room for any thinking plus the small JSON answer
 # Visit
 SHUTDOWN_GRACE_S = 3.0  # after SIGTERM and the LED/stop cleanup, force-exit if a worker is stuck
 VISIT_QUIET_END_S = 60.0
+CHAT_QUIET_S = 20.0  # a chat goes back to sleep after this long without a word (never mid-game)
+WAKE_STREAM_IDLE_S = 8.0  # asleep: the Flux stream for the wake word closes after this much quiet
 VISIT_START_FALLBACK_S = 60.0
 FACE_START_S = 1.0
 TRIAGE_WAIT_BEFORE_RESOLVE_S = 3.0
@@ -335,22 +394,25 @@ ECHO_MIN_WORDS = 4  # shorter turns ("tea", "yes please") often repeat the robot
 PIPER_VOICE = MODELS_DIR / "en_GB-semaine-medium.onnx"
 PIPER_SPEAKER_ID = 3
 MIN_LENGTH_SCALE = 0.9
-MAX_PITCH = 0.08
-# tag: (length_scale, pitch shift, noise_scale)
+MAX_PITCH = 0.03  # how far a tone may move the pitch (a resample: more sounds squeaky or gruff)
+# tag: (length_scale, pitch shift, noise_scale). Speed and expressiveness carry the mood; pitch
+# only nudges, so the voice stays near its natural pitch whatever the tag
 TONES = {
-    "cheerful": (0.95, 0.04, 0.70),
-    "excited": (0.90, 0.07, 0.75),
+    "cheerful": (0.95, 0.00, 0.70),
+    "excited": (0.90, 0.02, 0.75),
     "calm": (1.05, 0.00, 0.60),
-    "gentle": (1.10, -0.04, 0.60),
+    "gentle": (1.10, -0.02, 0.60),
 }
+VOICE_PITCH = float(os.environ.get("VOICE_PITCH", "0"))  # the whole voice, e.g. -0.03 for lower
 DEFAULT_TONE = "cheerful"
 SLOW_LENGTH_BONUS = 0.1  # added to length_scale when speech-settings say rate "slow"
+PLAYBACK_GRACE_S = 3.0  # a sentence still playing this long after its end is cut off
 
-# OLED eyes: a 128x64 I2C screen. SSD1306 (0.96 inch) by default; a 1.3 inch SH1106 needs offset 2
-OLED_ADDRESS = int(os.environ.get("OLED_ADDRESS", "0x3C"), 16)
-OLED_COLUMN_OFFSET = int(os.environ.get("OLED_COLUMN_OFFSET", "0"))
-OLED_FLIP = os.environ.get("OLED_FLIP", "0") == "1"  # screen mounted upside down
-EYES_FPS = 10  # each changed 8-row page costs ~12 ms of the I2C bus shared with the motor board
+# Eyes on the HDMI screen (7 inch 1024x600, landscape), drawn straight into its framebuffer
+EYES_FB = "/dev/fb0"
+EYES_FLIP = os.environ.get("EYES_FLIP", "0") == "1"  # screen mounted upside down
+EYES_RGB = (0, 255, 255)  # cyan
+EYES_FPS = 20  # a 0.15 s blink spans 3 frames; check_face.py --screen prints the draw cost
 EYES_MOOD_HOLD_S = 3.0  # a reply's tone stays on the face this long after its last sentence
 EYES_BLINK_EVERY_S = (3.0, 6.0)  # random gap between blinks
 EYES_BLINK_S = 0.15
@@ -358,4 +420,20 @@ EYES_SLOW_BLINK_S = 0.4  # calm
 EYES_GLANCE_EVERY_S = (3.0, 6.0)  # idle and listening glance aside now and then
 EYES_GLANCE_S = 0.8
 EYES_GLANCE_PX = 8
+# desktop window only (no keyboard on the touchscreen): a touch that starts within EDGE px of the
+# top and is dragged SWIPE px down closes the robot
+EYES_EXIT_EDGE_PX, EYES_EXIT_SWIPE_PX = 60, 250
+
+# Games on the touchscreen (rover/games): drawn on a 1024x600 canvas, redrawn only when something
+# changes, so a game left alone costs no CPU
+GAME_CANVAS = (1024, 600)  # scaled to the screen if it differs
+GAME_HOLD_S = 1.0  # touch and hold this long on the start screen to begin
+GAME_INTRO_FPS = 12  # the start screen's pulsing rings
+GAME_INTRO_TIMEOUT_S = 30.0  # nobody touched the start screen: put the game away
+TOUCH_RETRY_S = 1.0  # a touch panel that dropped off USB is looked for this often
+TICTACTOE_TARGET_LOSS = 0.6  # the robot loses this share of games, whoever it plays
+TICTACTOE_SLIP_START = 0.5  # chance of a random move instead of a good one
+TICTACTOE_SLIP_STEP = 0.10  # less slip after a robot loss; more (scaled to the target) after a win
+TICTACTOE_MOVE_DELAY_S = 0.8  # the robot "thinks" before its move
+MEMORY_PEEK_S = 1.2  # two cards that do not match stay face up this long
 LOUD_GAIN = 1.5  # speech-settings volume "loud"; clipped to full scale

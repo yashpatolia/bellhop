@@ -4,7 +4,6 @@ import contextlib
 import os
 import queue
 import threading
-import time
 from collections.abc import Callable
 
 from deepgram import DeepgramClient
@@ -18,7 +17,10 @@ class FluxStream:
     """Calls on_event(event, transcript) from a background thread.
 
     Events: "StartOfTurn", "EagerEndOfTurn", "TurnResumed", "EndOfTurn", and "Error" (once,
-    with the reason as the text; the stream is dead after it).
+    with the reason as the text; the stream is dead after it). Audio goes out from its own
+    thread, so a slow network never stalls the mic loop. A short stall only delays it; a full
+    send queue (FLUX_SEND_QUEUE_BLOCKS, about 4 s behind) is an Error, so Moonshine takes the
+    turns instead of Flux answering stale or broken speech.
     """
 
     def __init__(self, keyterms: list[str], on_event: Callable[[str, str], None]) -> None:
@@ -27,9 +29,9 @@ class FluxStream:
         self._stack = contextlib.ExitStack()
         self._socket = None
         self._live = False
+        self._lock = threading.Lock()  # one Error, even when sending and listening both fail
         self._media: queue.Queue[bytes | None] = queue.Queue(maxsize=config.FLUX_SEND_QUEUE_BLOCKS)
         self._sender: threading.Thread | None = None
-        self._last_queue_warning = 0.0
 
     def start(self) -> bool:
         api_key = os.environ.get("DEEPGRAM_API_KEY", "")
@@ -51,53 +53,54 @@ class FluxStream:
             print(f"fallback: Flux connect failed: {exc}")
             return False
         self._live = True
-        self._sender = threading.Thread(target=self._send_loop, name="flux-send", daemon=True)
+        threading.Thread(target=self._listen, daemon=True, name="flux-listen").start()
+        self._sender = threading.Thread(target=self._send_loop, daemon=True, name="flux-send")
         self._sender.start()
-        threading.Thread(target=self._listen, daemon=True).start()
         return True
 
     def send(self, pcm: bytes) -> None:
-        """Send int16 16 kHz mono audio; send zeros for gated blocks to keep the socket alive."""
+        """Queue int16 16 kHz mono audio; send zeros for gated blocks to keep the socket alive."""
         if not self._live:
             return
         try:
             self._media.put_nowait(pcm)
-        except queue.Full:
-            # Do not block the microphone loop on weak venue Wi-Fi. Keep the newest audio so a
-            # delayed sender cannot make the rover respond to a stale earlier sentence.
-            try:
-                self._media.get_nowait()
-            except queue.Empty:
-                return
-            try:
-                self._media.put_nowait(pcm)
-            except queue.Full:
-                return
-            now = time.monotonic()
-            if now - self._last_queue_warning >= 1.0:
-                print("flux: send queue full; dropping stale audio")
-                self._last_queue_warning = now
+        except queue.Full:  # a dead or too slow network: dropping audio would garble the turn
+            self._fail(f"Flux send fell {self._media.maxsize} messages behind")
 
     def close(self) -> None:
-        was_live, self._live = self._live, False
+        with self._lock:
+            was_live, self._live = self._live, False
+        self._stop_sender()  # what is queued goes out first
+        if self._sender is not None:
+            self._sender.join(config.FLUX_CLOSE_S)
+            if self._sender.is_alive():
+                # stuck in a send that holds the websocket's lock, which closing needs too
+                print("flux: the network is stuck; closing the stream in the background")
+                threading.Thread(target=self._close, args=(False,), daemon=True).start()
+                return
+        self._close(was_live)
+
+    def _close(self, goodbye: bool) -> None:
         try:
-            self._media.put_nowait(None)
-        except queue.Full:
-            pass
-        try:
-            if was_live:
+            if goodbye:
                 self._socket.send_close_stream()
             self._stack.close()
         except Exception as exc:
             print(f"flux: close failed: {exc}")
-        if self._sender is not None:
-            self._sender.join(timeout=0.2)
+
+    def _stop_sender(self) -> None:
+        """None ends the sender after what is queued; a full queue (a stuck network) gives up its
+        oldest block to make room."""
+        while True:
+            try:
+                self._media.put_nowait(None)
+                return
+            except queue.Full:
+                with contextlib.suppress(queue.Empty):
+                    self._media.get_nowait()
 
     def _send_loop(self) -> None:
-        while True:
-            pcm = self._media.get()
-            if pcm is None or not self._live:
-                return
+        while (pcm := self._media.get()) is not None:
             try:
                 self._socket.send_media(pcm)
             except Exception as exc:
@@ -120,8 +123,10 @@ class FluxStream:
         self._fail("Flux connection closed by the server")
 
     def _fail(self, reason: str) -> None:
-        if not self._live:  # already failed or closed on purpose
-            return
-        self._live = False
+        with self._lock:
+            if not self._live:  # already failed or closed on purpose
+                return
+            self._live = False
+        self._stop_sender()
         print(f"flux: {reason}")
         self.on_event("Error", reason)

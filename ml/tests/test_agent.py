@@ -8,6 +8,7 @@ import httpx
 
 from rover import config
 from rover.agent import brain, context, tools
+from rover.agent.books import STORIES
 from rover.agent.brain import Brain, SentenceSplitter, split_tone
 from rover.agent.context import VisitHistory, activity_for, build_system_prompt
 from rover.agent.tools import ToolContext, run_tool
@@ -114,6 +115,21 @@ def test_history_keeps_a_compact_reminder_when_a_visit_runs_long(monkeypatch):
     assert messages[0]["role"] == "user"
     assert "daughter Ana visits on Sundays" in messages[0]["content"]
     assert "What did I tell you" in messages[-1]["content"]
+
+
+def test_a_very_long_visit_keeps_how_it_began(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_EXCHANGES", 2)
+    monkeypatch.setattr(config, "HISTORY_CONTEXT_CHARS", 200)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    history.add("resident", "My daughter Ana visits on Sundays.")
+    for n in range(20):
+        history.add("robot", f"Tell me more, part {n}.")
+        history.add("resident", f"Here is chatter number {n} about the weather.")
+    first = history.messages()[0]["content"]
+    assert "daughter Ana visits on Sundays" in first  # the start of the visit is kept
+    assert "chatter number 17" in first and "(...)" in first  # and what led into the window
+    assert len(first) < 200 + 200  # the reminder stays bounded
 
 
 def test_split_tone():
@@ -274,6 +290,11 @@ def test_look_returns_a_fresh_image_only(tmp_path, monkeypatch):
     old = time.time() - config.LOOK_MAX_AGE_S - 5
     os.utime(jpg, (old, old))
     assert run_tool("look", {}, ctx) == "camera image not available"
+    assert ctx.done == [
+        "look: camera image not available",
+        "look: looked through the camera (that picture is gone now: look again to see)",
+        "look: camera image not available",
+    ]
 
 
 def test_request_staff_without_call_reports_failure():
@@ -287,7 +308,77 @@ def test_request_staff_without_call_reports_failure():
         "go_to_room",
         "follow_patient",
         "face_patient",
+        "start_game",
+        "end_game",
+        "news",
+        "trends",
+        "read_book",
+        "web_search",
     ]
+
+
+class MemoryBackend:
+    def __init__(self):
+        self.saved = []
+
+    def remember(self, resident_id, text, tags):
+        self.saved.append((resident_id, text, tags))
+        return {"id": "f1"}
+
+
+class FakeGames:
+    def __init__(self):
+        self.started = []
+
+    def start(self, name):
+        self.started.append(name)
+        return f"{name} opened"
+
+    def stop(self):
+        return "closed"
+
+
+def test_start_game_remembers_only_a_game_the_resident_knows():
+    backend, games = MemoryBackend(), FakeGames()
+    ctx = ToolContext(backend, "c1", "res_margaret", games)
+    assert run_tool("start_game", {"game": "bingo", "knows_rules": True}, ctx) == "bingo opened"
+    assert run_tool("start_game", {"game": "memory", "knows_rules": False}, ctx) == "memory opened"
+    assert backend.saved == [("res_margaret", "Knows how to play bingo.", ["game", "bingo"])]
+    assert games.started == ["bingo", "memory"]
+    assert run_tool("end_game", {}, ctx) == "closed"
+
+
+def test_game_tools_without_a_screen_say_so():
+    ctx = ToolContext(MemoryBackend(), "c1", None, None)
+    result = run_tool("start_game", {"game": "tic_tac_toe", "knows_rules": True}, ctx)
+    assert result.startswith("the screen is not available")
+    assert ctx.backend.saved == []  # no resident on file: nothing to remember it for
+    assert run_tool("end_game", {}, ctx) == "no game was open"
+
+
+def test_start_game_is_strict_and_lists_the_three_games():
+    tool = next(t for t in tools.TOOLS if t["name"] == "start_game")
+    schema = tool["input_schema"]
+    assert tool["strict"] and schema["required"] == ["game", "knows_rules"]
+    assert schema["properties"]["game"]["enum"] == ["bingo", "tic_tac_toe", "memory"]
+    assert "never on your own initiative" in tool["description"]
+
+
+def test_prompt_lists_known_games_and_the_game_on_screen():
+    facts = [{"tags": ["game", "memory"]}, {"tags": ["family"]}, {"tags": ["game", "bingo"]}]
+    assert context.games_known(facts) == ["bingo", "memory"]
+    prompt = build_system_prompt(
+        MARGARET, PREFS, [], "", None, NOW, ["tic_tac_toe"], "Bingo: 3 numbers called."
+    )
+    assert "Games they already know how to play: tic-tac-toe" in prompt
+    assert "## Right now: a game is on your screen\nBingo: 3 numbers called." in prompt
+    assert "Never suggest a game" in prompt  # games come up only when the resident asks
+    assert "Call start_game again only to switch" in prompt  # its tool calls are not in the history
+    assert "## Right now: a game" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)
+
+
+def test_greeting_mentions_games():
+    assert "play games" in context.GREETING.format(room="12")
 
 
 class FakePost:
@@ -446,3 +537,135 @@ def test_claude_client_keeps_connections_alive_for_the_whole_visit(monkeypatch):
     assert first is not None and brain.claude_client() is first  # one shared pool
     pool = seen["http_client"]._transport._pool
     assert pool._keepalive_expiry == config.CLAUDE_KEEPALIVE_S >= 20
+
+
+def test_the_prompt_lists_what_the_robot_did_so_it_does_not_redo_it():
+    actions = [f"end_game: closed {i}" for i in range(config.ACTIONS_SHOWN + 2)]
+    prompt = build_system_prompt(MARGARET, PREFS, [], "", None, NOW, actions=actions)
+    assert "## What you have done this visit" in prompt and "Do not repeat one" in prompt
+    assert "never say one worked if its result says it failed" in prompt  # no false "nurse coming"
+    assert "- end_game: closed 2" in prompt and f"- end_game: closed {len(actions) - 1}" in prompt
+    assert "- end_game: closed 1\n" not in prompt and "- end_game: closed 0" not in prompt
+    assert "## What you have done" not in build_system_prompt(MARGARET, PREFS, [], "", None, NOW)
+
+
+def searched(query, stop_reason="end_turn"):
+    block = SimpleNamespace(
+        type="server_tool_use", id="srv_1", name="web_search", input={"query": query}
+    )
+    return SimpleNamespace(stop_reason=stop_reason, content=[block], stop_details=None)
+
+
+def test_a_paused_web_search_is_sent_back_and_noted():
+    client = FakeClient(
+        FakeStream([], searched("giants score", "pause_turn")),
+        FakeStream(["[excited] They won!"], done()),
+    )
+    ctx = ToolContext(FakeBackend(), "c1")
+    said = []
+    question = {"role": "user", "content": "who won?"}
+    _, wanted_tool = Brain(client).reply("sys", [question], lambda t, s: said.append(s), ctx)
+    assert said == ["They won!"] and wanted_tool is False
+    resent = client.requests[1]["messages"]
+    assert resent == [question, {"role": "assistant", "content": searched("giants score").content}]
+    gone = "the results are gone now: search again if needed"
+    assert ctx.done == [f'web_search: searched for "giants score" ({gone})']
+
+
+class SearchingStream(FakeStream):
+    def __iter__(self):
+        block = SimpleNamespace(type="server_tool_use")
+        yield SimpleNamespace(type="content_block_start", content_block=block)
+        raise AssertionError("the draft read on past the search")
+
+
+class PreambleStream(FakeStream):
+    def __init__(self, said):
+        super().__init__([], searched("score"))
+        self.said = said
+
+    def __iter__(self):
+        yield SimpleNamespace(type="text", text="[calm] Let me look.")
+        block = SimpleNamespace(type="server_tool_use")
+        yield SimpleNamespace(type="content_block_start", content_block=block)
+        assert self.said == ["Let me look."]  # said while the search runs, not after it
+        yield SimpleNamespace(type="text", text=" They won.")
+
+
+def test_the_words_before_a_tool_are_said_before_it_runs():
+    said = []
+    Brain(FakeClient(PreambleStream(said))).reply("sys", [], lambda t, s: said.append(s), None)
+    assert said == ["Let me look.", "They won."]
+
+
+def test_a_draft_stops_at_a_web_search():
+    client = FakeClient(SearchingStream([], done()))
+    _, wanted_tool = Brain(client).reply("sys", [], lambda t, s: None, None, allow_tools=False)
+    assert wanted_tool is True
+
+
+def test_web_search_is_anthropics_own_tool():
+    search = tools.TOOLS[-1]
+    assert search["type"] == config.WEB_SEARCH_TOOL and search["name"] == "web_search"
+    assert "strict" not in search and "input_schema" not in search
+
+
+class FakeReader:
+    def __init__(self):
+        self.opened = []
+
+    def open(self, query):
+        self.opened.append(query)
+        return "now reading it"
+
+
+def test_news_trends_and_books_dispatch(monkeypatch):
+    monkeypatch.setattr(tools.feeds, "tool_text", lambda name: f"{name} head:\n- one\n- two")
+    ctx = ToolContext(MemoryBackend(), "c1")
+    assert run_tool("news", {}, ctx) == "news head:\n- one\n- two"
+    assert run_tool("trends", {}, ctx).startswith("trends head:")
+    book = {"story": "the_gift_of_the_magi"}
+    assert run_tool("read_book", book, ctx) == "you cannot read aloud right now"
+    assert ctx.done[:2] == [
+        "news: news head: (that list is gone now: use news again to see it)",
+        "trends: trends head: (that list is gone now: use trends again to see it)",
+    ]
+
+    games, reader = FakeGames(), FakeReader()
+    games.phase = "play"
+    ctx = ToolContext(MemoryBackend(), "c1", None, games, reader=reader)
+    assert run_tool("read_book", book, ctx).startswith("a game is on your screen")
+    games.phase = None
+    assert run_tool("read_book", book, ctx) == "now reading it"
+    assert reader.opened == ["the_gift_of_the_magi"]
+
+
+def test_read_book_offers_only_the_short_stories():
+    tool = next(t for t in tools.TOOLS if t["name"] == "read_book")
+    assert tool["strict"] and tool["input_schema"]["properties"]["story"]["enum"] == list(STORIES)
+    assert "The Gift of the Magi by O. Henry, about 14 minutes" in tool["description"]
+
+
+def test_prompt_shows_the_open_book():
+    status = "Emma, stopped about 20% through."
+    prompt = build_system_prompt(None, None, [], "", None, NOW, reading=status)
+    assert "## A story is open\nEmma, stopped about 20% through." in prompt
+    assert "A story is open" not in build_system_prompt(None, None, [], "", None, NOW)
+
+
+def test_game_facts_leave_room_for_real_ones():
+    games = [{"text": f"Knows how to play {g}.", "tags": ["game", g]} for g in ("bingo", "memory")]
+    facts = [*games, {"text": "Likes tea."}, {"text": "Ana visits on Sundays."}]
+    prompt = build_system_prompt(MARGARET, None, facts, "", None, NOW, ["bingo", "memory"])
+    assert "Ana visits on Sundays" in prompt and "Knows how to play" not in prompt
+    assert "Games they already know how to play: bingo, memory match" in prompt
+
+
+def test_unanswered_turns_cannot_grow_one_message_without_bound(monkeypatch):
+    monkeypatch.setattr(config, "HISTORY_CONTEXT_CHARS", 200)
+    history = VisitHistory()
+    history.add("robot", "Hello Margaret.")
+    for n in range(500):  # a TV talking: every turn answered WAIT, so no robot line
+        history.add("resident", f"the television says line {n}")
+    last = history.messages()[-1]["content"]
+    assert len(last) < 250 and last.endswith("line 499")
