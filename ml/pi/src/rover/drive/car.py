@@ -30,6 +30,14 @@ def clamp_duty(duty: float) -> int:
     return int(max(-MAX_DUTY, min(MAX_DUTY, duty)))
 
 
+def motor_duties(left: float, right: float) -> tuple[int, int]:
+    """Turn logical left/right movement into this rover's calibrated motor directions."""
+    return (
+        config.MOTOR_FORWARD_SIGN * clamp_duty(left),
+        config.MOTOR_FORWARD_SIGN * clamp_duty(right),
+    )
+
+
 def battery_share(volts: float | None) -> float | None:
     if volts is None or not math.isfinite(volts):
         return None
@@ -136,7 +144,7 @@ class RealCar:
         self._leds = _try("opening leds", _open_leds)
 
     def drive(self, left: int, right: int) -> None:
-        left, right = clamp_duty(left), clamp_duty(right)
+        left, right = motor_duties(left, right)
         self._motors.set_motor_model(left, left, right, right)
 
     def stop(self) -> None:

@@ -226,6 +226,10 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 
 **Offline marker mode.** ArUco room detection does not need YOLO or YuNet. If either local person/face model is absent, `rover.vision` logs that those optional detections are disabled and continues with camera, markers, UDP and snapshots; it never starts an implicit model download.
 
+**Active marker search.** When its target is outside the first camera view, the rover stops its wheels for a full two-axis head scan, turns incrementally in place, and after a full turn takes a short ultrasonic-guarded forward frontier step before scanning again. The search has a configurable 45-second cap and stops when that cap or the ultrasonic guard is reached. This is real bounded exploration beyond the initial camera sightline; it is not a surveyed-map/SLAM guarantee because the current rover has no wheel encoders, IMU or lidar.
+
+**One-command live stack.** From the laptop, set the Pi's Tailscale SSH host and IP once per venue, then run `BELLHOP_PI_HOST=pi@<pi-ip> BELLHOP_PI_IP=<pi-ip> bash scripts/live-demo.sh`. It syncs the Pi source without touching its `.env`, models or venv; starts the seeded backend wired to the Pi, starts the dashboard when its dependencies are installed, then runs Pi camera, drive and speech in one SSH session. If Jev has no key in the Pi's `.env`, it prompts securely for an in-memory key once; Enter disables Jev for that run. Ctrl-C stops the whole stack safely. On the Pi alone, `bash ~/ml/scripts/run_rover.sh` starts those three rover components in one terminal.
+
 **Visit flow** (`rover.speech`):
 1. Find the call: `--call <id>`, or the newest call for `ROBOT_ID` in `assigned` / `robot_en_route`.
 2. Start the visit when the room's marker is 1.0 m away, a facing face is seen for 1 s, or 60 s pass: `POST /calls/{id}/in-visit` (409 "already in visit" counts as success).

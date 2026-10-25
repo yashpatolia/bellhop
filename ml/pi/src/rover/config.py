@@ -102,6 +102,11 @@ DRIVE_PORT = 8080  # backend BELLHOP_ROBOT_URL and PI_SERVER_URL point here
 DRIVE_LOOP_HZ = 20
 STOP_DISTANCE_CM = 25.0  # ultrasonic: nothing moves forward closer than this
 VISION_WATCHDOG_S = 0.5  # no fresh vision message this long -> stop
+# Motor wiring differs between Freenove builds. +1 preserves the standard mapping; set -1 in
+# the Pi's uncommitted .env when a positive logical forward command physically reverses.
+MOTOR_FORWARD_SIGN = int(os.environ.get("BELLHOP_MOTOR_FORWARD_SIGN", "1"))
+if MOTOR_FORWARD_SIGN not in (-1, 1):
+    raise ValueError("BELLHOP_MOTOR_FORWARD_SIGN must be 1 or -1")
 # Optional manual backup control. Linux exposes most USB/Bluetooth PS2 adapters as /dev/input/js*;
 # it is off unless rover.drive is launched with --controller.
 MANUAL_DEVICE = os.environ.get("BELLHOP_MANUAL_DEVICE", "/dev/input/js0")
@@ -151,6 +156,23 @@ HEAD_SCAN_TILTS = _head_scan_angles(
 HEAD_SCAN_DWELL_S = float(os.environ.get("BELLHOP_HEAD_SCAN_DWELL_S", "0.6"))
 if HEAD_SCAN_DWELL_S <= 0:
     raise ValueError("head scan dwell must be positive")
+# Active search extends marker navigation beyond the first camera view. It first scans the head
+# while stopped, then turns in place and takes a short ultrasonic-guarded frontier step. This is
+# intentionally bounded: it is not a substitute for a surveyed map, encoders or obstacle lidar.
+ACTIVE_MARKER_SEARCH = os.environ.get("BELLHOP_ACTIVE_MARKER_SEARCH", "1") == "1"
+SEARCH_TURN_DUTY = int(os.environ.get("BELLHOP_SEARCH_TURN_DUTY", "900"))
+SEARCH_TURN_S = float(os.environ.get("BELLHOP_SEARCH_TURN_S", "0.35"))
+SEARCH_TURNS_PER_LAP = int(os.environ.get("BELLHOP_SEARCH_TURNS_PER_LAP", "8"))
+SEARCH_ADVANCE_S = float(os.environ.get("BELLHOP_SEARCH_ADVANCE_S", "0.35"))
+SEARCH_MAX_S = float(os.environ.get("BELLHOP_SEARCH_MAX_S", "45"))
+if (
+    not 0 < SEARCH_TURN_DUTY <= 4095
+    or SEARCH_TURN_S <= 0
+    or SEARCH_TURNS_PER_LAP < 1
+    or SEARCH_ADVANCE_S <= 0
+    or SEARCH_MAX_S <= 0
+):
+    raise ValueError("marker search settings must be positive and within motor range")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)
