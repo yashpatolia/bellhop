@@ -8,6 +8,23 @@ python="$root/.venv/bin/python"
 log_dir="$root/runs"
 pids=()
 
+# live-demo.sh starts this script through SSH, which has no DISPLAY/WAYLAND_DISPLAY even though
+# the Pi's touchscreen desktop is running. Without the desktop process' environment Eyes chooses
+# /dev/fb0, which the compositor immediately covers. Match robot.sh: borrow only the display
+# variables from the current pi desktop so the single WindowScreen renderer owns the GUI.
+desktop_env() {
+  local pid
+  pid=$(pgrep -u "$(id -u)" -n 'wf-panel-pi|pcmanfm|lxpanel') || return 1
+  tr '\0' '\n' <"/proc/$pid/environ" | grep -E '^(DISPLAY|WAYLAND_DISPLAY|XDG_RUNTIME_DIR)='
+}
+
+if [[ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]] && settings=$(desktop_env); then
+  # The values originate in /proc for this same user's Pi desktop and are assignment-only.
+  # shellcheck disable=SC2086
+  export $settings
+  echo "rover: using the Pi desktop display for the face"
+fi
+
 stop() {
   trap - INT TERM EXIT
   echo "rover: stopping"
