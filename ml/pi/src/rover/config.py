@@ -175,19 +175,28 @@ def _head_scan_angles(name: str, raw: str, minimum: int, maximum: int) -> tuple[
 
 HEAD_SCAN_PANS = _head_scan_angles(
     "BELLHOP_HEAD_SCAN_PANS",
-    os.environ.get("BELLHOP_HEAD_SCAN_PANS", "30,90,150"),
+    # Small adjacent steps protect the camera and servo wiring.  HeadScanner visits the positions
+    # in a continuous serpentine path, rather than jumping from one end of a row to the other.
+    os.environ.get("BELLHOP_HEAD_SCAN_PANS", "45,60,75,90,105,120,135"),
     HEAD_PAN_MIN,
     HEAD_PAN_MAX,
 )
 HEAD_SCAN_TILTS = _head_scan_angles(
     "BELLHOP_HEAD_SCAN_TILTS",
-    os.environ.get("BELLHOP_HEAD_SCAN_TILTS", "80,90,110"),
+    os.environ.get("BELLHOP_HEAD_SCAN_TILTS", "85,90,95"),
     HEAD_TILT_MIN,
     HEAD_TILT_MAX,
 )
 HEAD_SCAN_DWELL_S = float(os.environ.get("BELLHOP_HEAD_SCAN_DWELL_S", "0.6"))
 if HEAD_SCAN_DWELL_S <= 0:
     raise ValueError("head scan dwell must be positive")
+# Both axes are interpolated in these small increments before a servo target changes.  This is
+# deliberately independent from scan positions: deployments can widen/narrow the search field
+# without ever creating a sudden full-range head movement.
+HEAD_SLEW_STEP_DEG = int(os.environ.get("BELLHOP_HEAD_SLEW_STEP_DEG", "5"))
+HEAD_SLEW_STEP_S = float(os.environ.get("BELLHOP_HEAD_SLEW_STEP_S", "0.04"))
+if not 1 <= HEAD_SLEW_STEP_DEG <= 30 or HEAD_SLEW_STEP_S < 0:
+    raise ValueError("head slew settings must use a 1..30 degree step and non-negative delay")
 # A marker observed while the pan/tilt head is offset is not body-relative. Re-centre the camera
 # and wait for a fresh frame before steering the wheels from its x coordinate.
 HEAD_RECENTER_SETTLE_S = float(os.environ.get("BELLHOP_HEAD_RECENTER_SETTLE_S", "0.3"))
@@ -216,6 +225,12 @@ if (
 FOLLOW_MARKER_TIMEOUT_S = float(os.environ.get("BELLHOP_FOLLOW_MARKER_TIMEOUT_S", "60"))
 if FOLLOW_MARKER_TIMEOUT_S <= 0:
     raise ValueError("follow-marker timeout must be positive")
+# ArUco detections can drop for a few frames while a person walks, turns, or briefly occludes the
+# print. During this grace period the rover remains stopped with its head forward, giving vision a
+# chance to reacquire the same marker before an exploratory head sweep moves it out of view.
+FOLLOW_MARKER_LOST_GRACE_S = float(os.environ.get("BELLHOP_FOLLOW_MARKER_LOST_GRACE_S", "1.2"))
+if FOLLOW_MARKER_LOST_GRACE_S < 0:
+    raise ValueError("follow-marker lost grace cannot be negative")
 APPROACH_MAX_DUTY = 1500
 APPROACH_MIN_DUTY = 800
 STEER_GAIN = 1500  # extra duty per unit of horizontal error (-1..1)

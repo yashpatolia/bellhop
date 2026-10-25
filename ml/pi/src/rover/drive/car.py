@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import math
 import sys
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -24,6 +25,23 @@ LED_COUNT = 8
 LED_BRIGHTNESS = 255
 # Freenove's Servo client maps selector 0/1 to PCA9685 channels 8/9 (pan/tilt).
 PAN, TILT = "0", "1"
+
+
+def head_slew_positions(
+    start: tuple[int, int], target: tuple[int, int], maximum_step_degrees: int
+) -> tuple[tuple[int, int], ...]:
+    """Return a short, simultaneous pan/tilt path with bounded per-axis movement."""
+    if maximum_step_degrees <= 0:
+        raise ValueError("maximum head slew step must be positive")
+    largest_delta = max(abs(target[0] - start[0]), abs(target[1] - start[1]))
+    steps = max(1, math.ceil(largest_delta / maximum_step_degrees))
+    return tuple(
+        (
+            round(start[0] + (target[0] - start[0]) * index / steps),
+            round(start[1] + (target[1] - start[1]) * index / steps),
+        )
+        for index in range(1, steps + 1)
+    )
 
 
 def clamp_duty(duty: float) -> int:
@@ -136,8 +154,12 @@ def _open_leds() -> Any:
 class RealCar:
     motors_failed = False
 
-    def __init__(self, motors: Any) -> None:
+    def __init__(self, motors: Any, sleep: Callable[[float], None] = time.sleep) -> None:
         self._motors = motors
+        self._sleep = sleep
+        # Freenove's Servo constructor initializes every channel to a neutral 1500us pulse.
+        # Treating that as forward lets the first scan slew safely from the centre as well.
+        self._head_position = (config.PAN_CENTER, config.TILT_DRIVE)
         self._servos = _try("opening servos", lambda: _freenove("servo").Servo())
         self._sonar = _try("opening ultrasonic", lambda: _freenove("ultrasonic").Ultrasonic())
         self._adc = _try("opening battery adc", _BatteryAdc)
@@ -156,8 +178,15 @@ class RealCar:
         pan = min(config.HEAD_PAN_MAX, max(config.HEAD_PAN_MIN, pan))
         tilt = min(config.HEAD_TILT_MAX, max(config.HEAD_TILT_MIN, tilt))
         if self._servos is not None:
-            self._servos.set_servo_pwm(PAN, pan)
-            self._servos.set_servo_pwm(TILT, tilt)
+            positions = head_slew_positions(
+                self._head_position, (pan, tilt), config.HEAD_SLEW_STEP_DEG
+            )
+            for index, (next_pan, next_tilt) in enumerate(positions):
+                self._servos.set_servo_pwm(PAN, next_pan)
+                self._servos.set_servo_pwm(TILT, next_tilt)
+                if index + 1 < len(positions):
+                    self._sleep(config.HEAD_SLEW_STEP_S)
+        self._head_position = (pan, tilt)
 
     def look_ahead(self) -> None:
         self.look_at(config.PAN_CENTER, config.TILT_DRIVE)

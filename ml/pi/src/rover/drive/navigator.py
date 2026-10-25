@@ -86,7 +86,13 @@ class HeadScanner:
         dwell_s: float = config.HEAD_SCAN_DWELL_S,
     ) -> None:
         self._clock = clock
-        self._positions = tuple((pan, tilt) for tilt in tilts for pan in pans)
+        # Serpentine the rows so a tilt change happens at the same pan, instead of repeatedly
+        # snapping from the far right of one row to the far left of the next.
+        self._positions = tuple(
+            (pan, tilt)
+            for row, tilt in enumerate(tilts)
+            for pan in (pans if row % 2 == 0 else tuple(reversed(pans)))
+        )
         self._dwell_s = dwell_s
         self._next_at = 0.0
         self._index = 0
@@ -157,6 +163,7 @@ class MarkerNavigator:
         self._recenter_until: float | None = None
         self._following = False
         self._holding_distance = False
+        self._follow_last_seen_at: float | None = None
 
     def start(self, room: str) -> None:
         self._begin(room, following=False)
@@ -174,6 +181,7 @@ class MarkerNavigator:
         self._recenter_until = None
         self._following = following
         self._holding_distance = False
+        self._follow_last_seen_at = None
         self._reset_search()
 
     def cancel(self) -> None:
@@ -181,6 +189,7 @@ class MarkerNavigator:
         self._recenter_until = None
         self._following = False
         self._holding_distance = False
+        self._follow_last_seen_at = None
         self._reset_search()
 
     def failed(self) -> bool:
@@ -287,6 +296,8 @@ class MarkerNavigator:
             return self._search(car)
         if not (0.0 < distance < float("inf")) or not (-1.0 <= x <= 1.0):
             return self._search(car)
+        if self._following:
+            self._follow_last_seen_at = self._clock()
         if not self._head_ready(car):
             return False
         if self._following:
@@ -303,8 +314,19 @@ class MarkerNavigator:
         return False
 
     def _follow_search(self, car: FakeCar | RealCar) -> bool:
-        """A lost moving person causes a stationary head scan, never blind exploration."""
+        """A lost moving person waits briefly, then uses a stationary head scan.
+
+        A single blank ArUco frame is common during normal walking. Stopping is immediate, but
+        moving the head immediately makes reacquisition less likely because it takes the camera
+        away from where the target was last seen. Exploration is still stationary—never blind
+        wheel movement.
+        """
         car.stop()
+        last_seen = self._follow_last_seen_at
+        if last_seen is not None and self._clock() - last_seen < config.FOLLOW_MARKER_LOST_GRACE_S:
+            car.look_ahead()
+            self._scanner.centered()
+            return False
         self._scanner.step(car)
         return False
 

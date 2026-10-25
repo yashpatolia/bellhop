@@ -173,6 +173,30 @@ def test_following_marker_holds_standoff_then_resumes_without_arrival():
     assert not nav.step(car)
     assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
 
+
+def test_following_waits_through_a_short_missing_marker_burst_before_scanning():
+    clock = Clock()
+    stream = receiver(clock, [])
+    scanner = HeadScanner(clock, pans=(30, 150), tilts=(90,), dwell_s=0.1)
+    scanner.centered()
+    nav = MarkerNavigator(stream, scanner=scanner, clock=clock)
+    car = FakeCar()
+
+    nav.start_follow("208")
+    stream.ingest({"markers": [{"id": 208, "distance_m": 1.5, "x": 0.0}]})
+    assert not nav.step(car)
+    assert car._last["drive"] == (config.FORWARD_DUTY, config.FORWARD_DUTY)
+
+    stream.ingest({"markers": []})
+    clock.now += config.FOLLOW_MARKER_LOST_GRACE_S / 2
+    assert not nav.step(car)
+    assert car._last["drive"] == (0, 0)
+    assert car._last["head"] == (config.PAN_CENTER, config.TILT_DRIVE)
+
+    clock.now += config.FOLLOW_MARKER_LOST_GRACE_S
+    assert not nav.step(car)
+    assert car._last["head"] == (30, 90)
+
     stream.ingest(
         {"markers": [{"id": 208, "distance_m": config.FOLLOW_MARKER_STOP_DISTANCE_M, "x": 0.0}]}
     )
