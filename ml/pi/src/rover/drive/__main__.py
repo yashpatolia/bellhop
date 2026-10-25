@@ -14,6 +14,7 @@ from rover.drive import DRIVE_TIMEOUT_S, WATCHDOG_S
 from rover.drive.car import FakeCar, RealCar, open_car
 from rover.drive.control import Controller, run_loop
 from rover.drive.manual import ManualJoystick
+from rover.drive.ps2 import ManualPS2
 from rover.drive.navigator import MarkerNavigator, SimNavigator
 from rover.drive.server import make_server
 from rover.drive.vision import VisionReceiver
@@ -79,7 +80,7 @@ def main() -> None:
     parser.add_argument(
         "--controller",
         action="store_true",
-        help="enable the optional deadman-gated /dev/input/js* manual backup controller",
+        help="enable the configured deadman-gated PS2 GPIO or Linux joystick backup controller",
     )
     parser.add_argument(
         "--head-test",
@@ -110,7 +111,7 @@ def main() -> None:
             drive_timeout_s=args.drive_timeout_s,
         )
         if args.controller:
-            manual = ManualJoystick(ctl)
+            manual = ManualPS2(ctl) if config.MANUAL_BACKEND == "ps2" else ManualJoystick(ctl)
             manual.start()
         httpd = make_server(ctl, args.host, args.port)
         kind = "simulated" if args.fake else "marker-guided"

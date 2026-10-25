@@ -141,7 +141,9 @@ class RealCar:
         self._servos = _try("opening servos", lambda: _freenove("servo").Servo())
         self._sonar = _try("opening ultrasonic", lambda: _freenove("ultrasonic").Ultrasonic())
         self._adc = _try("opening battery adc", _BatteryAdc)
-        self._leds = _try("opening leds", _open_leds)
+        self._leds = _try("opening leds", _open_leds) if config.FREENOVE_LEDS_ENABLED else None
+        if not config.FREENOVE_LEDS_ENABLED:
+            print("car: Freenove SPI LEDs disabled while GPIO PS2 controller mode is active")
 
     def drive(self, left: int, right: int) -> None:
         left, right = motor_duties(left, right)

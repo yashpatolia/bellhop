@@ -65,11 +65,11 @@ done
 sudo apt-get install -y --no-install-recommends "${packages[@]}"
 echo "success: every package shows as 'already the newest version' on a re-run"
 
-step "3/7 I2C + SPI on, Freenove's car drivers (imported from their repo, never copied)"
+step "3/7 I2C on, kernel SPI off for the GPIO-wired PS2 receiver, Freenove car drivers"
 sudo raspi-config nonint do_i2c 0
-sudo raspi-config nonint do_spi 0
+sudo raspi-config nonint do_spi 1
 [[ -e /dev/i2c-1 ]] || echo "WARNING: /dev/i2c-1 missing: reboot (sudo reboot), then re-run this script"
-[[ -e /dev/spidev0.0 ]] || echo "WARNING: /dev/spidev0.0 missing: reboot for the SPI LEDs"
+[[ ! -e /dev/spidev0.0 ]] || echo "WARNING: kernel SPI is still enabled: reboot before connecting the PS2 receiver"
 freenove="$HOME/Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi"
 if [[ ! -f "$freenove/Code/Server/motor.py" ]]; then
   git clone --depth 1 https://github.com/Freenove/Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi "$freenove"
@@ -132,6 +132,12 @@ for attempt in 1 2 3 4; do
   sleep 10
 done
 echo "success: no errors above; nothing is downloaded on a re-run"
+
+step "6b/7 Optional GPIO PS2 receiver library"
+# The receiver is a direct GPIO peripheral, not a USB joystick. Keep this hardware-only package
+# outside the lock so laptop development and non-PS2 deployments do not install Blinka.
+"$python" -m pip install --quiet --upgrade adafruit-blinka circuitpython-ps2controller
+echo "success: Blinka and circuitpython-ps2controller installed"
 
 step "7/7 Models, then the smoke test"
 if [[ ! -f models/yolo26n_ncnn_model/model.ncnn.param ]]; then
