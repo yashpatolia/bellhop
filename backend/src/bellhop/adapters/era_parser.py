@@ -28,7 +28,7 @@ _EMPHASIS = re.compile(r"(?<!\w)_+|_+(?!\w)|\*\*")
 _UNESCAPE = re.compile(r"\\(.)")
 
 _MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
-_DATE_PREFIX = re.compile(rf"^(?:(?:{_MONTHS})(?: \d{{1,2}})?|Christmas|date unknown)\s*[–-]\s*")
+_DATE_PREFIX = re.compile(rf"^(?:(?:{_MONTHS})(?: \d{{1,2}})?|Christmas|date unknown)\s*[\u2013-]\s*")
 _DATE_ONLY = re.compile(rf"^(?:(?:{_MONTHS})(?: \d{{1,2}})?|Christmas|date unknown)$")
 _CROSS_LINK = re.compile(r"^\d{4} in .+")
 
@@ -66,7 +66,7 @@ def _clean(raw: str) -> str:
 def _cap(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
-    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:–-")
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:\u2013-")
     return cut or text[:limit]
 
 
@@ -100,8 +100,8 @@ def _classify(heading: str) -> str | None:
 
 _Built = tuple[ContentKind, str, str] | None  # kind, title, blurb
 _ARTIST_ONLY = re.compile(r"^(?:w\.|m\.|w\.m\.)", re.IGNORECASE)
-_SEP = re.compile(r"\s[–-]\s")
-_SHAPE_SONG = re.compile(r"^\"[^\"]+\"\s*[–-]")
+_SEP = re.compile(r"\s[\u2013-]\s")
+_SHAPE_SONG = re.compile(r"^\"[^\"]+\"\s*[\u2013-]")
 
 
 def _title_artist(text: str) -> tuple[str, str | None]:
@@ -109,7 +109,7 @@ def _title_artist(text: str) -> tuple[str, str | None]:
     if quoted:
         title, rest = quoted.group(1).strip(), quoted.group(2).strip()
         rest = re.sub(r"^/\s*\"[^\"]+\"", "", rest).strip()  # "A" / "B" - X
-        match = re.match(r"^(?:[–-]|by)\s+(.*)$", rest)
+        match = re.match(r"^(?:[\u2013-]|by)\s+(.*)$", rest)
         artist = match.group(1).strip() if match else None
     else:
         parts = _SEP.split(text, maxsplit=1)
@@ -149,7 +149,7 @@ def _film_score(text: str, year: int) -> _Built:
 
 
 def _musical_film(text: str, year: int) -> _Built:
-    title = re.split(r"\s(?:starring|released)\b|\s[–-]\s", text, maxsplit=1)[0].strip()
+    title = re.split(r"\s(?:starring|released)\b|\s[\u2013-]\s", text, maxsplit=1)[0].strip()
     if not title:
         return None
     detail = text if text != title else f"A musical film of {year}."
@@ -165,7 +165,7 @@ def _natural_title(sentence: str) -> str:
     words = window.rsplit(" ", 1)[0].split()
     while len(words) > 3 and words[-1].lower().strip(",;:") in _TRAILING_WORDS:
         words.pop()
-    return " ".join(words).rstrip(" ,;:–-")
+    return " ".join(words).rstrip(" ,;:\u2013-")
 
 
 def _event(text: str, year: int) -> _Built:

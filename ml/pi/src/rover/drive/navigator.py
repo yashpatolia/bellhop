@@ -407,7 +407,7 @@ class MarkerNavigator:
 
         A single blank ArUco frame is common during normal walking. Stopping is immediate, but
         moving the head immediately makes reacquisition less likely because it takes the camera
-        away from where the target was last seen. Exploration is still stationary—never blind
+        away from where the target was last seen. Exploration is still stationary, never blind
         wheel movement.
         """
         self._reset_marker_turn()

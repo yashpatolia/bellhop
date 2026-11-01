@@ -63,11 +63,11 @@ def test_headings_choose_kind_and_skip_unfriendly_sections():
 
 ## Events
 
-*   [March 3](https://x/y "y") – Elvis returns home to a [warm welcome](https://x/z) from fans.
+*   [March 3](https://x/y "y") \u2013 Elvis returns home to a [warm welcome](https://x/z) from fans.
 
 ## Top hits on record
 
-*   "[Cathy's Clown](https://x/c)" – The Everly Brothers
+*   "[Cathy's Clown](https://x/c)" \u2013 The Everly Brothers
 
 ## Film
 
@@ -75,15 +75,15 @@ def test_headings_choose_kind_and_skip_unfriendly_sections():
 
 ## Deaths
 
-*   [May 1](https://x/a) – Someone Famous, singer, 70
+*   [May 1](https://x/a) \u2013 Someone Famous, singer, 70
 
 ## Births
 
-*   [May 2](https://x/a) – Baby Star, singer
+*   [May 2](https://x/a) \u2013 Baby Star, singer
 
 ## References
 
-*   "Cited Work" – Some Journal
+*   "Cited Work" \u2013 Some Journal
 """
     items = parse_era(md, 1960)
     by_title = {i.title: i for i in items}
@@ -103,14 +103,14 @@ def test_empty_or_garbage_input_gives_no_items():
 def test_html_to_markdown_keeps_headings_lists_and_drops_noise():
     html = (
         '<div class="mw-heading"><h2 id="Events">Events</h2></div>'
-        '<ul><li><a href="/wiki/J">January 1</a> – Big <i>news</i> arrives.<sup>[1]</sup></li>'
+        '<ul><li><a href="/wiki/J">January 1</a> \u2013 Big <i>news</i> arrives.<sup>[1]</sup></li>'
         "<li>June<ul><li>A nested thing happens.</li></ul></li></ul>"
         "<table><tr><td>cell junk</td></tr></table>"
         '<div class="reflist"><ol><li>cite junk</li></ol></div>'
     )
     md = html_to_markdown(html)
     assert "## Events" in md
-    assert "* January 1 – Big _news_ arrives." in md
+    assert "* January 1 \u2013 Big _news_ arrives." in md
     assert "  * A nested thing happens." in md
     assert "junk" not in md and "[1]" not in md
 
@@ -140,8 +140,8 @@ def test_event_titles_end_naturally_without_ellipsis():
 def test_album_rows_are_album_then_artist_and_blurb_reads_naturally():
     md = (
         "## Albums released\n\n"
-        "*   _Come Fly with Me_ – Frank Sinatra\n"
-        "*   _Andy Williams_ – Andy Williams\n"
+        "*   _Come Fly with Me_ \u2013 Frank Sinatra\n"
+        "*   _Andy Williams_ \u2013 Andy Williams\n"
     )
     by_title = {i.title: i for i in parse_era(md, 1958)}
     assert (
@@ -158,5 +158,5 @@ def test_top_items_are_friendly_not_business_announcements():
     for item in parse_era(REAL, 1955)[:5]:
         text = item.title + " " + item.blurb
         assert not any(w.lower() in text.lower() for w in business), text
-    md = "## Events\n\n*   [May 1](x) – Court hears a lawsuit over song royalties, judge decides.\n"
+    md = "## Events\n\n*   [May 1](x) \u2013 Court hears a lawsuit over song royalties, judge decides.\n"
     assert parse_era(md, 1955) == []
