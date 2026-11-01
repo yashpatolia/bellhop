@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430" role="img">
+<title>Turning to face a door marker with only a camera</title>
+<desc>The marker's offset in the camera frame after each turn pulse. With the pulse halved after an overshoot, the robot lands in the dead band in two pulses. Without halving, the same rule jumps across the band forever. Simulated with the real turn code and an assumed turn rate.</desc>
+<rect x="6" y="6" width="888" height="418" rx="8" fill="#f7f2e7" stroke="#d8cfbd" stroke-width="1"/>
+<text x="32.0" y="46.0" font-family="Georgia, 'Times New Roman', serif" font-size="21" fill="#2b2824" text-anchor="start" font-weight="400" font-style="italic" >Turning to face a door marker, with only a camera</text>
+<text x="32.0" y="70.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#6b6358" text-anchor="start" font-weight="400" font-style="normal" >No encoders, no IMU: the camera closes the loop. Each dot is one check with the wheels stopped; between dots, one turn pulse.</text>
+<text x="32.0" y="108.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="10.5" fill="#6b6358" text-anchor="start" font-weight="700" font-style="normal" letter-spacing="1.2">WHAT THE ROBOT MEASURES</text>
+<rect x="32" y="118" width="260" height="148" rx="6" fill="#1c2333"/>
+<rect x="141.2" y="118" width="41.6" height="148" fill="#3ddc6a" fill-opacity="0.30"/>
+<line x1="162.0" y1="126" x2="162.0" y2="258" stroke="#f7f2e7" stroke-opacity="0.5" stroke-dasharray="3 4"/>
+<rect x="249.0" y="175.0" width="34" height="34" fill="#ffffff"/>
+<rect x="253.0" y="179.0" width="26" height="26" fill="#111111"/>
+<rect x="257.33" y="183.33" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="270.33" y="183.33" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="261.67" y="187.67" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="266.00" y="187.67" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="257.33" y="192.00" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="266.00" y="192.00" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="266.00" y="196.33" width="4.33" height="4.33" fill="#ffffff"/>
+<rect x="270.33" y="196.33" width="4.33" height="4.33" fill="#ffffff"/>
+<line x1="162.0" y1="192.0" x2="243.0" y2="192.0" stroke="#f7f2e7" stroke-width="2"/>
+<path d="M243.0 192.0 l-8 -5 v10 z" fill="#f7f2e7"/>
+<text x="202.5" y="182.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#f7f2e7" text-anchor="middle" font-weight="700" font-style="normal" >x = +0.8</text>
+<text x="32.0" y="282.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >-1</text>
+<text x="162.0" y="282.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >0</text>
+<text x="292.0" y="282.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >+1</text>
+<text x="32.0" y="306.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal" >x: the marker's offset from the centre,</text>
+<text x="32.0" y="322.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal" >-1 to +1, with the head facing forward.</text>
+<rect x="32" y="333" width="14" height="12" fill="#3ddc6a" fill-opacity="0.45"/>
+<text x="52.0" y="344.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal" >|x| up to 0.16: close enough, drive.</text>
+<text x="32.0" y="370.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal" >Each pulse: 0.07 to 0.24 s, longer for bigger |x|.</text>
+<text x="32.0" y="388.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal" >x changed sign? It overshot: halve every</text>
+<text x="32.0" y="404.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal" >later pulse, down to 0.35 of full length.</text>
+<text x="400.0" y="96.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="start" font-weight="400" font-style="normal" >marker offset x after each pulse</text>
+<rect x="400" y="219.9" width="432" height="44.2" fill="#3ddc6a" fill-opacity="0.22"/>
+<line x1="400" y1="104.0" x2="832" y2="104.0" stroke="#e4dccb" stroke-width="1"/>
+<text x="390.0" y="108.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="end" font-weight="400" font-style="normal" >+1</text>
+<line x1="400" y1="242.0" x2="832" y2="242.0" stroke="#e4dccb" stroke-width="1"/>
+<text x="390.0" y="246.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="end" font-weight="400" font-style="normal" >0</text>
+<line x1="400" y1="380.0" x2="832" y2="380.0" stroke="#e4dccb" stroke-width="1"/>
+<text x="390.0" y="384.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="end" font-weight="400" font-style="normal" >-1</text>
+<text x="840.0" y="239.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#1f7a43" text-anchor="start" font-weight="700" font-style="normal" >drive</text>
+<text x="840.0" y="253.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#1f7a43" text-anchor="start" font-weight="700" font-style="normal" >forward</text>
+<text x="400.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >0</text>
+<text x="448.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >1</text>
+<text x="496.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >2</text>
+<text x="544.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >3</text>
+<text x="592.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >4</text>
+<text x="640.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >5</text>
+<text x="688.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >6</text>
+<text x="736.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >7</text>
+<text x="784.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >8</text>
+<text x="832.0" y="398.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="middle" font-weight="400" font-style="normal" >9</text>
+<text x="832.0" y="414.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="end" font-weight="400" font-style="normal" >camera check</text>
+<path d="M400 131.6 L448 298.9 L496 194.4 L544 286.3 L592 198.5 L640 286.3 L688 198.5 L736 286.3 L784 198.5 L832 286.3" fill="none" stroke="#b8382f" stroke-width="2" stroke-dasharray="6 5" stroke-linejoin="round"/>
+<circle cx="400" cy="131.6" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="448" cy="298.9" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="496" cy="194.4" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="544" cy="286.3" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="592" cy="198.5" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="640" cy="286.3" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="688" cy="198.5" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="736" cy="286.3" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="784" cy="198.5" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<circle cx="832" cy="286.3" r="3.5" fill="#f7f2e7" stroke="#b8382f" stroke-width="1.8"/>
+<path d="M400 131.6 L448 298.9 L496 244.5" fill="none" stroke="#2563c9" stroke-width="3.2" stroke-linejoin="round"/>
+<circle cx="400" cy="131.6" r="5" fill="#2563c9"/>
+<circle cx="448" cy="298.9" r="5" fill="#2563c9"/>
+<circle cx="496" cy="244.5" r="5" fill="#2563c9"/>
+<text x="410.0" y="123.6" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal" >start: x = +0.8</text>
+<text x="436.0" y="184.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal" >0.20 s</text>
+<line x1="496" y1="252.5" x2="496" y2="338" stroke="#2563c9" stroke-width="1.2"/>
+<text x="504.0" y="334.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2563c9" text-anchor="start" font-weight="700" font-style="normal" >With halving (Bellhop): the overshoot halves the next pulse</text>
+<text x="504.0" y="351.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2563c9" text-anchor="start" font-weight="400" font-style="normal" >to 0.06 s, it lands in the band and drives forward.</text>
+<text x="832.0" y="150.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#b8382f" text-anchor="end" font-weight="700" font-style="normal" >Without halving: about 0.10 s pulses jump</text>
+<text x="832.0" y="167.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#b8382f" text-anchor="end" font-weight="400" font-style="normal" >across the band forever (hunting).</text>
+</svg>

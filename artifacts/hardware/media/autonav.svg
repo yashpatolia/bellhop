@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 410" width="900" height="410" role="img">
+<title>How the robot finds a room</title>
+<desc>Four stages: the camera head sweeps for the door marker with the wheels stopped; once found, the head faces forward; the body turns in short camera-checked pulses until the marker is centred; then it drives forward while the ultrasonic reads clear and stops 1 m from the marker.</desc>
+<defs><marker id="tip" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2563c9"/></marker></defs>
+<defs><marker id="tipm" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#6b6358"/></marker></defs>
+<rect x="6" y="6" width="888" height="398" rx="8" fill="#f7f2e7" stroke="#d8cfbd"/>
+<text x="32.0" y="46.0" font-family="Georgia, 'Times New Roman', serif" font-size="21" fill="#2b2824" text-anchor="start" font-weight="400" font-style="italic">How the robot finds a room</text>
+<text x="32.0" y="70.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#6b6358" text-anchor="start" font-weight="400" font-style="normal">The backend says "go to room 104". The Pi turns the room into that door's marker ID and runs this loop. No map, no encoders.</text>
+<clipPath id="p0"><rect x="32" y="114" width="196" height="140" rx="6"/></clipPath>
+<text x="32.0" y="104.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="13.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal">1. Search</text>
+<rect x="32" y="114" width="196" height="140" rx="6" fill="#efe7d6"/>
+<g clip-path="url(#p0)">
+<line x1="32" y1="128" x2="228" y2="128" stroke="#2b2824" stroke-width="3"/>
+<rect x="96.0" y="132.0" width="16" height="16" fill="#fff" stroke="#2b2824" stroke-width="0.8"/><rect x="98.0" y="134.0" width="12" height="12" fill="#111"/><rect x="100.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="106.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="102.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="104.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="100.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="104.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="104.00" y="142.00" width="2.00" height="2.00" fill="#fff"/><rect x="106.00" y="142.00" width="2.00" height="2.00" fill="#fff"/>
+<path d="M130.0 202.0 L51.7 185.4 A80 80 0 0 1 208.3 185.4 Z" fill="#2563c9" fill-opacity="0.08"/>
+<line x1="130.0" y1="202.0" x2="77.7" y2="149.7" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="77.7" cy="149.7" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="93.0" y2="137.9" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="93.0" cy="137.9" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="110.8" y2="130.5" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="110.8" cy="130.5" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="130.0" y2="128.0" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="130.0" cy="128.0" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="149.2" y2="130.5" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="149.2" cy="130.5" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="167.0" y2="137.9" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="167.0" cy="137.9" r="2.6" fill="#2563c9"/>
+<line x1="130.0" y1="202.0" x2="182.3" y2="149.7" stroke="#2563c9" stroke-width="1.3" stroke-dasharray="3 3" stroke-opacity="0.8"/>
+<circle cx="182.3" cy="149.7" r="2.6" fill="#2563c9"/>
+<text x="220.0" y="232.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11.5" fill="#2563c9" text-anchor="end" font-weight="700" font-style="normal">7 pans</text>
+<text x="220.0" y="246.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11.5" fill="#2563c9" text-anchor="end" font-weight="700" font-style="normal">× 3 tilts</text>
+<path d="M107.5 189.0 A26 26 0 0 1 152.5 189.0" fill="none" stroke="#2563c9" stroke-width="1.8" marker-start="url(#tip)" marker-end="url(#tip)"/>
+<g transform="translate(130.0 222.0) rotate(0.0)" opacity="1.0"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+</g>
+<text x="32.0" y="276.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Wheels stopped. The head</text>
+<text x="32.0" y="291.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">looks at 7 pans (45 to 135</text>
+<text x="32.0" y="306.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">degrees, 15 apart) × 3 tilts,</text>
+<text x="32.0" y="321.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">0.6 s each. Nothing seen?</text>
+<text x="32.0" y="336.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Turn 0.35 s, sweep again.</text>
+<path d="M231 184.0 h10" stroke="#6b6358" stroke-width="1.6" marker-end="url(#tipm)"/>
+<clipPath id="p1"><rect x="246" y="114" width="196" height="140" rx="6"/></clipPath>
+<text x="246.0" y="104.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="13.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal">2. Look ahead</text>
+<rect x="246" y="114" width="196" height="140" rx="6" fill="#efe7d6"/>
+<g clip-path="url(#p1)">
+<line x1="246" y1="128" x2="442" y2="128" stroke="#2b2824" stroke-width="3"/>
+<rect x="310.0" y="132.0" width="16" height="16" fill="#fff" stroke="#2b2824" stroke-width="0.8"/><rect x="312.0" y="134.0" width="12" height="12" fill="#111"/><rect x="314.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="320.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="316.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="318.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="314.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="318.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="318.00" y="142.00" width="2.00" height="2.00" fill="#fff"/><rect x="320.00" y="142.00" width="2.00" height="2.00" fill="#fff"/>
+<polygon points="344.0,202.0 284.1,109.7 403.9,109.7" fill="#2563c9" fill-opacity="0.24" stroke="#2563c9" stroke-opacity="0.55" stroke-width="1"/>
+<line x1="344.0" y1="202.0" x2="318.0" y2="148.0" stroke="#2b2824" stroke-width="1.2" stroke-dasharray="3 3"/>
+<text x="358.0" y="164.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal">x = -0.7</text>
+<g transform="translate(344.0 222.0) rotate(0.0)" opacity="1.0"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+</g>
+<text x="246.0" y="276.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Marker found. The head</text>
+<text x="246.0" y="291.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">swings back to face forward</text>
+<text x="246.0" y="306.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">and settles 0.3 s, so x is</text>
+<text x="246.0" y="321.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">measured from the body.</text>
+<path d="M445 184.0 h10" stroke="#6b6358" stroke-width="1.6" marker-end="url(#tipm)"/>
+<clipPath id="p2"><rect x="460" y="114" width="196" height="140" rx="6"/></clipPath>
+<text x="460.0" y="104.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="13.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal">3. Turn to face it</text>
+<rect x="460" y="114" width="196" height="140" rx="6" fill="#efe7d6"/>
+<g clip-path="url(#p2)">
+<line x1="460" y1="128" x2="656" y2="128" stroke="#2b2824" stroke-width="3"/>
+<rect x="524.0" y="132.0" width="16" height="16" fill="#fff" stroke="#2b2824" stroke-width="0.8"/><rect x="526.0" y="134.0" width="12" height="12" fill="#111"/><rect x="528.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="534.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="530.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="532.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="528.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="532.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="532.00" y="142.00" width="2.00" height="2.00" fill="#fff"/><rect x="534.00" y="142.00" width="2.00" height="2.00" fill="#fff"/>
+<g transform="translate(558.0 222.0) rotate(0.0)" opacity="0.18"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+<g transform="translate(558.0 222.0) rotate(-29.6)" opacity="0.35"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+<polygon points="552.0,202.9 467.0,133.1 581.2,96.9" fill="#2563c9" fill-opacity="0.24" stroke="#2563c9" stroke-opacity="0.55" stroke-width="1"/>
+<g transform="translate(558.0 222.0) rotate(-17.6)" opacity="1.0"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+<text x="588.0" y="226.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="start" font-weight="400" font-style="normal">overshoot,</text>
+<text x="588.0" y="239.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#6b6358" text-anchor="start" font-weight="400" font-style="normal">then halve</text>
+</g>
+<text x="460.0" y="276.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Short turn pulses, a fresh</text>
+<text x="460.0" y="291.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">frame after each, halved</text>
+<text x="460.0" y="306.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">after an overshoot, until</text>
+<text x="460.0" y="321.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">|x| is under 0.16.</text>
+<path d="M659 184.0 h10" stroke="#6b6358" stroke-width="1.6" marker-end="url(#tipm)"/>
+<clipPath id="p3"><rect x="674" y="114" width="196" height="140" rx="6"/></clipPath>
+<text x="674.0" y="104.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="13.5" fill="#2b2824" text-anchor="start" font-weight="700" font-style="normal">4. Approach</text>
+<rect x="674" y="114" width="196" height="140" rx="6" fill="#efe7d6"/>
+<g clip-path="url(#p3)">
+<line x1="674" y1="128" x2="870" y2="128" stroke="#2b2824" stroke-width="3"/>
+<rect x="738.0" y="132.0" width="16" height="16" fill="#fff" stroke="#2b2824" stroke-width="0.8"/><rect x="740.0" y="134.0" width="12" height="12" fill="#111"/><rect x="742.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="748.00" y="136.00" width="2.00" height="2.00" fill="#fff"/><rect x="744.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="746.00" y="138.00" width="2.00" height="2.00" fill="#fff"/><rect x="742.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="746.00" y="140.00" width="2.00" height="2.00" fill="#fff"/><rect x="746.00" y="142.00" width="2.00" height="2.00" fill="#fff"/><rect x="748.00" y="142.00" width="2.00" height="2.00" fill="#fff"/>
+<line x1="674" y1="172" x2="870" y2="172" stroke="#1f7a43" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="862.0" y="167.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="11" fill="#1f7a43" text-anchor="end" font-weight="700" font-style="normal">1 m: stop</text>
+<line x1="772.0" y1="222.0" x2="761.6" y2="189.2" stroke="#6b6358" stroke-width="1.5" stroke-dasharray="2 4"/>
+<g transform="translate(761.6 189.2) rotate(-17.6)" opacity="1.0"><rect x="-19" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="-17" width="6" height="12" rx="1.5" fill="#111"/><rect x="-19" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="13" y="5" width="6" height="12" rx="1.5" fill="#111"/><rect x="-14" y="-20" width="28" height="40" rx="4" fill="#262a26"/><rect x="-11" y="-6" width="22" height="16" rx="2" fill="#1c2333"/><circle cx="0" cy="-20" r="5.5" fill="#2563c9"/></g>
+<path d="M747.6 164.0 A10 10 0 0 1 758.5 160.6" fill="none" stroke="#2b2824" stroke-opacity="0.8" stroke-width="1.4"/>
+<path d="M742.8 160.4 A16 16 0 0 1 760.3 154.8" fill="none" stroke="#2b2824" stroke-opacity="0.6" stroke-width="1.4"/>
+<path d="M738.1 156.7 A22 22 0 0 1 762.1 149.1" fill="none" stroke="#2b2824" stroke-opacity="0.4" stroke-width="1.4"/>
+</g>
+<text x="674.0" y="276.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Forward only while centred</text>
+<text x="674.0" y="291.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">and the ultrasonic reads</text>
+<text x="674.0" y="306.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">25 cm or more. Distance from</text>
+<text x="674.0" y="321.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">the marker's size: stop at 1 m.</text>
+<line x1="32" y1="360" x2="868" y2="360" stroke="#d8cfbd"/>
+<text x="32.0" y="380.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal"><tspan font-weight="700">If it goes wrong:</tspan> marker lost for 0.5 s, back to 1. Searching for 45 s, stop and report a failure, never a fake arrival.</text>
+<text x="32.0" y="396.0" font-family="'Helvetica Neue', Helvetica, 'Segoe UI', sans-serif" font-size="12.5" fill="#2b2824" text-anchor="start" font-weight="400" font-style="normal">Commands from the backend stop arriving, the wheels stop.</text>
+</svg>
