@@ -164,7 +164,7 @@ tone choices on the Pi, add the sandbox key only to `~/ml/.env` (never commit it
 TYPESAFE_API_KEY=<your-key>
 ```
 
-The adapter uses the existing HTTP client—there is no SDK or model download. `JEV_TIMEOUT_S`
+The adapter uses the existing HTTP client; there is no SDK or model download. `JEV_TIMEOUT_S`
 (default `1.5`) bounds an individual request. The first spoken reply never waits for Jev's optional
 tone; it uses Claude's tag when the background decision is not already ready. Network/API errors
 and malformed answers are ignored. Claude remains the primary triage narrative; Jev can only add
@@ -175,8 +175,8 @@ On the backend laptop for the demo: `BELLHOP_ROBOT_URL=http://<pi-tailscale-ip>:
 
 ### Safe stationary conversation test
 
-Use this before any drive test. It exercises the complete voice path—bell call, Moonshine
-transcription, Claude reply, Piper playback and backend triage—while deliberately preventing all
+Use this before any drive test. It exercises the complete voice path (bell call, Moonshine
+transcription, Claude reply, Piper playback and backend triage) while deliberately preventing all
 drive commands. The backend must be started with `BELLHOP_ROBOT_URL` **unset** for this test.
 
 On the Pi, first confirm that the configured backend answers. `API` is read from `.env`, so no
@@ -259,7 +259,7 @@ controller-model hardcodes. Verify the mapping with wheels raised before any flo
 
 **Rooms.** Printed markers use `DICT_4X4_250` (15 cm). Configure the venue mapping in the Pi's uncommitted `.env`, for example `BELLHOP_MARKER_ROOMS={"210":"12"}` when physical marker 210 is the backend's room 12. Numeric targets such as `210` address that marker directly; no room-to-marker mapping is embedded in code. Keep the backend resident room, bell button and this deployment mapping aligned.
 
-**Head scan.** While a requested marker is missing, the rover keeps its wheels stopped and sweeps the camera head through the Cartesian product of `BELLHOP_HEAD_SCAN_PANS` and `BELLHOP_HEAD_SCAN_TILTS`. The Freenove servo client maps selectors 0/1 to PCA9685 channels 8/9 (pan/tilt) and applies a +10-degree calibration offset, so autonomous scans are restricted to the stock-safe pan range 30–150 degrees; tilt is restricted to 80–180 degrees to clear the chassis. The default sweep is pan 30/90/150 at tilt 80/90/110. Tune the dwell in `.env`, then first run `python -m rover.drive --head-test` with the wheels clear of the floor. A missing marker never makes the rover drive blindly.
+**Head scan.** While a requested marker is missing, the rover keeps its wheels stopped and sweeps the camera head through the Cartesian product of `BELLHOP_HEAD_SCAN_PANS` and `BELLHOP_HEAD_SCAN_TILTS`. The Freenove servo client maps selectors 0/1 to PCA9685 channels 8/9 (pan/tilt) and applies a +10-degree calibration offset, so autonomous scans are restricted to the stock-safe pan range 30 to 150 degrees; tilt is restricted to 80 to 180 degrees to clear the chassis. The default sweep is pan 30/90/150 at tilt 80/90/110. Tune the dwell in `.env`, then first run `python -m rover.drive --head-test` with the wheels clear of the floor. A missing marker never makes the rover drive blindly.
 
 **Offline marker mode.** ArUco room detection does not need YOLO or YuNet. If either local person/face model is absent, `rover.vision` logs that those optional detections are disabled and continues with camera, markers, UDP and snapshots; it never starts an implicit model download.
 

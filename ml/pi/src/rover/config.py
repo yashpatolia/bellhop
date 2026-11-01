@@ -238,7 +238,7 @@ CENTER_TOLERANCE = 0.1  # share of half the frame width counted as centred
 # Encoders are unavailable, so heading is closed-loop visual servoing rather than a timed turn
 # guessed from wheel RPM.  When a marker is materially off centre, stop forward travel, apply one
 # short in-place turn pulse, wait for a fresh post-turn camera frame, then measure again.  If a
-# pulse crosses the centre line, following pulses are reduced—binary-search-like correction
+# pulse crosses the centre line, following pulses are reduced: a binary-search-like correction
 # driven by the only truthful measurement we have: the camera.
 MARKER_TURN_CENTER_X = float(os.environ.get("BELLHOP_MARKER_TURN_CENTER_X", "0.16"))
 MARKER_TURN_DUTY = int(os.environ.get("BELLHOP_MARKER_TURN_DUTY", "900"))
