@@ -83,7 +83,7 @@ video</a> on YouTube.
 ## Edge AI: what runs on the robot
 
 <p align="center">
-  <img src="artifacts/hardware/media/edge-ai.svg" width="860" alt="On the Raspberry Pi 5: YOLO26n, YuNet and ArUco vision; Silero VAD and Moonshine; the Piper voice, eyes and games; the tool runner, triage floor and safe stop. In the cloud, each with a fallback: Deepgram Flux (Moonshine after 5 s), Claude Sonnet (a fixed line, then a nurse), Claude Haiku (urgency 3), optional Jev (ignored)">
+  <img src="artifacts/hardware/media/edge-ai.svg" width="860" alt="On the Raspberry Pi 5: YOLO26n, YuNet and ArUco vision; Silero VAD and Moonshine; the Piper voice, eyes and games; the tool runner, triage floor and safe stop. In the cloud, each with a fallback: Deepgram Flux (Moonshine after 5 s), Claude Sonnet (a fixed line, then a nurse), Jev for triage and tone (Claude Haiku), Claude Haiku as the backup (urgency 3)">
 </p>
 
 - **Two speeds.** Gordon designed navigation as a fast loop on the Pi (YOLO26n, YuNet and the
@@ -92,6 +92,12 @@ video</a> on YouTube.
   Claude sees the camera only through its `look` tool.
 - **Cloud speech, by measurement.** Gordon benchmarked Deepgram Flux against local models in the
   loud venue. Flux held up far better, so Moonshine is the fallback.
+- **Jev first, Claude Haiku second.**<sup>\*</sup> Gordon made TypeSafe's Jev the primary triage and
+  tone model because it is faster and gives probabilities. Triage waits up to 1.5 s for Jev, and a
+  score at 0.7 confidence or higher is posted on its own. If Jev is unsure, slow or down, Claude
+  Haiku decides and the higher urgency wins.
+  <br><sub>\* As built in `2bb1595`. `master` currently runs Claude first, with Jev as an optional
+  check that can only raise urgency.</sub>
 - **Fallbacks lean toward a nurse.** Confidence under 0.6 bumps urgency a level, the local floor can
   only raise it, and urgency never drops on a call.
 - **A 6.5 KB triage head** on `bge-small-en-v1.5` embeddings. On 156 held-out lines it lifts urgent
